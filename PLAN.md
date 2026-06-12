@@ -29,18 +29,18 @@
 ### Phase 1 — Foundation
 
 #### 1.1 F001: Manifest Parsing (US001, US002, US003)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F001-project-configuration-and-manifest-parsing.feature`](docs/sdlc/features/E001-F001-project-configuration-and-manifest-parsing.feature)
-- [ ] Depends on: nothing
-- [ ] Classes: `ScanTarget`, `ProjectManifest`, `ManifestLoader`, `ManifestValidator`
-- [ ] Verify: `mvn test` + `mvn spring-boot:run` then `validate --manifest project-manifest.yaml`
-- [ ] Manual: point manifest at petclinic, run `validate`, confirm targets resolved
+- [x] Gherkin: [`docs/sdlc/features/E001-F001-project-configuration-and-manifest-parsing.feature`](docs/sdlc/features/E001-F001-project-configuration-and-manifest-parsing.feature)
+- [x] Depends on: nothing
+- [x] Classes: `ScanTarget`, `ProjectManifest`, `ManifestLoader`, `ManifestValidator`
+- [x] Verify: `mvn test` + `mvn spring-boot:run` then `validate --manifest project-manifest.yaml`
+- [x] Manual: point manifest at petclinic, run `validate`, confirm targets resolved
 
 #### 1.2 F005 Part 1: SQLite Task Store (US013, US014)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature`](docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature)
-- [ ] Depends on: nothing
-- [ ] Classes: `Task`, `TaskStore`, `TaskStoreSchema`, `TaskIdHasher`
-- [ ] Verify: `mvn test`
-- [ ] Manual: `scan` against petclinic → check `.code2req_cache.db` has tasks table with WAL mode
+- [x] Gherkin: [`docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature`](docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature)
+- [x] Depends on: nothing
+- [x] Classes: `Task`, `TaskStore`, `TaskStoreSchema`, `TaskIdHasher`
+- [x] Verify: `mvn test`
+- [x] Manual: `scan` against petclinic → check `.code2req_cache.db` has tasks table with WAL mode
 
 ### Phase 2 — Dependency Resolution
 
@@ -131,4 +131,5 @@
 
 ## Completed
 
-_None yet_
+- 2026-06-12 — **Phase 1.1 F001** (Manifest Parsing): `ScanTarget`, `ProjectManifest`, `ManifestLoader`, `ManifestValidator`, `ValidateCommand`, `ManifestValidationResult` — 17 tests ✓
+- 2026-06-12 — **Phase 1.2 F005 Part 1** (SQLite Task Store): `Task`, `TaskStatus`, `TaskIdHasher`, `TaskStoreSchema`, `TaskStore` — 18 tests ✓
