@@ -61,9 +61,10 @@ To maximize dependency resolution accuracy without inducing build-time hard bloc
 The indexer leverages a dedicated `VoidVisitorAdapter<Context>` traversal strategy to capture four structural dimensions:
 
 * **Component Identification & Types:** Detect classes, interfaces, and records. Identify stereotypes by inspecting class-level annotations (e.g., `@RestController`, `@Service`, `@Component`, `@Repository`).
-* **Inbound Ingress Points (HTTP/Events):**
+* **Inbound Ingress Points (HTTP/Events/Scheduled):**
 * *REST Endpoints:* Map methods annotated with `@RequestMapping`, `@PostMapping`, `@GetMapping`, etc. Extract literal path strings and HTTP verbs.
 * *Event Consumers:* Map methods annotated with Kafka listener frameworks (e.g., `@KafkaListener(topics = "...")`). Extract target topics.
+* *Scheduled Tasks:* Map methods annotated with `@Scheduled`. Extract cron expressions, fixed-delay, fixed-rate strings, and trigger zone.
 
 
 * **Outbound Egress Points (Dependencies & Triggers):**
@@ -121,7 +122,12 @@ The indexer flushes its in-memory graph into a standardized local JSON file save
       "component_type": "SERVICE_LOGIC",
       "source_hash": "f9e8d7c6b5a4...",
       "paired_test_file": null,
-      "ingress_points": [],
+      "ingress_points": [
+        {
+          "type": "SCHEDULED",
+          "schedule": "0 0 2 * * ?"
+        }
+      ],
       "egress_points": [
         {
           "type": "TOPIC_PUBLISH",
@@ -312,9 +318,9 @@ execution:
 
 The application must trace execution pathways across network boundaries. When a frontend source file defines an outbound call using environment variables or dynamic expressions (e.g., `${services.url}/api/v1/orders`), the Executor registers the `external_contract_hint` containing method type, payload properties, and endpoint parameters. The Phase 3 synthesis engine matches these "Floating Links" against the global registry of backend incoming paths using regex-based signature comparisons.
 
-### 3.3 Asynchronous Message Tracing (Topic Links)
+### 3.3 Asynchronous Message & Scheduled Trigger Tracing (Topic & Scheduled Links)
 
-The system must bridge decoupling gaps created by event-driven patterns. If a backend Executor identifies a message dispatcher block (e.g., `KafkaTemplate.send("order-topic", ...)`), it registers a "Topic Link" entry mapping the broker type and destination channel. The Planner uses this to automatically query and enqueue consumer files (`@KafkaListener(topics = "order-topic")`) across any repository in the manifest.
+The system must bridge decoupling gaps created by event-driven and time-driven patterns. If a backend Executor identifies a message dispatcher block (e.g., `KafkaTemplate.send("order-topic", ...)`), it registers a "Topic Link" entry mapping the broker type and destination channel. The Planner uses this to automatically query and enqueue consumer files (`@KafkaListener(topics = "order-topic")`) across any repository in the manifest. Methods annotated with `@Scheduled` are traced as time-based inbound triggers; their schedule metadata is captured and linked to the business operations they initiate.
 
 ### 3.4 Test Suite Mining (Assertion Extraction)
 
@@ -459,7 +465,7 @@ Every Executor must produce an output payload conforming strictly to the followi
       "properties": {
         "inbound": {
           "type": "object",
-          "required": ["http_endpoints", "event_subscriptions"],
+          "required": ["http_endpoints", "event_subscriptions", "scheduled_triggers"],
           "properties": {
             "http_endpoints": {
               "type": "array",
@@ -482,6 +488,17 @@ Every Executor must produce an output payload conforming strictly to the followi
                   "broker":            { "type": "string" },
                   "topic_or_queue":    { "type": "string" },
                   "payload_structure": { "type": "string" }
+                }
+              }
+            },
+            "scheduled_triggers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["schedule_expression", "description"],
+                "properties": {
+                  "schedule_expression": { "type": "string" },
+                  "description":         { "type": "string" }
                 }
               }
             }
