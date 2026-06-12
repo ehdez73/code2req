@@ -1,0 +1,14 @@
+targets:
+  - name: example-service
+    path: /Users/ehdez/workspace/scratch/spring-petclinic
+    layer: backend
+    tech_profile: java-spring-legacy
+    entry_points:
+    exclude_patterns:
+      - "**/generated/**"
+      - "**/*Pb.java"
+
+execution:
+  max-concurrent-llm-calls: 5
+  max-discovery-depth: 3
+  semantic-validation-sample-rate: 0.20
