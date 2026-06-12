@@ -54,11 +54,11 @@
 ### Phase 3 — Pre-processing
 
 #### 3.1 F004: Redaction & Exclude Filtering (US011, US012)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F004-secret-redaction-and-exclude-filtering.feature`](docs/sdlc/features/E001-F004-secret-redaction-and-exclude-filtering.feature)
-- [ ] Depends on: nothing (can parallel with 1.1)
-- [ ] Classes: `SecretRedactor`, `ExcludeFilter`
-- [ ] Verify: `mvn test`
-- [ ] Manual: inspect JSON output for `[REDACTED:*]` placeholders in source snippets
+- [x] Gherkin: [`docs/sdlc/features/E001-F004-secret-redaction-and-exclude-filtering.feature`](docs/sdlc/features/E001-F004-secret-redaction-and-exclude-filtering.feature)
+- [x] Depends on: nothing (can parallel with 1.1)
+- [x] Classes: `SecretRedactor`, `RedactionResult`, `ExcludeFilter`, `ExcludeResult`
+- [x] Verify: `mvn test`
+- [x] Manual: inspect JSON output for `[REDACTED:*]` placeholders in source snippets — tested via unit tests covering password, API key, token, secret, connection string redaction + `.gitignore`-style glob exclusion with `{,**/}` normalization
 
 ### Phase 4 — Core Analysis
 
@@ -134,3 +134,4 @@
 - 2026-06-12 — **Phase 1.1 F001** (Manifest Parsing): `ScanTarget`, `ProjectManifest`, `ManifestLoader`, `ManifestValidator`, `ValidateCommand`, `ManifestValidationResult` — 17 tests ✓
 - 2026-06-12 — **Phase 1.2 F005 Part 1** (SQLite Task Store): `Task`, `TaskStatus`, `TaskIdHasher`, `TaskStoreSchema`, `TaskStore` — 18 tests ✓
 - 2026-06-12 — **Phase 2.1 F002** (Maven Dependency Resolution): `MavenDependencyResolver`, `Dependency`, `DependencyGraph` — 12 tests ✓
+- 2026-06-12 — **Phase 3.1 F004** (Secret Redaction & Exclude Filtering): `SecretRedactor`, `RedactionResult`, `ExcludeFilter`, `ExcludeResult` — 18 tests (10 SecretRedactor + 8 ExcludeFilter) ✓
