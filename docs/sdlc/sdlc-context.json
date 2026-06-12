@@ -3,8 +3,8 @@
     "version": "1.2.0",
     "phase": "1",
     "created_at": "2026-06-12T12:00:00Z",
-    "last_updated": "2026-06-12T13:30:00Z",
-    "last_agent": "gherkin-generator"
+    "last_updated": "2026-06-12T14:30:00Z",
+    "last_agent": "open-questions-resolver"
   },
   "project": {
     "name": "code2req",
@@ -190,7 +190,7 @@
       "impact": "medium",
       "probability": "low",
       "mitigation": "Annotation-driven fallback strategy — classify components by annotation presence even when type resolution fails",
-      "affected_stories": []
+      "affected_stories": ["US006"]
     },
     {
       "id": "R002",
@@ -198,7 +198,7 @@
       "impact": "low",
       "probability": "medium",
       "mitigation": "Graceful failure with clear warning; standalone heuristic mode proceeds without dependency metadata",
-      "affected_stories": []
+      "affected_stories": ["US004", "US005"]
     },
     {
       "id": "R003",
@@ -206,7 +206,31 @@
       "impact": "medium",
       "probability": "low",
       "mitigation": "WAL mode + busy_timeout + connection pool configured upfront in Phase 1 implementation",
-      "affected_stories": []
+      "affected_stories": ["US014"]
+    },
+    {
+      "id": "R004",
+      "description": "Process crash during Phase 1 leaves SQLite task store in inconsistent state with orphaned RUNNING tasks",
+      "impact": "medium",
+      "probability": "medium",
+      "mitigation": "Startup orphan detection and reconciliation; resume command for explicit warm-start recovery",
+      "affected_stories": ["US017"]
+    },
+    {
+      "id": "R005",
+      "description": "Secret redaction misses non-standard credential patterns or produces false positives on benign values",
+      "impact": "high",
+      "probability": "low",
+      "mitigation": "Pattern-based detection with documented coverage scope; in-memory only operation limits blast radius",
+      "affected_stories": ["US011"]
+    },
+    {
+      "id": "R006",
+      "description": "JavaParser version incompatibility with Java language features used in target codebase (e.g., records, sealed classes, pattern matching)",
+      "impact": "medium",
+      "probability": "low",
+      "mitigation": "Pin compatible JavaParser version; graceful parse failure per file with logged error does not block full scan",
+      "affected_stories": ["US006"]
     }
   ],
   "assumptions": [
@@ -244,6 +268,12 @@
       "name": "Deterministic Multi-Language Indexing",
       "description": "Before any LLM interaction, the CLI scans the physical workspace using pure-Java AST parsers (JavaParser) to map signatures, endpoint routes, call frameworks, and event publishers. Produces a local intermediate JSON contract and populates the SQLite task store. Runs as a deterministic compiler-pass requiring zero network connectivity or LLM credentials.",
       "priority": "must"
+    },
+    {
+      "id": "E002",
+      "name": "Language Extension Framework",
+      "description": "Define a common parser abstraction (SPI) so that adding support for new programming languages does not require modifying the core pipeline. Language parsers implement a shared contract and are discovered at runtime. The rest of the pipeline (redaction, output, orchestration) remains parser-agnostic.",
+      "priority": "should"
     }
   ],
   "features": [
@@ -282,8 +312,8 @@
     {
       "id": "F003",
       "epic_id": "E001",
-      "name": "Java Source AST Analysis",
-      "description": "JavaParser-based scanning: component types, HTTP endpoints, event listeners, method calls, custom validators, and scheduled tasks.",
+      "name": "Java Source AST Analysis (JavaParser implementation)",
+      "description": "JavaParser-based scanning for Java/Spring codebases: component types, HTTP endpoints, event listeners, method calls, custom validators, and scheduled tasks. This is the reference implementation of the LanguageParser SPI.",
       "background": "Scan target directories resolved and accessible.",
       "business_rules": [
         "JavaParser processes each file independently — a single parse failure does not stop the full scan",
@@ -328,7 +358,8 @@
       ],
       "user_stories": [
         { "id": "US013", "title": "Developer produces structured analysis output", "priority": "must", "type": "story", "gherkin_file": "features/E001-F005-index-output-and-sqlite-persistence.feature" },
-        { "id": "US014", "title": "Developer persists scan state locally", "priority": "should", "type": "story", "gherkin_file": "features/E001-F005-index-output-and-sqlite-persistence.feature" }
+        { "id": "US014", "title": "Developer persists scan state locally", "priority": "should", "type": "story", "gherkin_file": "features/E001-F005-index-output-and-sqlite-persistence.feature" },
+        { "id": "US017", "title": "Developer recovers from crash mid-scan", "priority": "should", "type": "story", "gherkin_file": "features/E001-F005-index-output-and-sqlite-persistence.feature" }
       ]
     },
     {
@@ -346,6 +377,52 @@
         { "id": "US015", "title": "Developer runs a full Phase 1 scan", "priority": "must", "type": "story", "gherkin_file": "features/E001-F006-cli-scan-orchestration.feature" },
         { "id": "US016", "title": "Tech Lead confirms offline operation", "priority": "should", "type": "story", "gherkin_file": "features/E001-F006-cli-scan-orchestration.feature" }
       ]
+    },
+    {
+      "id": "F007",
+      "epic_id": "E002",
+      "name": "Parser Abstraction SPI",
+      "description": "Define a LanguageParser interface with a common output contract (components, endpoints, events, validators, tasks). Each language provides its own implementation. Contracts use optional fields so parsers can support a subset of capabilities.",
+      "background": "The core pipeline has been implemented and is ready to accept parser-agnostic input.",
+      "business_rules": [
+        "The SPI must define a single LanguageParser interface that all language parsers implement",
+        "The output contract must use optional fields — a parser can support only components without implementing endpoints or validators",
+        "The contract must be technology-agnostic (no Java/Spring-specific types in the interface)"
+      ],
+      "user_stories": [
+        { "id": "US018", "title": "Developer defines a common parser contract", "priority": "should", "type": "story", "gherkin_file": "features/E002-F007-parser-abstraction-spi.feature" },
+        { "id": "US019", "title": "Developer implements a new language parser", "priority": "should", "type": "story", "gherkin_file": "features/E002-F007-parser-abstraction-spi.feature" }
+      ]
+    },
+    {
+      "id": "F008",
+      "epic_id": "E002",
+      "name": "Parser Discovery & Routing",
+      "description": "A registry that maps file extensions to parsers. Discovers available parsers at startup and routes each source file to the correct parser based on its extension.",
+      "background": "The LanguageParser SPI is defined and at least one parser implementation exists.",
+      "business_rules": [
+        "Parser registration maps one or more file extensions to a single parser",
+        "If no parser is registered for a file extension, the file is logged as unsupported and skipped — it does not block the scan",
+        "If multiple parsers claim the same extension, the first registered wins with a warning logged"
+      ],
+      "user_stories": [
+        { "id": "US020", "title": "Developer registers a new parser for a language", "priority": "should", "type": "story", "gherkin_file": "features/E002-F008-parser-discovery-and-routing.feature" },
+        { "id": "US021", "title": "CLI routes files to the correct parser by extension", "priority": "should", "type": "story", "gherkin_file": "features/E002-F008-parser-discovery-and-routing.feature" }
+      ]
+    },
+    {
+      "id": "F009",
+      "epic_id": "E002",
+      "name": "Shared Pipeline Integration",
+      "description": "Wire the parser SPI into the existing pipeline (US013-US016) so that redaction, exclude filtering, output generation, and orchestration work with any parser's output without modification.",
+      "background": "Parser SPI, discovery, and at least one parser implementation exist.",
+      "business_rules": [
+        "Adding a new language parser must not require changes to the core pipeline (redaction, output, orchestration)",
+        "The shared output schema must accommodate language-specific metadata in optional fields"
+      ],
+      "user_stories": [
+        { "id": "US022", "title": "Developer adds a parser without changing the pipeline", "priority": "should", "type": "story", "gherkin_file": "features/E002-F009-shared-pipeline-integration.feature" }
+      ]
     }
   ],
   "stories": [],
@@ -359,7 +436,10 @@
       "features/E001-F003-java-source-ast-analysis.feature",
       "features/E001-F004-secret-redaction-and-exclude-filtering.feature",
       "features/E001-F005-index-output-and-sqlite-persistence.feature",
-      "features/E001-F006-cli-scan-orchestration.feature"
+      "features/E001-F006-cli-scan-orchestration.feature",
+      "features/E002-F007-parser-abstraction-spi.feature",
+      "features/E002-F008-parser-discovery-and-routing.feature",
+      "features/E002-F009-shared-pipeline-integration.feature"
     ]
   }
 }

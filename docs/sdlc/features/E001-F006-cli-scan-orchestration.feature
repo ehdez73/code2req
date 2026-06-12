@@ -1,9 +1,9 @@
 # Feature: CLI Scan Orchestration
 # Epic: E001 — Deterministic Multi-Language Indexing
 # Feature ID: F006
-# Stories: US015, US016
+# Stories: US015, US016, US017
 # Phase 1 draft generated: 2026-06-12
-# Last updated: 2026-06-12
+# Last updated: 2026-06-12 14:00
 
 Feature: CLI Scan Orchestration
   Phase 1 scan command that orchestrates the full pipeline end-to-end.
@@ -40,6 +40,14 @@ Feature: CLI Scan Orchestration
       When the developer runs the scan command
       Then the CLI exits early with a descriptive message
       And no index or database is produced
+
+    @US015 @E001 @F006 @must @draft
+    Scenario: Developer resumes a scan after interruption
+      Given a previously interrupted scan with orphaned tasks in the SQLite store
+      When the developer runs the resume command
+      Then orphaned RUNNING tasks are reconciled
+      And the scan resumes from the recovered state
+      And no already-completed files are re-processed
 
   # ---------------------------------------------------------------------------
   # Story US016: Tech Lead confirms offline operation

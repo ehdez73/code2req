@@ -1,9 +1,9 @@
 # Feature: Index Output & SQLite Persistence
 # Epic: E001 — Deterministic Multi-Language Indexing
 # Feature ID: F005
-# Stories: US013, US014
+# Stories: US013, US014, US017
 # Phase 1 draft generated: 2026-06-12
-# Last updated: 2026-06-12
+# Last updated: 2026-06-12 14:00
 
 Feature: Index Output & SQLite Persistence
   Generate code-graph-index.json + SQLite task store with WAL mode and idempotent task IDs.
@@ -57,3 +57,25 @@ Feature: Index Output & SQLite Persistence
       When the CLI re-runs the scan
       Then the scan completes within 60 seconds
       And all task records are retrieved from the cache with no re-processing
+
+  Rule: Orphaned tasks are detected on startup and reconciled to maintain a consistent task DAG
+
+    # ---------------------------------------------------------------------------
+    # Story US017: Developer recovers from crash mid-scan
+    # ---------------------------------------------------------------------------
+
+    @US017 @E001 @F005 @should @draft
+    Scenario: Developer resumes after a crash with orphaned tasks
+      Given a scan was interrupted leaving some tasks in RUNNING state
+      When the tool starts recovery
+      Then orphaned RUNNING tasks are detected and reverted to PENDING
+      And the dependency graph is rebuilt from the updated state
+      And recovery completes within 30 seconds
+
+    @US017 @E001 @F005 @should @draft
+    Scenario: Developer resumes after a crash with valid partial results
+      Given a scan was interrupted and some tasks have valid JSON fragments
+      When the tool starts recovery
+      Then JSON fragments from orphaned tasks are inspected for schema compliance
+      And compliant fragments are transitioned to SUCCESS (cache recovery)
+      And non-compliant fragments are reverted to PENDING for re-processing
