@@ -181,6 +181,62 @@ INSERT INTO tasks (
 
 *Idempotency Rule:* The database insert loop must handle existing keys by validating hashes or dropping/recreating stale pending tasks to allow smooth re-indexing commands.
 
+**Complete SQLite Schema:**
+
+```sql
+CREATE TABLE IF NOT EXISTS tasks (
+    task_id         TEXT PRIMARY KEY,
+    file_path       TEXT NOT NULL,
+    module_tag      TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'PENDING',
+    source_hash     TEXT NOT NULL,
+    paired_test_path TEXT,
+    json_payload    TEXT,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS execution_findings (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id         TEXT NOT NULL REFERENCES tasks(task_id),
+    finding_json    TEXT NOT NULL,
+    schema_version  TEXT NOT NULL DEFAULT '1.0',
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS topic_links (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    broker          TEXT NOT NULL,
+    topic_or_queue  TEXT NOT NULL,
+    producer_task_id TEXT REFERENCES tasks(task_id),
+    consumer_task_id TEXT REFERENCES tasks(task_id),
+    resolved_status TEXT NOT NULL DEFAULT 'PENDING',
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS floating_links (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    method          TEXT NOT NULL,
+    url_or_path     TEXT NOT NULL,
+    source_task_id  TEXT NOT NULL REFERENCES tasks(task_id),
+    target_endpoint TEXT,
+    confidence      REAL,
+    resolved_status TEXT NOT NULL DEFAULT 'PENDING',
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS metrics (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id          TEXT NOT NULL,
+    tasks_total     INTEGER DEFAULT 0,
+    tasks_completed INTEGER DEFAULT 0,
+    tokens_consumed INTEGER DEFAULT 0,
+    api_cost_estimated REAL DEFAULT 0.0,
+    phase           TEXT NOT NULL,
+    recorded_at     TEXT DEFAULT (datetime('now'))
+);
+```
+
 #### 2.1.7 Developer Implementation Checklist: Phase 1
 
 * [ ] Implement `project-manifest.yaml` parsing.
@@ -246,6 +302,7 @@ targets:
       - "**/*Pb.java"
 
 execution:
+  max-concurrent-llm-calls: 5
   max-discovery-depth: 3
   semantic-validation-sample-rate: 0.20
 
@@ -526,7 +583,22 @@ To avoid "black box" silence during long evaluation windows on deep workspaces (
 * Explicit counter metrics charting total tokens consumed and estimated API spend.
 * Immediate console warnings when an execution thread triggers a local backoff retry due to model rate-limiting.
 
-### 5.7 Testing Isolation & Simulation Mode
+### 5.7 CLI Command Surface
+
+The application must expose the following commands via Spring Shell:
+
+| Command | Arguments | Purpose |
+|---|---|---|
+| `scan` | `[--manifest path]` | Run Phase 1 (indexing) only — produces `code-graph-index.json` and populates SQLite |
+| `plan` | `[--manifest path]` | Show the execution DAG without running executors (dry DAG view) |
+| `run` | `[--manifest path] [--dry-run]` | Execute all 3 phases end-to-end |
+| `status` | | Show current SQLite task state summary and counters |
+| `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `RUNNING` tasks, rebuild DAG, resume |
+| `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |
+
+The `--dry-run` flag on the `run` command enables simulation mode (see §5.8).
+
+### 5.8 Testing Isolation & Simulation Mode
 
 To verify system orchestrations and engine state transitions within CI/CD pipelines without generating external provider token fees, the application must support a strict simulation mode via an execution flag (`--dry-run`). When active, Spring AI calls are intercepted by local stubs that validate prompt schema layout accuracy and return deterministic static JSON fragments matching Section 4 contracts.
 
@@ -705,13 +777,33 @@ A CLI run is considered successful when all of the following conditions are met.
     <description>AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)</description>
 
     <properties>
-        <java.version>17</java.version>
+        <java.version>21</java.version>
         <spring-ai.version>1.0.0</spring-ai.version>
         <spring-shell.version>3.4.2</spring-shell.version>
         <sqlite-jdbc.version>3.45.1.0</sqlite-jdbc.version>
         <javaparser.version>3.25.9</javaparser.version>
-        <embabel.version>0.8.5</embabel.version>
+        <embabel-agent.version>0.1.0-SNAPSHOT</embabel-agent.version>
     </properties>
+
+    <repositories>
+        <repository>
+            <id>embabel-releases</id>
+            <url>https://repo.embabel.com/artifactory/libs-release</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+        <repository>
+            <id>embabel-snapshots</id>
+            <url>https://repo.embabel.com/artifactory/libs-snapshot</url>
+            <releases><enabled>false</enabled></releases>
+            <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+        <repository>
+            <id>spring-milestones</id>
+            <url>https://repo.spring.io/milestone</url>
+            <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+    </repositories>
 
     <dependencyManagement>
         <dependencies>
@@ -754,6 +846,12 @@ A CLI run is considered successful when all of the following conditions are met.
             <version>${sqlite-jdbc.version}</version>
         </dependency>
 
+        <!-- Declarative @Async support for Phase 2 orchestration -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
         <!-- Pure Java Static Analysis Parsing Layer -->
         <dependency>
             <groupId>com.github.javaparser</groupId>
@@ -776,6 +874,12 @@ A CLI run is considered successful when all of the following conditions are met.
             <artifactId>jackson-dataformat-yaml</artifactId>
         </dependency>
 
+        <!-- Metrics & Telemetry for CLI Visual UX (see §5.6) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- JSON Schema Validation -->
         <dependency>
             <groupId>com.networknt</groupId>
@@ -783,11 +887,11 @@ A CLI run is considered successful when all of the following conditions are met.
             <version>1.5.2</version>
         </dependency>
 
-        <!-- Embabel Semantic Consolidation Pipeline -->
+        <!-- Embabel Semantic Consolidation Pipeline (Phase 3 Map-Reduce) -->
         <dependency>
-            <groupId>ai.embabel</groupId>
-            <artifactId>embabel-spring-boot-starter</artifactId>
-            <version>${embabel.version}</version>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-starter</artifactId>
+            <version>${embabel-agent.version}</version>
         </dependency>
 
         <!-- Testing Infrastructure -->
@@ -808,16 +912,10 @@ A CLI run is considered successful when all of the following conditions are met.
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <jvmArguments>-Djline.terminal=jline.UnixTerminal</jvmArguments>
                 </configuration>
             </plugin>
-
         </plugins>
     </build>
 </project>
