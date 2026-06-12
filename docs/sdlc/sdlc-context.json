@@ -3,8 +3,8 @@
     "version": "1.2.0",
     "phase": "1",
     "created_at": "2026-06-12T12:00:00Z",
-    "last_updated": "2026-06-12T14:30:00Z",
-    "last_agent": "open-questions-resolver"
+    "last_updated": "2026-06-12T15:00:00Z",
+    "last_agent": "tech-stack-manager"
   },
   "project": {
     "name": "code2req",
@@ -427,7 +427,43 @@
   ],
   "stories": [],
   "change_requests": [],
-  "adrs": [],
+  "adrs": [
+    {
+      "id": "ADR-001",
+      "title": "JavaParser for AST Analysis",
+      "status": "Accepted",
+      "date": "2026-06-12",
+      "file": "docs/sdlc/adrs/ADR-001-javaparser-for-ast-analysis.md"
+    },
+    {
+      "id": "ADR-002",
+      "title": "Spring JDBC (JdbcTemplate) over ORM",
+      "status": "Accepted",
+      "date": "2026-06-12",
+      "file": "docs/sdlc/adrs/ADR-002-spring-jdbc-over-orm.md"
+    },
+    {
+      "id": "ADR-003",
+      "title": "SQLite with WAL Mode Embedded Database",
+      "status": "Accepted",
+      "date": "2026-06-12",
+      "file": "docs/sdlc/adrs/ADR-003-sqlite-with-wal-mode.md"
+    },
+    {
+      "id": "ADR-004",
+      "title": "Deterministic SHA-256 Task IDs",
+      "status": "Accepted",
+      "date": "2026-06-12",
+      "file": "docs/sdlc/adrs/ADR-004-deterministic-sha256-task-ids.md"
+    },
+    {
+      "id": "ADR-005",
+      "title": "In-Memory Secret Redaction Strategy",
+      "status": "Accepted",
+      "date": "2026-06-12",
+      "file": "docs/sdlc/adrs/ADR-005-in-memory-secret-redaction.md"
+    }
+  ],
   "open_questions": [],
   "artifacts": {
     "gherkin_files": [
