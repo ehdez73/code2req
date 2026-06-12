@@ -45,11 +45,11 @@
 ### Phase 2 — Dependency Resolution
 
 #### 2.1 F002: Maven Dep Graph (US004, US005)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F002-dependency-graph-resolution.feature`](docs/sdlc/features/E001-F002-dependency-graph-resolution.feature)
-- [ ] Depends on: 1.1
-- [ ] Classes: `MavenDependencyResolver`
-- [ ] Verify: `mvn test` (mock Maven absent/present)
-- [ ] Manual: run scan with/without `mvn` on PATH, confirm warning logged when absent
+- [x] Gherkin: [`docs/sdlc/features/E001-F002-dependency-graph-resolution.feature`](docs/sdlc/features/E001-F002-dependency-graph-resolution.feature)
+- [x] Depends on: 1.1, 1.2
+- [x] Classes: `MavenDependencyResolver`, `Dependency`, `DependencyGraph`
+- [x] Verify: `mvn test` (12 tests — parse tree, heuristic fallback, maven availability check)
+- [x] Manual: run scan with/without `mvn` on PATH, confirm warning logged when absent
 
 ### Phase 3 — Pre-processing
 
@@ -133,3 +133,4 @@
 
 - 2026-06-12 — **Phase 1.1 F001** (Manifest Parsing): `ScanTarget`, `ProjectManifest`, `ManifestLoader`, `ManifestValidator`, `ValidateCommand`, `ManifestValidationResult` — 17 tests ✓
 - 2026-06-12 — **Phase 1.2 F005 Part 1** (SQLite Task Store): `Task`, `TaskStatus`, `TaskIdHasher`, `TaskStoreSchema`, `TaskStore` — 18 tests ✓
+- 2026-06-12 — **Phase 2.1 F002** (Maven Dependency Resolution): `MavenDependencyResolver`, `Dependency`, `DependencyGraph` — 12 tests ✓
