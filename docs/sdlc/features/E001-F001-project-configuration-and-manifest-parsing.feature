@@ -69,7 +69,7 @@ Feature: Project Configuration & Manifest Parsing
 
       Examples:
         | field        |
-        | scan_targets |
+        | targets |
 
   Rule: If a scan target directory lacks Java source files, the CLI logs a warning and skips it rather than failing
 

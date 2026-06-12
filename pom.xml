@@ -11,8 +11,8 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.github.ehdez73.code2req</groupId>
-    <artifactId>ai-reverse-cli</artifactId>
+    <groupId>com.github.ehdez73</groupId>
+    <artifactId>code2req</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <name>AI Reverse Engineering CLI</name>
     <description>AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)</description>

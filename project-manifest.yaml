@@ -1,5 +1,5 @@
 targets:
-  - name: example-service
+  - name: pet-clinic
     path: /Users/ehdez/workspace/scratch/spring-petclinic
     layer: backend
     tech_profile: java-spring-legacy
@@ -12,3 +12,8 @@ execution:
   max-concurrent-llm-calls: 5
   max-discovery-depth: 3
   semantic-validation-sample-rate: 0.20
+
+output:
+  spec-dir: spec-output
+  index-file: code-graph-index.json
+  db-path: .code2req_cache.db

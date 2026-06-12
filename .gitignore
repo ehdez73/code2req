@@ -19,6 +19,7 @@ target/
 *.iml
 *.ipr
 
+.DS_Store
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
@@ -33,7 +34,7 @@ build/
 .vscode/
 
 ### SDD Engine ###
-.code2req.db
+.code2req_cache.db
 .code2req.db-wal
 .code2req.db-shm
 spec-output/
@@ -41,3 +42,5 @@ spec-output/
 ## Logs ##
 code2req.log
 spring-shell.log
+
+
