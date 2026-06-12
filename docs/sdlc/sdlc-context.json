@@ -1,0 +1,365 @@
+{
+  "meta": {
+    "version": "1.2.0",
+    "phase": "1",
+    "created_at": "2026-06-12T12:00:00Z",
+    "last_updated": "2026-06-12T13:30:00Z",
+    "last_agent": "gherkin-generator"
+  },
+  "project": {
+    "name": "code2req",
+    "vision": "Spec-Driven Development (SDD) — treating a highly structured, technology-agnostic business specification as the primary, authoritative artifact from which automated tests, clean implementation, and functional documentation are derived.",
+    "elevator_pitch": "An AI-driven CLI that reverse-engineers legacy enterprise codebases into structured business specifications organized by functional flows, with full traceability back to source code.",
+    "problem_statement": "Legacy enterprise codebases contain embedded business rules, domain validations, and ecosystem invariants that are obscured by technical debt and scattered across REST endpoints, async event handlers, and hidden procedural database layers — making systems hard to understand, test, and re-architect.",
+    "goals": [
+      "De-technify enterprise code — abstract dense, legacy implementations into clear business intentions, process parameters, and edge cases",
+      "Eradicate context rot & hallucinations — enforce stateless, short-lived execution with absolute context isolation per file",
+      "Provide end-to-end visibility — connect scattered functional points across frontend, REST, async events, and database layers",
+      "Provide a standard data contract for test generation — output predictable structured semantic graphs bridging static code and dynamic business tests"
+    ]
+  },
+  "discovery": {},
+  "stakeholders": [
+    {
+      "name": "Developer",
+      "role": "Primary user",
+      "concerns": [
+        "Quickly understand legacy codebases without manual reading",
+        "Extract business rules obscured by technical debt",
+        "Generate structured specifications from source code"
+      ]
+    },
+    {
+      "name": "Tech Lead",
+      "role": "Secondary user / evaluator",
+      "concerns": [
+        "System-wide traceability of business rules",
+        "No leakage of secrets or credentials",
+        "Confidence that extracted specifications are accurate"
+      ]
+    }
+  ],
+  "user_personas": [
+    {
+      "id": "P001",
+      "name": "Developer",
+      "role": "Full-Stack Engineer",
+      "goals": [
+        "Understand what business rules a legacy codebase implements",
+        "Generate structured specifications without manual effort",
+        "Identify all endpoints, event handlers, and database interactions"
+      ],
+      "pain_points": [
+        "Spending hours reading through dense legacy code",
+        "Missing hidden business rules in stored procedures or custom validators",
+        "Lack of documentation on system behavior and edge cases"
+      ],
+      "context": "Works with Java/Spring codebases daily. Needs to quickly onboard to unfamiliar legacy systems or document existing ones for compliance and refactoring."
+    },
+    {
+      "id": "P002",
+      "name": "Tech Lead",
+      "role": "Architect / Evaluator",
+      "goals": [
+        "Evaluate extracted specifications for completeness",
+        "Ensure sensitive data never leaves local machine",
+        "Assess system-wide architectural patterns"
+      ],
+      "pain_points": [
+        "No reliable way to get a bird's-eye view of a legacy system",
+        "Risk of hardcoded secrets leaking through AI pipelines",
+        "Difficulty tracing async event flows across services"
+      ],
+      "context": "Responsible for architectural decisions and compliance. Needs to trust the tool's output and verify nothing sensitive is exposed."
+    }
+  ],
+  "scope": {
+    "in_scope": [
+      "YAML manifest parsing for multi-repository scan configuration",
+      "Optional Maven dependency graph resolution with graceful fallback",
+      "Java source file AST parsing using JavaParser (component types, HTTP endpoints, event listeners, scheduled task/trigger detection, method calls, custom validators)",
+      "In-memory secret redaction (passwords, API keys, credentials) before any LLM processing",
+      "Exclude pattern filtering for generated code and vendor packages",
+      "Structured JSON index output (code-graph-index.json) with full structural metadata",
+      "SQLite task store ingestion via Spring JDBC with WAL mode and idempotent task IDs",
+      "CLI scan command — Phase 1 only execution"
+    ],
+    "out_of_scope": [
+      "Phase 2 — Stateful Dynamic Execution (LLM-powered analysis per file)",
+      "Phase 3 — Cascaded Semantic Synthesis (map-reduce, Markdown/JSON output)",
+      "Test framework generation (Gherkin, JUnit, etc.)",
+      "Frontend or UI code analysis (JavaScript, TypeScript, HTML)",
+      "Code modification or mutation on disk (read-only operation)"
+    ]
+  },
+  "constraints": {
+    "timeline": "POC — no hard deadline",
+    "budget": null,
+    "technical": [
+      "Pure Java — no native OS bindings or JNI (no Tree-sitter)",
+      "JavaParser for AST analysis — mandatory, not optional",
+      "Spring Boot 3.4.x with Java 21",
+      "SQLite as embedded persistence — no external database",
+      "Spring JDBC (JdbcTemplate) — no ORM (no Hibernate/JPA)",
+      "No network required during Phase 1 indexing",
+      "Maven-based build and dependency management"
+    ],
+    "compliance": [
+      "Read-only operation — zero modifications to source files",
+      "Zero secret leakage — hardcoded credentials must be redacted before any outbound call"
+    ]
+  },
+  "success_metrics": [
+    {
+      "metric": "HTTP Inbound Endpoints Extraction",
+      "target": ">= 95%",
+      "measurement": "Verification matching entry paths found in the static code graph against expected endpoints in target codebase"
+    },
+    {
+      "metric": "Custom Constraints Extraction",
+      "target": ">= 95%",
+      "measurement": "Fields annotated with custom validators have corresponding isValid logic slices extracted"
+    },
+    {
+      "metric": "Scheduled Triggers Extraction",
+      "target": ">= 90%",
+      "measurement": "Methods annotated with @Scheduled have their cron/fixed-delay/fixed-rate expressions captured and linked to the business operations they initiate"
+    },
+    {
+      "metric": "Plan Execution Completeness",
+      "target": ">= 98%",
+      "measurement": "Processing tasks that reach SUCCESS state (excluding AWAITING_HUMAN_REVIEW)"
+    },
+    {
+      "metric": "Database Connection Failures",
+      "target": "0 incidents",
+      "measurement": "Zero exceptions due to file locks when executing under pool-size of 10 with WAL mode"
+    },
+    {
+      "metric": "Idempotent Spend Guard",
+      "target": "0 tokens consumed on re-scan of unchanged workspace",
+      "measurement": "Re-running against unmodified workspace completes using 100% cached records in <= 60 seconds"
+    },
+    {
+      "metric": "Warm Start Recovery Duration",
+      "target": "<= 30 seconds",
+      "measurement": "Time to resolve pending/orphaned states and re-align the processing DAG after crash"
+    }
+  ],
+  "non_functional_requirements": [
+    {
+      "id": "NFR001",
+      "category": "performance",
+      "description": "Phase 1 indexing must complete without network calls or LLM interactions",
+      "acceptance_criteria": "Zero outbound HTTP calls during scan command execution",
+      "source": "kick-off-meeting"
+    },
+    {
+      "id": "NFR002",
+      "category": "security",
+      "description": "Hardcoded secrets must be redacted in-memory before any LLM processing",
+      "acceptance_criteria": "Passwords, API keys, and credentials replaced with [REDACTED:type] placeholders; original file on disk untouched",
+      "source": "kick-off-meeting"
+    },
+    {
+      "id": "NFR003",
+      "category": "reliability",
+      "description": "Graceful degradation when optional dependency resolution fails",
+      "acceptance_criteria": "Tool proceeds with standalone heuristic mode when Maven is absent or project does not compile; clear warning logged",
+      "source": "kick-off-meeting"
+    },
+    {
+      "id": "NFR004",
+      "category": "performance",
+      "description": "Idempotent task identification to prevent redundant processing",
+      "acceptance_criteria": "Task IDs computed from SHA-256 of file path, content hash, test content hash, model ID, and prompt version",
+      "source": "kick-off-meeting"
+    },
+    {
+      "id": "NFR005",
+      "category": "performance",
+      "description": "WAL mode enabled in SQLite for concurrent read/write",
+      "acceptance_criteria": "PRAGMA journal_mode=WAL and busy_timeout=5000 set on connection initialization",
+      "source": "kick-off-meeting"
+    }
+  ],
+  "risks": [
+    {
+      "id": "R001",
+      "description": "JavaParser fails on complex or vendor-specific syntax constructs",
+      "impact": "medium",
+      "probability": "low",
+      "mitigation": "Annotation-driven fallback strategy — classify components by annotation presence even when type resolution fails",
+      "affected_stories": []
+    },
+    {
+      "id": "R002",
+      "description": "Maven depgraph plugin unavailable or incompatible with target project",
+      "impact": "low",
+      "probability": "medium",
+      "mitigation": "Graceful failure with clear warning; standalone heuristic mode proceeds without dependency metadata",
+      "affected_stories": []
+    },
+    {
+      "id": "R003",
+      "description": "SQLite locking under concurrent access during Phase 2 (design concern carried forward)",
+      "impact": "medium",
+      "probability": "low",
+      "mitigation": "WAL mode + busy_timeout + connection pool configured upfront in Phase 1 implementation",
+      "affected_stories": []
+    }
+  ],
+  "assumptions": [
+    "Target codebase is primarily Java/Spring-based",
+    "Maven is the build system (pom.xml) — Gradle support is future scope",
+    "User has JDK 21+ installed for running the tool",
+    "LLM provider credentials are configured separately (not part of Phase 1)",
+    "Source files are UTF-8 encoded"
+  ],
+  "team": {
+    "definition_of_done": [
+      "Code compiles and builds without errors",
+      "Unit tests pass",
+      "Feature matches the acceptance criteria defined in the user story",
+      "No regression in existing functionality",
+      "CLI scan command produces valid code-graph-index.json for the petclinic target"
+    ],
+    "definition_of_ready": [
+      "Story has clearly defined acceptance criteria",
+      "Dependencies on other stories are identified",
+      "T-shirt size estimate is assigned",
+      "Story is small enough to complete in a single work session"
+    ],
+    "members": [
+      {
+        "name": "Solo Developer",
+        "role": "other"
+      }
+    ],
+    "throughput_window": "4 weeks"
+  },
+  "epics": [
+    {
+      "id": "E001",
+      "name": "Deterministic Multi-Language Indexing",
+      "description": "Before any LLM interaction, the CLI scans the physical workspace using pure-Java AST parsers (JavaParser) to map signatures, endpoint routes, call frameworks, and event publishers. Produces a local intermediate JSON contract and populates the SQLite task store. Runs as a deterministic compiler-pass requiring zero network connectivity or LLM credentials.",
+      "priority": "must"
+    }
+  ],
+  "features": [
+    {
+      "id": "F001",
+      "epic_id": "E001",
+      "name": "Project Configuration & Manifest Parsing",
+      "description": "Parse project-manifest.yaml, resolve scan targets against the filesystem, validate configuration structure and required fields.",
+      "background": "A valid project-manifest.yaml file exists in the current working directory with at least one scan target defined.",
+      "business_rules": [
+        "All scan target paths must be accessible on the local filesystem — the CLI validates existence before processing",
+        "The manifest schema must conform to the expected YAML structure; unrecognized fields produce warnings but don't block execution",
+        "If a scan target directory lacks Java source files, the CLI logs a warning and skips it rather than failing"
+      ],
+      "user_stories": [
+        { "id": "US001", "title": "Developer defines scan targets in project manifest", "priority": "must", "type": "story", "gherkin_file": "features/E001-F001-project-configuration-and-manifest-parsing.feature" },
+        { "id": "US002", "title": "Developer validates manifest before scanning", "priority": "should", "type": "story", "gherkin_file": "features/E001-F001-project-configuration-and-manifest-parsing.feature" },
+        { "id": "US003", "title": "Developer recovers gracefully from manifest errors", "priority": "should", "type": "story", "gherkin_file": "features/E001-F001-project-configuration-and-manifest-parsing.feature" }
+      ]
+    },
+    {
+      "id": "F002",
+      "epic_id": "E001",
+      "name": "Dependency Graph Resolution",
+      "description": "Optional Maven dependency resolution with graceful fallback to standalone heuristic mode when Maven is unavailable.",
+      "background": "Manifest parsed and scan targets resolved.",
+      "business_rules": [
+        "If Maven is unavailable or pom.xml is missing, CLI proceeds with standalone heuristic mode and logs a clear warning",
+        "Dependency resolution is optional — the pipeline never blocks or fails on Maven failure"
+      ],
+      "user_stories": [
+        { "id": "US004", "title": "Developer resolves project dependencies automatically", "priority": "should", "type": "story", "gherkin_file": "features/E001-F002-dependency-graph-resolution.feature" },
+        { "id": "US005", "title": "Developer operates without Maven available", "priority": "should", "type": "story", "gherkin_file": "features/E001-F002-dependency-graph-resolution.feature" }
+      ]
+    },
+    {
+      "id": "F003",
+      "epic_id": "E001",
+      "name": "Java Source AST Analysis",
+      "description": "JavaParser-based scanning: component types, HTTP endpoints, event listeners, method calls, custom validators, and scheduled tasks.",
+      "background": "Scan target directories resolved and accessible.",
+      "business_rules": [
+        "JavaParser processes each file independently — a single parse failure does not stop the full scan",
+        "Component classification uses annotation presence as the primary heuristic, with structural fallback when type resolution fails",
+        "Only .java files under scan targets are processed; other types are silently ignored"
+      ],
+      "user_stories": [
+        { "id": "US006", "title": "Developer discovers application components", "priority": "must", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US007", "title": "Developer maps HTTP endpoints", "priority": "must", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US008", "title": "Developer traces event listeners", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US009", "title": "Developer extracts custom validation logic", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US010", "title": "Developer discovers scheduled tasks", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" }
+      ]
+    },
+    {
+      "id": "F004",
+      "epic_id": "E001",
+      "name": "Secret Redaction & Exclude Filtering",
+      "description": "In-memory redaction of passwords/keys/credentials before any LLM processing + exclude pattern filtering for generated/vendor code.",
+      "background": "Source files parsed and content prepared for output.",
+      "business_rules": [
+        "Redaction operates in-memory only — source files on disk are never touched",
+        "Redacted values use [REDACTED:type] placeholders (e.g. [REDACTED:password])",
+        "Exclude patterns follow .gitignore-style glob matching against file paths",
+        "Generated code and vendor packages are excluded by default"
+      ],
+      "user_stories": [
+        { "id": "US011", "title": "Developer prevents secret leakage", "priority": "must", "type": "story", "gherkin_file": "features/E001-F004-secret-redaction-and-exclude-filtering.feature" },
+        { "id": "US012", "title": "Developer filters out generated and vendor code", "priority": "should", "type": "story", "gherkin_file": "features/E001-F004-secret-redaction-and-exclude-filtering.feature" }
+      ]
+    },
+    {
+      "id": "F005",
+      "epic_id": "E001",
+      "name": "Index Output & SQLite Persistence",
+      "description": "Generate code-graph-index.json + SQLite task store with WAL mode and idempotent task IDs.",
+      "background": "AST analysis and redaction completed for all targets.",
+      "business_rules": [
+        "SQLite uses WAL journal mode + 5000ms busy timeout",
+        "Task IDs are deterministic SHA-256 hashes — never random",
+        "If the output directory is unwritable, CLI fails with a clear message rather than partial output"
+      ],
+      "user_stories": [
+        { "id": "US013", "title": "Developer produces structured analysis output", "priority": "must", "type": "story", "gherkin_file": "features/E001-F005-index-output-and-sqlite-persistence.feature" },
+        { "id": "US014", "title": "Developer persists scan state locally", "priority": "should", "type": "story", "gherkin_file": "features/E001-F005-index-output-and-sqlite-persistence.feature" }
+      ]
+    },
+    {
+      "id": "F006",
+      "epic_id": "E001",
+      "name": "CLI Scan Orchestration",
+      "description": "Phase 1 scan command that orchestrates the full pipeline end-to-end.",
+      "background": "All configuration validated.",
+      "business_rules": [
+        "The scan command must never make network calls or LLM interactions (Phase 1 only)",
+        "Progress reported per stage (manifest → deps → AST → redact → persist) with timing and file counts",
+        "Stage failure reports which stage failed and exits non-zero"
+      ],
+      "user_stories": [
+        { "id": "US015", "title": "Developer runs a full Phase 1 scan", "priority": "must", "type": "story", "gherkin_file": "features/E001-F006-cli-scan-orchestration.feature" },
+        { "id": "US016", "title": "Tech Lead confirms offline operation", "priority": "should", "type": "story", "gherkin_file": "features/E001-F006-cli-scan-orchestration.feature" }
+      ]
+    }
+  ],
+  "stories": [],
+  "change_requests": [],
+  "adrs": [],
+  "open_questions": [],
+  "artifacts": {
+    "gherkin_files": [
+      "features/E001-F001-project-configuration-and-manifest-parsing.feature",
+      "features/E001-F002-dependency-graph-resolution.feature",
+      "features/E001-F003-java-source-ast-analysis.feature",
+      "features/E001-F004-secret-redaction-and-exclude-filtering.feature",
+      "features/E001-F005-index-output-and-sqlite-persistence.feature",
+      "features/E001-F006-cli-scan-orchestration.feature"
+    ]
+  }
+}
