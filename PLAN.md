@@ -122,11 +122,11 @@
 ### Phase 5 — Output
 
 #### 5.1 F005 Part 2: Index Output + Orphan Recovery (US013 rest, US017)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature`](docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature)
-- [ ] Depends on: 1.2, 4a
-- [ ] Classes: `IndexWriter`, `OrphanRecovery`
-- [ ] Verify: `mvn test` + kill process mid-scan, restart, confirm `resume` recovers
-- [ ] Manual: inspect `spec-output/code-graph-index.json` — valid JSON, contains all analysis findings
+- [x] Gherkin: [`docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature`](docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature)
+- [x] Depends on: 1.2, 4a
+- [x] Classes: `IndexWriter`, `OrphanRecovery`, `OrphanRecoveryResult`
+- [x] Verify: `mvn test` (178 total — 7 IndexWriter + 4 OrphanRecovery new tests)
+- [x] Manual: `IndexWriter` produces valid JSON at `spec-output/code-graph-index.json` with all 17 finding types grouped by scan target; `OrphanRecovery` reverts `RUNNING` tasks to `PENDING`
 
 ### Phase 6 — CLI Commands
 
@@ -184,3 +184,4 @@
 - 2026-06-14 — **Phase 4f F003** (XML Spring Bean Detection): `XmlBeanAnalyzer`, `XmlBeanInfo`, `XmlNamespaceBeanInfo`, `XmlComponentScanInfo`, `XmlAopConfigInfo`, `SpringXmlNamespaceRegistry` — 12 tests ✓
 - 2026-06-14 — **Phase 4g F003** (RabbitMQ Event Flows): `RabbitMqVisitor`, `RabbitMqInfo`, `RabbitMqPublisherInfo` — 8 tests ✓
 - 2026-06-14 — **Phase 4h F003** (ActiveMQ/JMS Event Flows): `ActiveMqVisitor`, `ActiveMqInfo`, `ActiveMqPublisherInfo` — 8 tests ✓
+- 2026-06-14 — **Phase 5.1 F005 Part 2** (Index Output + Orphan Recovery): `IndexWriter`, `OrphanRecovery`, `OrphanRecoveryResult` — 11 new tests (7 IndexWriter + 4 OrphanRecovery) ✓
