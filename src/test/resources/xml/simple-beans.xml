@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <bean id="myService" class="com.example.MyService"/>
+    <bean id="myRepo" class="com.example.MyRepository" scope="prototype"/>
+    <bean id="myFactory" class="com.example.MyFactory" factory-method="createInstance"/>
+    <bean id="noClassBean"/>
+    <bean class="com.example.NoIdBean"/>
+    <alias name="myService" alias="myServiceAlias"/>
+
+</beans>

@@ -90,6 +90,21 @@
 - [x] Verify: `mvn test` (new tests)
 - [x] Manual: scan petclinic → inspect JSON for `@KafkaListener` topics and `KafkaTemplate.send()` publications
 
+#### 4e F003: @Bean Method Detection (US024)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Depends on: 4a
+- [x] Classes: `BeanMethodVisitor`, `BeanMethodInfo`
+- [x] Verify: `mvn test` (9 new tests — @Bean methods extracted with name, return type, configuration class; explicit name from value/name/array attrs; lite-mode skip; interface skip)
+- [ ] Manual: scan petclinic → inspect JSON for @Bean method entries alongside components
+
+#### 4f F003: XML Spring Bean Detection (US025)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Depends on: 4a
+- [x] Classes: `XmlBeanAnalyzer`, `XmlBeanInfo`, `XmlNamespaceBeanInfo`, `XmlComponentScanInfo`, `XmlAopConfigInfo`, `SpringXmlNamespaceRegistry`
+- [x] Discovery: 1) glob `*.xml` under resource dirs → 2) content-sniff root element for spring beans namespace → 3) `@ImportResource` from `@Configuration` classes → 4) transitive `<import>` chaining → 5) deduplicate across all sources
+- [x] Verify: `mvn test` (12 new tests — `<bean>` extraction, scope/factory-method/alias, namespace elements (util/jdbc/task), component-scan, aop/tx/cache config, non-Spring XML ignore, import chaining, content sniffing)
+- [ ] Manual: scan petclinic → inspect JSON for XML-defined beans alongside Java-defined components
+
 ### Phase 5 — Output
 
 #### 5.1 F005 Part 2: Index Output + Orphan Recovery (US013 rest, US017)
@@ -136,6 +151,8 @@
 | US016 | F006 | should | 6.1 |
 | US017 | F005/F006 | should | 5.1, 6.2 |
 | US023 | F003 | should | 4d |
+| US024 | F003 | should | 4e |
+| US025 | F003 | should | 4f |
 
 ## Completed
 
@@ -147,3 +164,5 @@
 - 2026-06-14 — **Phase 4b F003** (Event Listeners): `EventListenerVisitor`, `EventListenerInfo`, `EventPublisherInfo`, `MethodCallInfo` — 10 new tests ✓
 - 2026-06-14 — **Phase 4c F003** (Custom Validators): `ValidatorVisitor`, `ValidatorInfo` — 10 new tests ✓
 - 2026-06-14 — **Phase 4d F003** (Kafka Event Flows): `KafkaVisitor`, `KafkaInfo`, `KafkaPublisherInfo` — tests ✓
+- 2026-06-14 — **Phase 4e F003** (@Bean Method Detection): `BeanMethodVisitor`, `BeanMethodInfo` — 9 tests ✓
+- 2026-06-14 — **Phase 4f F003** (XML Spring Bean Detection): `XmlBeanAnalyzer`, `XmlBeanInfo`, `XmlNamespaceBeanInfo`, `XmlComponentScanInfo`, `XmlAopConfigInfo`, `SpringXmlNamespaceRegistry` — 12 tests ✓
