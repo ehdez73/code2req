@@ -1,9 +1,9 @@
 # Feature: Java Source AST Analysis
 # Epic: E001 — Deterministic Multi-Language Indexing
 # Feature ID: F003
-# Stories: US006, US007, US008, US009, US010
+# Stories: US006, US007, US008, US009, US010, US023
 # Phase 1 draft generated: 2026-06-12
-# Last updated: 2026-06-12
+# Last updated: 2026-06-14
 
 Feature: Java Source AST Analysis
   JavaParser-based scanning: component types, HTTP endpoints, event listeners, method calls, custom validators, and scheduled tasks.
@@ -126,5 +126,45 @@ Feature: Java Source AST Analysis
       When the CLI extracts scheduled tasks
       Then each method is captured with its rate or delay value
       And the tasks are categorized as fixed-rate and fixed-delay respectively
+
+  # ---------------------------------------------------------------------------
+  # Story US023: Developer traces Kafka event flows
+  # ---------------------------------------------------------------------------
+
+  Rule: Kafka listener subscriptions and publications are extracted independently of Spring's in-process event bus
+
+    @US023 @E001 @F003 @should @draft
+    Scenario: Developer scans a component with @KafkaListener methods
+      Given a component with @KafkaListener-annotated methods specifying topics
+      When the CLI extracts Kafka event listeners
+      Then each listener is identified with its topic list
+      And the listener is linked to its owning component
+
+    @US023 @E001 @F003 @should @draft
+    Scenario: Developer scans a @KafkaListener with multiple topics
+      Given a @KafkaListener method with topics = {"order-events", "inventory-events"}
+      When the CLI extracts Kafka event listeners
+      Then all topics in the array are captured
+      And the listener is linked to its owning component
+
+    @US023 @E001 @F003 @should @draft
+    Scenario: Developer scans a @KafkaListener with topic pattern
+      Given a @KafkaListener method using topicPattern attribute
+      When the CLI extracts Kafka event listeners
+      Then the topic pattern is captured as a text expression
+
+    @US023 @E001 @F003 @should @draft
+    Scenario: Developer scans a component publishing to Kafka topics
+      Given a component that calls KafkaTemplate.send() with a topic name
+      When the CLI extracts outbound event publications
+      Then the destination topic is captured with the broker type "KAFKA"
+      And the publication is linked to its owning component
+
+    @US023 @E001 @F003 @should @draft
+    Scenario: Developer scans a file with Kafka imports but no Kafka annotations
+      Given a component that imports Kafka classes but has no @KafkaListener or KafkaTemplate usage
+      When the CLI extracts Kafka event listeners and publications
+      Then no Kafka listener or publication is recorded
+      And no error is raised
 
   # No error path — parse failures are handled at the file level by US006

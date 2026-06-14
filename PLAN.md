@@ -83,6 +83,13 @@
 - [x] Verify: `mvn test` (10 new tests + 2 integration in JavaAstAnalyzerTest + 2 updated assertions)
 - [x] Manual: scan petclinic → inspect JSON for `@Constraint` validators with `isValid` body
 
+#### 4d F003: Kafka Event Flows (US023)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Depends on: 4a
+- [x] Classes: `KafkaVisitor`, `KafkaInfo`, `KafkaPublisherInfo`
+- [x] Verify: `mvn test` (new tests)
+- [x] Manual: scan petclinic → inspect JSON for `@KafkaListener` topics and `KafkaTemplate.send()` publications
+
 ### Phase 5 — Output
 
 #### 5.1 F005 Part 2: Index Output + Orphan Recovery (US013 rest, US017)
@@ -128,6 +135,7 @@
 | US015 | F006 | must | 6.1 |
 | US016 | F006 | should | 6.1 |
 | US017 | F005/F006 | should | 5.1, 6.2 |
+| US023 | F003 | should | 4d |
 
 ## Completed
 
@@ -138,3 +146,4 @@
 - 2026-06-13 — **Phase 4a F003** (Components + Endpoints + Scheduled Tasks): `JavaAstAnalyzer`, `ComponentVisitor`, `EndpointVisitor`, `ScheduledTaskVisitor`, `AnalysisContext`, `AnalysisResult`, `ComponentInfo`, `EndpointInfo`, `ScheduledTaskInfo` — 28 new tests ✓
 - 2026-06-14 — **Phase 4b F003** (Event Listeners): `EventListenerVisitor`, `EventListenerInfo`, `EventPublisherInfo`, `MethodCallInfo` — 10 new tests ✓
 - 2026-06-14 — **Phase 4c F003** (Custom Validators): `ValidatorVisitor`, `ValidatorInfo` — 10 new tests ✓
+- 2026-06-14 — **Phase 4d F003** (Kafka Event Flows): `KafkaVisitor`, `KafkaInfo`, `KafkaPublisherInfo` — tests ✓
