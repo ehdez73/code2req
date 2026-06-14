@@ -1,5 +1,8 @@
-package com.github.ehdez73.code2req.analyzer;
+package com.github.ehdez73.code2req.analyzer.component;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisResult;
+import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
+import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import org.junit.jupiter.api.Test;
@@ -26,8 +29,8 @@ class ComponentVisitorTest {
             public class MyController {}
             """);
 
-        assertEquals(1, result.components().size());
-        ComponentInfo c = result.components().getFirst();
+        assertEquals(1, result.findings(ComponentInfo.class).size());
+        ComponentInfo c = result.findings(ComponentInfo.class).getFirst();
         assertEquals("RestController", c.annotationType());
         assertEquals("MyController", c.className());
         assertEquals("com.example", c.packageName());
@@ -42,8 +45,8 @@ class ComponentVisitorTest {
             public class MyService {}
             """);
 
-        assertEquals(1, result.components().size());
-        assertEquals("Service", result.components().getFirst().annotationType());
+        assertEquals(1, result.findings(ComponentInfo.class).size());
+        assertEquals("Service", result.findings(ComponentInfo.class).getFirst().annotationType());
     }
 
     @Test
@@ -55,8 +58,8 @@ class ComponentVisitorTest {
             public class MyRepository {}
             """);
 
-        assertEquals(1, result.components().size());
-        assertEquals("Repository", result.components().getFirst().annotationType());
+        assertEquals(1, result.findings(ComponentInfo.class).size());
+        assertEquals("Repository", result.findings(ComponentInfo.class).getFirst().annotationType());
     }
 
     @Test
@@ -68,8 +71,8 @@ class ComponentVisitorTest {
             public class MyComponent {}
             """);
 
-        assertEquals(1, result.components().size());
-        assertEquals("Component", result.components().getFirst().annotationType());
+        assertEquals(1, result.findings(ComponentInfo.class).size());
+        assertEquals("Component", result.findings(ComponentInfo.class).getFirst().annotationType());
     }
 
     @Test
@@ -81,8 +84,8 @@ class ComponentVisitorTest {
             public class MyMvcController {}
             """);
 
-        assertEquals(1, result.components().size());
-        assertEquals("Controller", result.components().getFirst().annotationType());
+        assertEquals(1, result.findings(ComponentInfo.class).size());
+        assertEquals("Controller", result.findings(ComponentInfo.class).getFirst().annotationType());
     }
 
     @Test
@@ -92,10 +95,10 @@ class ComponentVisitorTest {
             public class PlainClass {}
             """);
 
-        assertEquals(1, result.components().size());
-        assertEquals("other", result.components().getFirst().annotationType());
-        assertEquals("PlainClass", result.components().getFirst().className());
-        assertEquals("com.example", result.components().getFirst().packageName());
+        assertEquals(1, result.findings(ComponentInfo.class).size());
+        assertEquals("other", result.findings(ComponentInfo.class).getFirst().annotationType());
+        assertEquals("PlainClass", result.findings(ComponentInfo.class).getFirst().className());
+        assertEquals("com.example", result.findings(ComponentInfo.class).getFirst().packageName());
     }
 
     @Test
@@ -105,7 +108,7 @@ class ComponentVisitorTest {
             public interface MyInterface {}
             """);
 
-        assertTrue(result.components().isEmpty());
+        assertTrue(result.findings(ComponentInfo.class).isEmpty());
     }
 
     @Test
@@ -117,7 +120,7 @@ class ComponentVisitorTest {
             class HelperClass {}
             """);
 
-        assertEquals(2, result.components().size());
+        assertEquals(2, result.findings(ComponentInfo.class).size());
     }
 
     @Test
@@ -127,6 +130,6 @@ class ComponentVisitorTest {
             public class MyApi {}
             """);
 
-        assertEquals("/path/to/MyApi.java", result.components().getFirst().filePath());
+        assertEquals("/path/to/MyApi.java", result.findings(ComponentInfo.class).getFirst().filePath());
     }
 }

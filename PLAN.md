@@ -70,11 +70,11 @@
 - [x] Manual: scan petclinic → inspect JSON for: component list, endpoint paths (e.g. `/api/owners`), scheduled tasks with cron
 
 #### 4b F003: Event Listeners (US008)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
-- [ ] Depends on: 4a
-- [ ] Classes: `EventListenerVisitor`
-- [ ] Verify: `mvn test`
-- [ ] Manual: scan petclinic → inspect JSON for event listeners and call chains
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Depends on: 4a
+- [x] Classes: `EventListenerVisitor`, `EventListenerInfo`, `EventPublisherInfo`, `MethodCallInfo`
+- [x] Verify: `mvn test` (10 new tests)
+- [x] Manual: scan petclinic → inspect JSON for event listeners and call chains
 
 #### 4c F003: Custom Validators (US009)
 - [ ] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
@@ -136,3 +136,4 @@
 - 2026-06-12 — **Phase 2.1 F002** (Maven Dependency Resolution): `MavenDependencyResolver`, `Dependency`, `DependencyGraph` — 12 tests ✓
 - 2026-06-12 — **Phase 3.1 F004** (Secret Redaction & Exclude Filtering): `SecretRedactor`, `RedactionResult`, `ExcludeFilter`, `ExcludeResult` — 18 tests (10 SecretRedactor + 8 ExcludeFilter) ✓
 - 2026-06-13 — **Phase 4a F003** (Components + Endpoints + Scheduled Tasks): `JavaAstAnalyzer`, `ComponentVisitor`, `EndpointVisitor`, `ScheduledTaskVisitor`, `AnalysisContext`, `AnalysisResult`, `ComponentInfo`, `EndpointInfo`, `ScheduledTaskInfo` — 28 new tests ✓
+- 2026-06-14 — **Phase 4b F003** (Event Listeners): `EventListenerVisitor`, `EventListenerInfo`, `EventPublisherInfo`, `MethodCallInfo` — 10 new tests ✓

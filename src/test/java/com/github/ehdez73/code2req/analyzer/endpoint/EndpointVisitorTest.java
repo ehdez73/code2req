@@ -1,5 +1,8 @@
-package com.github.ehdez73.code2req.analyzer;
+package com.github.ehdez73.code2req.analyzer.endpoint;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisResult;
+import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
+import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import org.junit.jupiter.api.Test;
@@ -17,7 +20,7 @@ class EndpointVisitorTest {
         CompilationUnit cu = StaticJavaParser.parse(code);
         AnalysisResultBuilder builder = new AnalysisResultBuilder();
         // pre-populate with a controller component so EndpointVisitor doesn't short-circuit
-        builder.addComponent(new ComponentInfo("RestController", "MyController", "com.example", "test.java"));
+        builder.addFinding(new ComponentInfo("RestController", "MyController", "com.example", "test.java"));
         visitor.analyze(cu, builder, "test.java");
         return builder.build("test.java");
     }
@@ -34,8 +37,8 @@ class EndpointVisitorTest {
             }
             """);
 
-        assertEquals(1, result.endpoints().size());
-        EndpointInfo e = result.endpoints().getFirst();
+        assertEquals(1, result.findings(EndpointInfo.class).size());
+        EndpointInfo e = result.findings(EndpointInfo.class).getFirst();
         assertEquals("GET", e.httpMethod());
         assertEquals("/hello", e.path());
         assertEquals("MyController", e.controllerName());
@@ -53,9 +56,9 @@ class EndpointVisitorTest {
             }
             """);
 
-        assertEquals(1, result.endpoints().size());
-        assertEquals("POST", result.endpoints().getFirst().httpMethod());
-        assertEquals("/create", result.endpoints().getFirst().path());
+        assertEquals(1, result.findings(EndpointInfo.class).size());
+        assertEquals("POST", result.findings(EndpointInfo.class).getFirst().httpMethod());
+        assertEquals("/create", result.findings(EndpointInfo.class).getFirst().path());
     }
 
     @Test
@@ -72,8 +75,8 @@ class EndpointVisitorTest {
             }
             """);
 
-        assertEquals(1, result.endpoints().size());
-        assertEquals("/api/users", result.endpoints().getFirst().path());
+        assertEquals(1, result.findings(EndpointInfo.class).size());
+        assertEquals("/api/users", result.findings(EndpointInfo.class).getFirst().path());
     }
 
     @Test
@@ -90,8 +93,8 @@ class EndpointVisitorTest {
             }
             """);
 
-        assertEquals(1, result.endpoints().size());
-        assertEquals("/api", result.endpoints().getFirst().path());
+        assertEquals(1, result.findings(EndpointInfo.class).size());
+        assertEquals("/api", result.findings(EndpointInfo.class).getFirst().path());
     }
 
     @Test
@@ -107,8 +110,8 @@ class EndpointVisitorTest {
             }
             """);
 
-        assertEquals(1, result.endpoints().size());
-        assertEquals(List.of("id"), result.endpoints().getFirst().pathVariables());
+        assertEquals(1, result.findings(EndpointInfo.class).size());
+        assertEquals(List.of("id"), result.findings(EndpointInfo.class).getFirst().pathVariables());
     }
 
     @Test
@@ -124,8 +127,8 @@ class EndpointVisitorTest {
             }
             """);
 
-        assertEquals(1, result.endpoints().size());
-        assertEquals(List.of("q"), result.endpoints().getFirst().queryParameters());
+        assertEquals(1, result.findings(EndpointInfo.class).size());
+        assertEquals(List.of("q"), result.findings(EndpointInfo.class).getFirst().queryParameters());
     }
 
     @Test
@@ -138,7 +141,7 @@ class EndpointVisitorTest {
             }
             """);
 
-        assertTrue(result.endpoints().isEmpty());
+        assertTrue(result.findings(EndpointInfo.class).isEmpty());
     }
 
     @Test
@@ -156,11 +159,11 @@ class EndpointVisitorTest {
             }
             """);
 
-        assertEquals(2, result.endpoints().size());
-        assertEquals("PUT", result.endpoints().get(0).httpMethod());
-        assertEquals("/update", result.endpoints().get(0).path());
-        assertEquals("DELETE", result.endpoints().get(1).httpMethod());
-        assertEquals("/remove", result.endpoints().get(1).path());
+        assertEquals(2, result.findings(EndpointInfo.class).size());
+        assertEquals("PUT", result.findings(EndpointInfo.class).get(0).httpMethod());
+        assertEquals("/update", result.findings(EndpointInfo.class).get(0).path());
+        assertEquals("DELETE", result.findings(EndpointInfo.class).get(1).httpMethod());
+        assertEquals("/remove", result.findings(EndpointInfo.class).get(1).path());
     }
 
     @Test
@@ -175,7 +178,7 @@ class EndpointVisitorTest {
         AnalysisResultBuilder builder = new AnalysisResultBuilder();
         visitor.analyze(cu, builder, "test.java");
 
-        assertTrue(builder.build("test.java").endpoints().isEmpty());
+        assertTrue(builder.build("test.java").findings(EndpointInfo.class).isEmpty());
     }
 
     @Test

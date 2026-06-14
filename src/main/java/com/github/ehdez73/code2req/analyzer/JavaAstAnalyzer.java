@@ -31,7 +31,7 @@ public class JavaAstAnalyzer {
             return builder.build(fp);
         } catch (Exception e) {
             log.warn("Failed to analyze {}: {}", fp, e.getMessage());
-            return new AnalysisResult(fp, List.of(), List.of(), List.of());
+            return new AnalysisResult(fp, List.of());
         }
     }
 }

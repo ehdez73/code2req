@@ -1,4 +1,6 @@
-package com.github.ehdez73.code2req.analyzer;
+package com.github.ehdez73.code2req.analyzer.scheduledtask;
+
+import com.github.ehdez73.code2req.analyzer.AnalysisFinding;
 
 public record ScheduledTaskInfo(
     String methodName,
@@ -8,4 +10,4 @@ public record ScheduledTaskInfo(
     Long fixedDelay,
     String type,
     String filePath
-) {}
+) implements AnalysisFinding {}

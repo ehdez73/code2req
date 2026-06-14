@@ -1,5 +1,7 @@
-package com.github.ehdez73.code2req.analyzer;
+package com.github.ehdez73.code2req.analyzer.component;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
+import com.github.ehdez73.code2req.analyzer.AstAnalysisVisitor;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
@@ -17,7 +19,7 @@ public class ComponentVisitor implements AstAnalysisVisitor {
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, String filePath) {
         List<ComponentInfo> components = new ArrayList<>();
         cu.accept(new ComponentAstAdapter(filePath), components);
-        components.forEach(builder::addComponent);
+        components.forEach(builder::addFinding);
     }
 
     static class ComponentAstAdapter extends VoidVisitorAdapter<List<ComponentInfo>> {

@@ -1,5 +1,7 @@
-package com.github.ehdez73.code2req.analyzer;
+package com.github.ehdez73.code2req.analyzer.scheduledtask;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisResult;
+import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import org.junit.jupiter.api.Test;
@@ -29,8 +31,8 @@ class ScheduledTaskVisitorTest {
             }
             """);
 
-        assertEquals(1, result.scheduledTasks().size());
-        ScheduledTaskInfo t = result.scheduledTasks().getFirst();
+        assertEquals(1, result.findings(ScheduledTaskInfo.class).size());
+        ScheduledTaskInfo t = result.findings(ScheduledTaskInfo.class).getFirst();
         assertEquals("runMe", t.methodName());
         assertEquals("MyTask", t.className());
         assertEquals("0 * * * * ?", t.cron());
@@ -51,8 +53,8 @@ class ScheduledTaskVisitorTest {
             }
             """);
 
-        assertEquals(1, result.scheduledTasks().size());
-        ScheduledTaskInfo t = result.scheduledTasks().getFirst();
+        assertEquals(1, result.findings(ScheduledTaskInfo.class).size());
+        ScheduledTaskInfo t = result.findings(ScheduledTaskInfo.class).getFirst();
         assertEquals("fixed-rate", t.type());
         assertEquals(Long.valueOf(5000L), t.fixedRate());
         assertNull(t.cron());
@@ -71,9 +73,9 @@ class ScheduledTaskVisitorTest {
             }
             """);
 
-        assertEquals(1, result.scheduledTasks().size());
-        assertEquals("fixed-delay", result.scheduledTasks().getFirst().type());
-        assertEquals(Long.valueOf(3000L), result.scheduledTasks().getFirst().fixedDelay());
+        assertEquals(1, result.findings(ScheduledTaskInfo.class).size());
+        assertEquals("fixed-delay", result.findings(ScheduledTaskInfo.class).getFirst().type());
+        assertEquals(Long.valueOf(3000L), result.findings(ScheduledTaskInfo.class).getFirst().fixedDelay());
     }
 
     @Test
@@ -85,6 +87,6 @@ class ScheduledTaskVisitorTest {
             }
             """);
 
-        assertTrue(result.scheduledTasks().isEmpty());
+        assertTrue(result.findings(ScheduledTaskInfo.class).isEmpty());
     }
 }

@@ -1,5 +1,7 @@
-package com.github.ehdez73.code2req.analyzer;
+package com.github.ehdez73.code2req.analyzer.endpoint;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
+import com.github.ehdez73.code2req.analyzer.AstAnalysisVisitor;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
@@ -25,7 +27,7 @@ public class EndpointVisitor implements AstAnalysisVisitor {
         }
         List<EndpointInfo> endpoints = new ArrayList<>();
             cu.accept(new EndpointAstAdapter(filePath), endpoints);
-        endpoints.forEach(builder::addEndpoint);
+        endpoints.forEach(builder::addFinding);
     }
 
     static class EndpointAstAdapter extends VoidVisitorAdapter<List<EndpointInfo>> {
