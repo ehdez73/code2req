@@ -35,7 +35,7 @@ Before writing code, consult these sources for tech stack decisions and rational
 
 ```
 src/main/java/com/github/ehdez73/code2req/
-    AiReverseCliApplication.java        # @SpringBootApplication entrypoint
+    Application.java        # @SpringBootApplication entrypoint
     shell/                              # Spring Shell commands
 ```
 
