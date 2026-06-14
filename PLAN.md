@@ -113,10 +113,10 @@
 - [x] Manual: scan petclinic → inspect JSON for `@RabbitListener` queues and `RabbitTemplate.convertAndSend()` publications
 
 #### 4h F003: ActiveMQ/JMS Event Flows (US027)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
-- [ ] Depends on: 4a
-- [ ] Classes: `ActiveMqVisitor`, `ActiveMqInfo`, `ActiveMqPublisherInfo`
-- [ ] Verify: `mvn test` (new tests)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Depends on: 4a
+- [x] Classes: `ActiveMqVisitor`, `ActiveMqInfo`, `ActiveMqPublisherInfo`
+- [x] Verify: `mvn test` (8 new tests)
 - [ ] Manual: scan petclinic → inspect JSON for `@JmsListener` destinations and `JmsTemplate.convertAndSend()` publications
 
 ### Phase 5 — Output
@@ -183,4 +183,4 @@
 - 2026-06-14 — **Phase 4e F003** (@Bean Method Detection): `BeanMethodVisitor`, `BeanMethodInfo` — 9 tests ✓
 - 2026-06-14 — **Phase 4f F003** (XML Spring Bean Detection): `XmlBeanAnalyzer`, `XmlBeanInfo`, `XmlNamespaceBeanInfo`, `XmlComponentScanInfo`, `XmlAopConfigInfo`, `SpringXmlNamespaceRegistry` — 12 tests ✓
 - 2026-06-14 — **Phase 4g F003** (RabbitMQ Event Flows): `RabbitMqVisitor`, `RabbitMqInfo`, `RabbitMqPublisherInfo` — 8 tests ✓
-- (pending) — **Phase 4h F003** (ActiveMQ/JMS Event Flows): `ActiveMqVisitor`, `ActiveMqInfo`, `ActiveMqPublisherInfo`
+- 2026-06-14 — **Phase 4h F003** (ActiveMQ/JMS Event Flows): `ActiveMqVisitor`, `ActiveMqInfo`, `ActiveMqPublisherInfo` — 8 tests ✓
