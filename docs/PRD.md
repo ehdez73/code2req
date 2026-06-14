@@ -618,6 +618,7 @@ The application must expose the following commands via Spring Shell:
 | `status` | | Show current SQLite task state summary and counters |
 | `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `RUNNING` tasks, rebuild DAG, resume |
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |
+| `clear` | `[--manifest path]` | Delete all tasks in SQLite store and remove output JSON index files |
 
 The `--dry-run` flag on the `run` command enables simulation mode (see §5.8).
 

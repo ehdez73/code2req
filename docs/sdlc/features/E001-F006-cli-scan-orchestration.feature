@@ -76,3 +76,31 @@ Feature: CLI Scan Orchestration
       Given a valid project-manifest.yaml with existing scan targets
       When the developer runs the scan command twice on the same workspace
       Then both runs produce identical output
+
+  # ---------------------------------------------------------------------------
+  # Story US028: Developer cleans all local data
+  # ---------------------------------------------------------------------------
+
+  Rule: The clean command removes all local cached state
+
+    @US028 @E001 @F006 @should @draft
+    Scenario: Developer cleans a populated store
+      Given a workspace with a populated task store and an existing index output file
+      When the developer runs the clean command
+      Then the tasks table is empty
+      And the index output file is removed
+      And the spec output directory is removed if empty
+
+    @US028 @E001 @F006 @should @draft
+    Scenario: Developer cleans an empty store
+      Given a workspace with no tasks and no output files
+      When the developer runs the clean command
+      Then the CLI reports a graceful message
+      And no errors occur
+
+    @US028 @E001 @F006 @should @draft
+    Scenario: Developer cleans with a custom manifest path
+      Given a project-manifest.yaml with custom output directory paths
+      When the developer runs the clean --manifest project-manifest.yaml command
+      Then the custom output files are removed
+      And the tasks table is cleaned

@@ -144,6 +144,13 @@
 - [x] Verify: `mvn test`
 - [x] Manual: `validate --manifest ...`, `status` after scan, `resume` after killed scan
 
+#### 6.3 F006: `clean` command (US028)
+- [x] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](docs/sdlc/features/E001-F006-cli-scan-orchestration.feature)
+- [x] Depends on: 1.2
+- [x] Classes: `CleanCommand` (key: `clean`)
+- [x] Verify: `mvn test` (3 new tests)
+- [x] Manual: `scan --manifest ... && clean && status` — verify store empty
+
 ## Story Index
 | Story | Feature | Priority | Phase |
 |-------|---------|----------|-------|
@@ -169,6 +176,7 @@
 | US025 | F003 | should | 4f |
 | US026 | F003 | should | 4g |
 | US027 | F003 | should | 4h |
+| US028 | F006 | should | 6.3 |
 
 ## Completed
 
@@ -187,3 +195,4 @@
 - 2026-06-14 — **Phase 5.1 F005 Part 2** (Index Output + Orphan Recovery): `IndexWriter`, `OrphanRecovery`, `OrphanRecoveryResult` — 11 new tests (7 IndexWriter + 4 OrphanRecovery) ✓
 - 2026-06-14 — **Phase 6.1 F006** (Scan Command): `ScanCommand` with 5-phase pipeline (manifest → orphan recovery → file discovery → analysis/redaction → index output) — 7 new tests ✓
 - 2026-06-14 — **Phase 6.2 F006** (Resume, Validate, Status Commands): `StatusCommand` (status), `ResumeCommand` (resume), existing `ValidateCommand` (validate) — 9 new tests (5 StatusCommandTest + 4 ResumeCommandTest) ✓
+- 2026-06-14 — **Phase 6.3 F006** (CleanCommand): `CleanCommand` (clean) — 3 new tests (CleanCommandTest) ✓
