@@ -138,11 +138,11 @@
 - [ ] Manual: confirm per-stage progress output, zero network calls, exits 0
 
 #### 6.2 F006: `resume`, `validate`, `status` commands (US002, US017)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](docs/sdlc/features/E001-F006-cli-scan-orchestration.feature)
-- [ ] Depends on: 1.1, 1.2, 6.1
-- [ ] Classes: `ResumeCommand`, `ValidateCommand`, `StatusCommand`
-- [ ] Verify: `mvn test`
-- [ ] Manual: `validate --manifest ...`, `status` after scan, `resume` after killed scan
+- [x] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](docs/sdlc/features/E001-F006-cli-scan-orchestration.feature)
+- [x] Depends on: 1.1, 1.2, 6.1
+- [x] Classes: `ResumeCommand`, `ValidateCommand`, `StatusCommand`
+- [x] Verify: `mvn test`
+- [x] Manual: `validate --manifest ...`, `status` after scan, `resume` after killed scan
 
 ## Story Index
 | Story | Feature | Priority | Phase |
@@ -186,3 +186,4 @@
 - 2026-06-14 — **Phase 4h F003** (ActiveMQ/JMS Event Flows): `ActiveMqVisitor`, `ActiveMqInfo`, `ActiveMqPublisherInfo` — 8 tests ✓
 - 2026-06-14 — **Phase 5.1 F005 Part 2** (Index Output + Orphan Recovery): `IndexWriter`, `OrphanRecovery`, `OrphanRecoveryResult` — 11 new tests (7 IndexWriter + 4 OrphanRecovery) ✓
 - 2026-06-14 — **Phase 6.1 F006** (Scan Command): `ScanCommand` with 5-phase pipeline (manifest → orphan recovery → file discovery → analysis/redaction → index output) — 7 new tests ✓
+- 2026-06-14 — **Phase 6.2 F006** (Resume, Validate, Status Commands): `StatusCommand` (status), `ResumeCommand` (resume), existing `ValidateCommand` (validate) — 9 new tests (5 StatusCommandTest + 4 ResumeCommandTest) ✓
