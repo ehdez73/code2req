@@ -35,8 +35,8 @@ build/
 
 ### SDD Engine ###
 .code2req_cache.db
-.code2req.db-wal
-.code2req.db-shm
+.code2req_cache.db-shm
+.code2req_cache.db-wal
 spec-output/
 
 ## Logs ##

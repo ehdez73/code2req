@@ -24,14 +24,28 @@ public class JavaAstAnalyzer {
         String fp = filePath.toString();
         try {
             CompilationUnit cu = StaticJavaParser.parse(filePath);
-            AnalysisResultBuilder builder = new AnalysisResultBuilder();
-            for (AstAnalysisVisitor visitor : visitors) {
-                visitor.analyze(cu, builder, fp);
-            }
-            return builder.build(fp);
+            return analyze(cu, fp);
         } catch (Exception e) {
             log.warn("Failed to analyze {}: {}", fp, e.getMessage());
             return new AnalysisResult(fp, List.of());
         }
+    }
+
+    public AnalysisResult analyze(String filePath, String content) {
+        try {
+            CompilationUnit cu = StaticJavaParser.parse(content);
+            return analyze(cu, filePath);
+        } catch (Exception e) {
+            log.warn("Failed to analyze {}: {}", filePath, e.getMessage());
+            return new AnalysisResult(filePath, List.of());
+        }
+    }
+
+    private AnalysisResult analyze(CompilationUnit cu, String filePath) {
+        AnalysisResultBuilder builder = new AnalysisResultBuilder();
+        for (AstAnalysisVisitor visitor : visitors) {
+            visitor.analyze(cu, builder, filePath);
+        }
+        return builder.build(filePath);
     }
 }

@@ -131,10 +131,10 @@
 ### Phase 6 — CLI Commands
 
 #### 6.1 F006: `scan` command (US015, US016)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](docs/sdlc/features/E001-F006-cli-scan-orchestration.feature)
-- [ ] Depends on: 1.1, 2.1, 3.1, 4a, 5.1
-- [ ] Classes: `ScanCommand` (key: `scan`)
-- [ ] Verify: `mvn test` + `mvn spring-boot:run` then `scan` against petclinic
+- [x] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](docs/sdlc/features/E001-F006-cli-scan-orchestration.feature)
+- [x] Depends on: 1.1, 2.1, 3.1, 4a, 5.1
+- [x] Classes: `ScanCommand` (key: `scan`)
+- [x] Verify: `mvn test` (7 new tests) + `mvn spring-boot:run` then `scan` against petclinic
 - [ ] Manual: confirm per-stage progress output, zero network calls, exits 0
 
 #### 6.2 F006: `resume`, `validate`, `status` commands (US002, US017)
@@ -185,3 +185,4 @@
 - 2026-06-14 — **Phase 4g F003** (RabbitMQ Event Flows): `RabbitMqVisitor`, `RabbitMqInfo`, `RabbitMqPublisherInfo` — 8 tests ✓
 - 2026-06-14 — **Phase 4h F003** (ActiveMQ/JMS Event Flows): `ActiveMqVisitor`, `ActiveMqInfo`, `ActiveMqPublisherInfo` — 8 tests ✓
 - 2026-06-14 — **Phase 5.1 F005 Part 2** (Index Output + Orphan Recovery): `IndexWriter`, `OrphanRecovery`, `OrphanRecoveryResult` — 11 new tests (7 IndexWriter + 4 OrphanRecovery) ✓
+- 2026-06-14 — **Phase 6.1 F006** (Scan Command): `ScanCommand` with 5-phase pipeline (manifest → orphan recovery → file discovery → analysis/redaction → index output) — 7 new tests ✓

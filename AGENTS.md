@@ -39,7 +39,6 @@ src/main/java/com/github/ehdez73/code2req/
     shell/                              # Spring Shell commands
 ```
 
-- Only `hello` command exists so far.
 - No tests exist yet (`src/test/java/` is empty, just the package skeleton). See `.agents/skills/spring/SKILL.md` for testing patterns.
 - `project-manifest.yaml` defines scan targets for external repos (e.g., `spring-petclinic` for manual testing).
 
