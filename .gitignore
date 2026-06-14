@@ -38,6 +38,8 @@ build/
 .code2req_cache.db-shm
 .code2req_cache.db-wal
 spec-output/
+project-manifest.yaml
+*.old
 
 ## Logs ##
 code2req.log

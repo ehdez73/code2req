@@ -59,7 +59,7 @@ See [`docs/sdlc/adrs/`](docs/sdlc/adrs/) and [`docs/sdlc/tech-stack.md`](docs/sd
 
 ## Project Manifest
 
-Scan targets and execution config are defined in `project-manifest.yaml`:
+Copy `project-manifest.yaml.template` to `project-manifest.yaml` and adapt it to your project:
 
 ```yaml
 targets:
