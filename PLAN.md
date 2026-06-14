@@ -105,6 +105,20 @@
 - [x] Verify: `mvn test` (12 new tests — `<bean>` extraction, scope/factory-method/alias, namespace elements (util/jdbc/task), component-scan, aop/tx/cache config, non-Spring XML ignore, import chaining, content sniffing)
 - [ ] Manual: scan petclinic → inspect JSON for XML-defined beans alongside Java-defined components
 
+#### 4g F003: RabbitMQ Event Flows (US026)
+- [ ] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [ ] Depends on: 4a
+- [ ] Classes: `RabbitMqVisitor`, `RabbitMqInfo`, `RabbitMqPublisherInfo`
+- [ ] Verify: `mvn test` (new tests)
+- [ ] Manual: scan petclinic → inspect JSON for `@RabbitListener` queues and `RabbitTemplate.convertAndSend()` publications
+
+#### 4h F003: ActiveMQ/JMS Event Flows (US027)
+- [ ] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [ ] Depends on: 4a
+- [ ] Classes: `ActiveMqVisitor`, `ActiveMqInfo`, `ActiveMqPublisherInfo`
+- [ ] Verify: `mvn test` (new tests)
+- [ ] Manual: scan petclinic → inspect JSON for `@JmsListener` destinations and `JmsTemplate.convertAndSend()` publications
+
 ### Phase 5 — Output
 
 #### 5.1 F005 Part 2: Index Output + Orphan Recovery (US013 rest, US017)
@@ -153,6 +167,8 @@
 | US023 | F003 | should | 4d |
 | US024 | F003 | should | 4e |
 | US025 | F003 | should | 4f |
+| US026 | F003 | should | 4g |
+| US027 | F003 | should | 4h |
 
 ## Completed
 
@@ -166,3 +182,5 @@
 - 2026-06-14 — **Phase 4d F003** (Kafka Event Flows): `KafkaVisitor`, `KafkaInfo`, `KafkaPublisherInfo` — tests ✓
 - 2026-06-14 — **Phase 4e F003** (@Bean Method Detection): `BeanMethodVisitor`, `BeanMethodInfo` — 9 tests ✓
 - 2026-06-14 — **Phase 4f F003** (XML Spring Bean Detection): `XmlBeanAnalyzer`, `XmlBeanInfo`, `XmlNamespaceBeanInfo`, `XmlComponentScanInfo`, `XmlAopConfigInfo`, `SpringXmlNamespaceRegistry` — 12 tests ✓
+- (pending) — **Phase 4g F003** (RabbitMQ Event Flows): `RabbitMqVisitor`, `RabbitMqInfo`, `RabbitMqPublisherInfo`
+- (pending) — **Phase 4h F003** (ActiveMQ/JMS Event Flows): `ActiveMqVisitor`, `ActiveMqInfo`, `ActiveMqPublisherInfo`

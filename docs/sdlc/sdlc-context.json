@@ -313,7 +313,7 @@
       "id": "F003",
       "epic_id": "E001",
       "name": "Java Source AST Analysis (JavaParser implementation)",
-      "description": "JavaParser-based scanning for Java/Spring codebases: component types, HTTP endpoints, event listeners, method calls, custom validators, and scheduled tasks. This is the reference implementation of the LanguageParser SPI.",
+      "description": "JavaParser-based scanning for Java/Spring codebases: component types, HTTP endpoints, event listeners, method calls, custom validators, scheduled tasks, and message broker event flows (Kafka, RabbitMQ, ActiveMQ/JMS). This is the reference implementation of the LanguageParser SPI.",
       "background": "Scan target directories resolved and accessible.",
       "business_rules": [
         "JavaParser processes each file independently — a single parse failure does not stop the full scan",
@@ -325,7 +325,9 @@
         { "id": "US007", "title": "Developer maps HTTP endpoints", "priority": "must", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
         { "id": "US008", "title": "Developer traces event listeners", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
         { "id": "US009", "title": "Developer extracts custom validation logic", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
-        { "id": "US010", "title": "Developer discovers scheduled tasks", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" }
+        { "id": "US010", "title": "Developer discovers scheduled tasks", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US026", "title": "Developer traces RabbitMQ event flows", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US027", "title": "Developer traces ActiveMQ (JMS) event flows", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" }
       ]
     },
     {

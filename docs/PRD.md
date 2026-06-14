@@ -63,13 +63,19 @@ The indexer leverages a dedicated `VoidVisitorAdapter<Context>` traversal strate
 * **Component Identification & Types:** Detect classes, interfaces, and records. Identify stereotypes by inspecting class-level annotations (e.g., `@RestController`, `@Service`, `@Component`, `@Repository`).
 * **Inbound Ingress Points (HTTP/Events/Scheduled):**
 * *REST Endpoints:* Map methods annotated with `@RequestMapping`, `@PostMapping`, `@GetMapping`, etc. Extract literal path strings and HTTP verbs.
-* *Event Consumers:* Map methods annotated with Kafka listener frameworks (e.g., `@KafkaListener(topics = "...")`). Extract target topics.
+* *Event Consumers:* Map methods annotated with message broker listener frameworks:
+  * *Kafka:* `@KafkaListener(topics = "...")` — extract target topics.
+  * *RabbitMQ:* `@RabbitListener(queues = "...")` — extract target queues.
+  * *ActiveMQ (JMS):* `@JmsListener(destination = "...")` — extract target destinations.
 * *Scheduled Tasks:* Map methods annotated with `@Scheduled`. Extract cron expressions, fixed-delay, fixed-rate strings, and trigger zone.
 
 
 * **Outbound Egress Points (Dependencies & Triggers):**
 * *Method Invocations:* Capture method call expressions (`MethodCallExpr`) matching internal package boundaries to map deep structural call trees.
-* *Event Publications:* Identify calls to event-broker templates (e.g., `KafkaTemplate.send(topic, ...)`) and extract destination targets.
+* *Event Publications:* Identify calls to event-broker templates and extract destination targets:
+  * *Kafka:* `KafkaTemplate.send(topic, ...)` / `KafkaTemplate.send(topic, key, ...)`.
+  * *RabbitMQ:* `RabbitTemplate.convertAndSend(exchange, routingKey, ...)` / `RabbitTemplate.send(exchange, routingKey, ...)`.
+  * *ActiveMQ (JMS):* `JmsTemplate.convertAndSend(destination, ...)` / `JmsTemplate.send(destination, ...)`.
 * *Unresolved References:* Outbound calls targeting signatures outside the indexed codebase or missing from the ecosystem discovery payload are caught and recorded.
 
 
@@ -320,7 +326,7 @@ The application must trace execution pathways across network boundaries. When a 
 
 ### 3.3 Asynchronous Message & Scheduled Trigger Tracing (Topic & Scheduled Links)
 
-The system must bridge decoupling gaps created by event-driven and time-driven patterns. If a backend Executor identifies a message dispatcher block (e.g., `KafkaTemplate.send("order-topic", ...)`), it registers a "Topic Link" entry mapping the broker type and destination channel. The Planner uses this to automatically query and enqueue consumer files (`@KafkaListener(topics = "order-topic")`) across any repository in the manifest. Methods annotated with `@Scheduled` are traced as time-based inbound triggers; their schedule metadata is captured and linked to the business operations they initiate.
+The system must bridge decoupling gaps created by event-driven and time-driven patterns. When a backend Executor identifies a message dispatcher block (e.g., `KafkaTemplate.send("order-topic", ...)`, `RabbitTemplate.convertAndSend("order.exchange", "routing.key", ...)`, or `JmsTemplate.convertAndSend("order.queue", ...)`), it registers a "Topic Link" entry mapping the broker type and destination channel. The Planner uses this to automatically query and enqueue consumer files (`@KafkaListener(topics = "order-topic")`, `@RabbitListener(queues = "order.queue")`, or `@JmsListener(destination = "order.queue")`) across any repository in the manifest. Methods annotated with `@Scheduled` are traced as time-based inbound triggers; their schedule metadata is captured and linked to the business operations they initiate.
 
 ### 3.4 Test Suite Mining (Assertion Extraction)
 
@@ -712,7 +718,7 @@ To allow external applications to process the extracted logic without losing arc
                   "properties": {
                     "source_node": { "type": "string" },
                     "target_node": { "type": "string" },
-                    "link_type": { "type": "string", "enum": ["DETERMINISTIC_CALL", "FLOATING_HTTP", "TOPIC_KAFKA", "DATABASE_CALL"] }
+                    "link_type": { "type": "string", "enum": ["DETERMINISTIC_CALL", "FLOATING_HTTP", "TOPIC_KAFKA", "TOPIC_RABBITMQ", "TOPIC_ACTIVEMQ", "DATABASE_CALL"] }
                   }
                 }
               }
@@ -737,7 +743,7 @@ A CLI run is considered successful when all of the following conditions are met.
 | Metric | Minimum Threshold | Validation Method |
 | --- | --- | --- |
 | **HTTP Inbound Endpoints** | $\ge 95\%$ | Verification matching entry paths found in the static Code Graph against the final Markdown matrix. |
-| **Pub/Sub Channels** | $\ge 90\%$ | Cross-reference of matching topic structures resolved between publisher and consumer modules. |
+| **Pub/Sub Channels (Kafka, RabbitMQ, ActiveMQ)** | $\ge 90\%$ | Cross-reference of matching topic, queue, and destination structures resolved between publisher and consumer modules across all supported brokers. |
 | **Custom Constraints** | $\ge 95\%$ | Verification that fields annotated with custom validators have their corresponding `isValid` logic slices extracted and represented. |
 | **Database Procedures** | $\ge 90\%$ | Complete end-to-end extraction and parsing of procedural statements invoked within active backend tasks. |
 | **Plan Execution Completeness** | $\ge 98\%$ | Processing tasks that reach the `SUCCESS` state (excluding tasks explicitly flagged as `AWAITING_HUMAN_REVIEW`). |
@@ -787,8 +793,8 @@ A CLI run is considered successful when all of the following conditions are met.
         <relativePath/>
     </parent>
 
-    <groupId>com.github.ehdez73.code2req</groupId>
-    <artifactId>ai-reverse-cli</artifactId>
+    <groupId>com.github.ehdez73</groupId>
+    <artifactId>code2req</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <name>AI Reverse Engineering CLI</name>
     <description>AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)</description>
