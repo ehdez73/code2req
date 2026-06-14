@@ -77,11 +77,11 @@
 - [x] Manual: scan petclinic → inspect JSON for event listeners and call chains
 
 #### 4c F003: Custom Validators (US009)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
-- [ ] Depends on: 4a
-- [ ] Classes: `ValidatorVisitor`
-- [ ] Verify: `mvn test`
-- [ ] Manual: scan petclinic → inspect JSON for `@Constraint` validators with `isValid` body
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Depends on: 4a
+- [x] Classes: `ValidatorVisitor`, `ValidatorInfo`
+- [x] Verify: `mvn test` (10 new tests + 2 integration in JavaAstAnalyzerTest + 2 updated assertions)
+- [x] Manual: scan petclinic → inspect JSON for `@Constraint` validators with `isValid` body
 
 ### Phase 5 — Output
 
@@ -137,3 +137,4 @@
 - 2026-06-12 — **Phase 3.1 F004** (Secret Redaction & Exclude Filtering): `SecretRedactor`, `RedactionResult`, `ExcludeFilter`, `ExcludeResult` — 18 tests (10 SecretRedactor + 8 ExcludeFilter) ✓
 - 2026-06-13 — **Phase 4a F003** (Components + Endpoints + Scheduled Tasks): `JavaAstAnalyzer`, `ComponentVisitor`, `EndpointVisitor`, `ScheduledTaskVisitor`, `AnalysisContext`, `AnalysisResult`, `ComponentInfo`, `EndpointInfo`, `ScheduledTaskInfo` — 28 new tests ✓
 - 2026-06-14 — **Phase 4b F003** (Event Listeners): `EventListenerVisitor`, `EventListenerInfo`, `EventPublisherInfo`, `MethodCallInfo` — 10 new tests ✓
+- 2026-06-14 — **Phase 4c F003** (Custom Validators): `ValidatorVisitor`, `ValidatorInfo` — 10 new tests ✓

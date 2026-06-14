@@ -9,6 +9,8 @@ import com.github.ehdez73.code2req.analyzer.eventlistener.EventListenerVisitor;
 import com.github.ehdez73.code2req.analyzer.eventlistener.EventPublisherInfo;
 import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskInfo;
 import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskVisitor;
+import com.github.ehdez73.code2req.analyzer.validator.ValidatorInfo;
+import com.github.ehdez73.code2req.analyzer.validator.ValidatorVisitor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -22,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class JavaAstAnalyzerTest {
 
     private final JavaAstAnalyzer analyzer = new JavaAstAnalyzer(
-        List.of(new ComponentVisitor(), new EndpointVisitor(), new ScheduledTaskVisitor(), new EventListenerVisitor())
+        List.of(new ComponentVisitor(), new EndpointVisitor(), new ScheduledTaskVisitor(), new EventListenerVisitor(), new ValidatorVisitor())
     );
 
     @Test
@@ -58,6 +60,7 @@ class JavaAstAnalyzerTest {
         assertTrue(result.findings(ScheduledTaskInfo.class).isEmpty());
         assertTrue(result.findings(EventListenerInfo.class).isEmpty());
         assertTrue(result.findings(EventPublisherInfo.class).isEmpty());
+        assertTrue(result.findings(ValidatorInfo.class).isEmpty());
     }
 
     @Test
@@ -80,6 +83,7 @@ class JavaAstAnalyzerTest {
         assertTrue(result.findings(ScheduledTaskInfo.class).isEmpty());
         assertTrue(result.findings(EventListenerInfo.class).isEmpty());
         assertTrue(result.findings(EventPublisherInfo.class).isEmpty());
+        assertTrue(result.findings(ValidatorInfo.class).isEmpty());
     }
 
     @Test
@@ -103,6 +107,7 @@ class JavaAstAnalyzerTest {
         assertTrue(result.findings(ScheduledTaskInfo.class).isEmpty());
         assertTrue(result.findings(EventListenerInfo.class).isEmpty());
         assertTrue(result.findings(EventPublisherInfo.class).isEmpty());
+        assertTrue(result.findings(ValidatorInfo.class).isEmpty());
     }
 
     @Test
@@ -142,7 +147,52 @@ class JavaAstAnalyzerTest {
         assertTrue(result.findings(ScheduledTaskInfo.class).isEmpty());
         assertTrue(result.findings(EventListenerInfo.class).isEmpty());
         assertTrue(result.findings(EventPublisherInfo.class).isEmpty());
+        assertTrue(result.findings(ValidatorInfo.class).isEmpty());
         assertNotNull(result.filePath());
+    }
+
+    @Test
+    void analyzesFileWithCustomConstraintValidator(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("PaymentValidator.java");
+        Files.writeString(file, """
+            package com.example;
+            import jakarta.validation.ConstraintValidator;
+            import jakarta.validation.ConstraintValidatorContext;
+            public class PaymentValidator implements ConstraintValidator<ValidPayment, Payment> {
+                @Override
+                public boolean isValid(Payment value, ConstraintValidatorContext context) {
+                    return value.getAmount() > 0;
+                }
+            }
+            """);
+
+        AnalysisResult result = analyzer.analyze(file);
+
+        assertEquals(1, result.findings(ValidatorInfo.class).size());
+        ValidatorInfo vi = result.findings(ValidatorInfo.class).getFirst();
+        assertEquals("PaymentValidator", vi.className());
+        assertTrue(vi.isValidBody().contains("return value.getAmount() > 0;"));
+        assertFalse(vi.isBuiltIn());
+    }
+
+    @Test
+    void analyzesFileWithBuiltInValidationAnnotations(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("User.java");
+        Files.writeString(file, """
+            package com.example;
+            import jakarta.validation.constraints.NotNull;
+            import jakarta.validation.constraints.Size;
+            public class User {
+                @NotNull
+                @Size(min = 2, max = 100)
+                private String name;
+            }
+            """);
+
+        AnalysisResult result = analyzer.analyze(file);
+
+        assertEquals(2, result.findings(ValidatorInfo.class).size());
+        assertTrue(result.findings(ValidatorInfo.class).stream().allMatch(ValidatorInfo::isBuiltIn));
     }
 
     @Test
