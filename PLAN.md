@@ -185,10 +185,10 @@
 ### Phase 10 — Call Graph Resolution
 
 #### 10.1 F010: Inter-File Call Resolution (US030)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature`](docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature)
-- [ ] Depends on: 4a (US006, US007), 7.0 (pipeline refactoring)
-- [ ] Classes: `GlobalDeclarationRegistry`, `CallGraphVisitor`, `CallGraphEdge`
-- [ ] Verify: `mvn test` (new tests for declaration registry, method resolution, overload handling, ambiguous overloads)
+- [x] Gherkin: [`docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature`](docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature)
+- [x] Depends on: 4a (US006, US007), 7.0 (pipeline refactoring)
+- [x] Classes: `CallGraphEdge`, `CallGraphVisitor`; modified: `GlobalDeclarationRegistry` (+findMethods), `IndexWriter` (+FINDING_KEYS)
+- [x] Verify: `mvn test` (274 total — 10 new CallGraphVisitorTest + 3 GlobalDeclarationRegistryTest + 2 IndexWriterTest)
 
 ### Phase 11 — Outbound HTTP Detection
 
@@ -312,3 +312,4 @@ Phase 13.x (Language Extension Framework) ── (independent epic, depends on P
 - 2026-06-15 — **Phase 7.0 F010** (Pipeline Refactoring): `ScanPipeline`, `ScanPipelineResult`, `Pass1DeclarationCollector`, `GlobalDeclarationRegistry`, `DeclarationInfo`; enriched `AnalysisContext`; refactored `AstAnalysisVisitor` interface; refactored `ScanCommand`/`ResumeCommand` to delegate to pipeline — 18 new tests (7+5+6), 215 total, all existing tests pass unchanged ✓
 - 2026-06-15 — **Phase 8.1 F013** (Topic Link Resolution): `TopicLink`, `TopicLinkResolver`, `ScanPipelineResult` enriched with topic links, post-pass step in `ScanPipeline`, root-level `topic_links` in `IndexWriter`; `TopicLinkResolverTest` (12 scenarios covering all 3 broker types, cross-target, orphans, multi-topic, patterns) + 2 IndexWriter topic link tests — 229 total, all pass ✓
 - 2026-06-15 — **Phase 9.1 F011** (Database Access Detection): `DbAccessDetector` SPI, `DbAccessHelper`, 6 `@Component` detectors, `DbAccessVisitor` thin delegator; 24 new tests — 259 total, all pass ✓
+- 2026-06-15 — **Phase 10.1 F010** (Inter-File Call Resolution): `CallGraphEdge`, `CallGraphVisitor`; extended `GlobalDeclarationRegistry.findMethods()`; `IndexWriter.FINDING_KEYS` entry for call_graph_edges; 10 visitor tests (RESOLVED/UNRESOLVED/AMBIGUOUS/overloads/JDK skip) + 3 registry tests + 2 IndexWriter tests — 274 total, all pass ✓

@@ -81,4 +81,27 @@ class GlobalDeclarationRegistryTest {
         registry.register(new DeclarationInfo("A", "bar", List.of("String"), "a.java"));
         assertEquals(2, registry.size());
     }
+
+    @Test
+    void findMethodsReturnsAllOverloads() {
+        var registry = new GlobalDeclarationRegistry();
+        registry.register(new DeclarationInfo("OrderService", "find", List.of("String"), "OrderService.java"));
+        registry.register(new DeclarationInfo("OrderService", "find", List.of("String", "String"), "OrderService.java"));
+
+        var result = registry.findMethods("OrderService", "find");
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void findMethodsReturnsEmptyForUnknownClass() {
+        var registry = new GlobalDeclarationRegistry();
+        assertTrue(registry.findMethods("Unknown", "foo").isEmpty());
+    }
+
+    @Test
+    void findMethodsReturnsEmptyForUnknownMethod() {
+        var registry = new GlobalDeclarationRegistry();
+        registry.register(new DeclarationInfo("A", "bar", List.of(), "a.java"));
+        assertTrue(registry.findMethods("A", "unknown").isEmpty());
+    }
 }

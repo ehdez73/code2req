@@ -7,6 +7,7 @@ import com.github.ehdez73.code2req.analyzer.AnalysisFinding;
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.activemq.ActiveMqInfo;
 import com.github.ehdez73.code2req.analyzer.activemq.ActiveMqPublisherInfo;
+import com.github.ehdez73.code2req.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.analyzer.component.BeanMethodInfo;
 import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
@@ -63,6 +64,7 @@ public class IndexWriter {
         FINDING_KEYS.put(XmlComponentScanInfo.class, "xml_component_scans");
         FINDING_KEYS.put(XmlAopConfigInfo.class, "xml_aop_configs");
         FINDING_KEYS.put(XmlNamespaceBeanInfo.class, "xml_namespace_beans");
+        FINDING_KEYS.put(CallGraphEdge.class, "call_graph_edges");
     }
 
     private final ObjectMapper mapper;

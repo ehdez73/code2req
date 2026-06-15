@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.ehdez73.code2req.analyzer.AnalysisFinding;
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.activemq.ActiveMqInfo;
+import com.github.ehdez73.code2req.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.analyzer.component.BeanMethodInfo;
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
@@ -23,7 +24,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermission;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -267,5 +267,48 @@ class IndexWriterTest {
         assertFalse(targetNode.has("bean_methods"));
         assertFalse(targetNode.has("rabbitmq_listeners"));
         assertFalse(targetNode.has("activemq_listeners"));
+    }
+
+    @Test
+    void writesCallGraphEdgesInTarget() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("src"));
+        String filePath = targetDir.resolve("OrderController.java").toString();
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
+        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
+            new OutputConfig(tempDir.toString(), "cg.json", null));
+
+        AnalysisResult result = new AnalysisResult(filePath, List.of(
+            CallGraphEdge.resolved("OrderController", "create", filePath,
+                "OrderService", "createOrder", "/app/OrderService.java", 1)
+        ));
+
+        Path outputPath = writer.write(manifest, List.of(result));
+        JsonNode root = mapper.readTree(outputPath.toFile());
+        JsonNode targetNode = root.get("targets").get(0);
+
+        assertTrue(targetNode.has("call_graph_edges"));
+        assertEquals(1, targetNode.get("call_graph_edges").size());
+        assertEquals("OrderController", targetNode.get("call_graph_edges").get(0).get("sourceClassName").asText());
+        assertEquals("OrderService", targetNode.get("call_graph_edges").get(0).get("targetClassName").asText());
+        assertEquals("RESOLVED", targetNode.get("call_graph_edges").get(0).get("resolvedStatus").asText());
+    }
+
+    @Test
+    void callGraphEdgesOmittedWhenEmpty() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("src"));
+        String filePath = targetDir.resolve("App.java").toString();
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
+        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
+            new OutputConfig(tempDir.toString(), "no-cg.json", null));
+
+        AnalysisResult result = new AnalysisResult(filePath, List.of(
+            new ComponentInfo("Service", "MyService", "com.app", filePath)
+        ));
+
+        Path outputPath = writer.write(manifest, List.of(result));
+        JsonNode root = mapper.readTree(outputPath.toFile());
+        JsonNode targetNode = root.get("targets").get(0);
+
+        assertFalse(targetNode.has("call_graph_edges"));
     }
 }

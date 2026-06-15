@@ -44,6 +44,14 @@ public class GlobalDeclarationRegistry {
             .toList();
     }
 
+    public List<DeclarationInfo> findMethods(String className, String methodName) {
+        var classDecls = byClassName.get(className);
+        if (classDecls == null) return List.of();
+        return classDecls.stream()
+            .filter(d -> d.methodName().equals(methodName))
+            .toList();
+    }
+
     public boolean isEmpty() {
         return byClassName.isEmpty();
     }
