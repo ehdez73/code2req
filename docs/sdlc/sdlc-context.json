@@ -1,10 +1,10 @@
 {
   "meta": {
-    "version": "1.2.0",
+    "version": "1.3.0",
     "phase": "1",
     "created_at": "2026-06-12T12:00:00Z",
-    "last_updated": "2026-06-12T15:00:00Z",
-    "last_agent": "tech-stack-manager"
+    "last_updated": "2026-06-15T10:00:00Z",
+    "last_agent": "opencode"
   },
   "project": {
     "name": "code2req",
@@ -82,7 +82,13 @@
       "Exclude pattern filtering for generated code and vendor packages",
       "Structured JSON index output (code-graph-index.json) with full structural metadata",
       "SQLite task store ingestion via Spring JDBC with WAL mode and idempotent task IDs",
-      "CLI scan command — Phase 1 only execution"
+      "Global declaration registry for inter-file method resolution (Pass 1)",
+      "Inter-file call graph resolution via CallGraphVisitor (Pass 2)",
+      "Database access pattern detection (JdbcTemplate, @Procedure, EntityManager, @Transactional)",
+      "Outbound HTTP client detection and floating link resolution (RestTemplate, WebClient, @FeignClient, FloatingLinkResolver)",
+      "Deterministic topic link resolution (producer-to-consumer matching across Kafka, RabbitMQ, ActiveMQ)",
+      "Extended SQLite tables (execution_findings, topic_links, floating_links, metrics)",
+      "CLI scan command — Phase 1 deterministic two-pass execution"
     ],
     "out_of_scope": [
       "Phase 2 — Stateful Dynamic Execution (LLM-powered analysis per file)",
@@ -144,6 +150,26 @@
       "metric": "Warm Start Recovery Duration",
       "target": "<= 30 seconds",
       "measurement": "Time to resolve pending/orphaned states and re-align the processing DAG after crash"
+    },
+    {
+      "metric": "Inter-File Call Resolution Rate",
+      "target": ">= 75%",
+      "measurement": "Ratio of resolved MethodCallExpr nodes to total non-JDK MethodCallExpr nodes in the codebase"
+    },
+    {
+      "metric": "Database Access Point Detection",
+      "target": ">= 90%",
+      "measurement": "Verification that all @Procedure annotations and JdbcTemplate calls are captured"
+    },
+    {
+      "metric": "Outbound HTTP Client Detection",
+      "target": ">= 90%",
+      "measurement": "Verification that all RestTemplate/WebClient/FeignClient usages are registered as floating_links"
+    },
+    {
+      "metric": "Topic Link Resolution",
+      "target": ">= 95%",
+      "measurement": "Cross-reference of matching topic/queue/destination pairs between producers and consumers"
     }
   ],
   "non_functional_requirements": [
@@ -425,6 +451,89 @@
       "user_stories": [
         { "id": "US022", "title": "Developer adds a parser without changing the pipeline", "priority": "should", "type": "story", "gherkin_file": "features/E002-F009-shared-pipeline-integration.feature" }
       ]
+    },
+    {
+      "id": "F010",
+      "epic_id": "E001",
+      "name": "Inter-File Call Resolution",
+      "description": "Two-pass deterministic linker: Pass 1 collects method signatures into a GlobalDeclarationRegistry; Pass 2 resolves MethodCallExpr nodes against the registry to produce CallGraphEdge records. Overloaded methods recorded as AMBIGUOUS when arguments cannot discriminate.",
+      "background": "Phase 4a (ComponentVisitor, EndpointVisitor) completed. Pipeline refactored to two-pass orchestration.",
+      "business_rules": [
+        "Pass 1 extracts method signatures, field types, and component stereotypes — no resolution or analysis is performed",
+        "Pass 2 resolves each MethodCallExpr against the declaration registry built in Pass 1",
+        "Calls matching internal package boundaries are recorded with source file, target file, and method signatures",
+        "Overloaded methods are recorded as AMBIGUOUS when argument count cannot discriminate",
+        "Calls to JDK, Spring internals, and unresolvable third-party libraries are recorded as unresolved_signatures"
+      ],
+      "user_stories": [
+        { "id": "US030", "title": "Developer traces inter-file call chains", "priority": "must", "type": "story", "gherkin_file": "features/E001-F010-inter-file-call-graph.feature" }
+      ]
+    },
+    {
+      "id": "F011",
+      "epic_id": "E001",
+      "name": "Database Access Detection",
+      "description": "Detect database access patterns via DbAccessVisitor: JdbcTemplate, @Procedure, EntityManager, @Transactional, NamedParameterJdbcTemplate, SimpleJdbcCall. Spring Data interfaces registered as virtual declarations.",
+      "background": "Two-pass pipeline operational. Pass 1 registry available.",
+      "business_rules": [
+        "Detect JdbcTemplate.update/query/queryForObject calls with SQL extraction",
+        "Detect @Procedure(name) on repository methods",
+        "Detect EntityManager.persist/merge/find/createQuery",
+        "Detect @Transactional on method or class level as transaction boundaries",
+        "Spring Data interfaces (CrudRepository, JpaRepository) registered as virtual database access points"
+      ],
+      "user_stories": [
+        { "id": "US031", "title": "Developer traces database access patterns", "priority": "should", "type": "story", "gherkin_file": "features/E001-F011-database-access-detection.feature" }
+      ]
+    },
+    {
+      "id": "F012",
+      "epic_id": "E001",
+      "name": "Outbound HTTP Detection & Floating Link Resolution",
+      "description": "Detect outbound HTTP calls via RestClientVisitor (RestTemplate, WebClient, @FeignClient). Post-pass FloatingLinkResolver matches HTTP calls to known endpoints deterministically.",
+      "background": "Two-pass pipeline operational. Pass 1 registry available.",
+      "business_rules": [
+        "Detect RestTemplate.getForObject/postForObject/exchange with URL extraction",
+        "Detect WebClient fluent builder chains (method/uri/retrieve)",
+        "Detect @FeignClient(name, url) on interfaces",
+        "URL literals captured as-is; SpEL/environment expressions captured as patterns with isExpression flag",
+        "FloatingLinkResolver matches URL patterns to known endpoints: literal match = RESOLVED 1.0, path variable match = RESOLVED 0.8"
+      ],
+      "user_stories": [
+        { "id": "US032", "title": "Developer traces outbound HTTP calls", "priority": "should", "type": "story", "gherkin_file": "features/E001-F012-outbound-http-detection.feature" }
+      ]
+    },
+    {
+      "id": "F013",
+      "epic_id": "E001",
+      "name": "Topic Link Resolution",
+      "description": "Deterministic post-pass resolver matching event producers to consumers across Kafka, RabbitMQ, and ActiveMQ/JMS. Matches on broker + topic_or_queue values.",
+      "background": "Kafka, RabbitMQ, and ActiveMQ visitors complete (Phase 4d, 4g, 4h). All event flows captured.",
+      "business_rules": [
+        "Matches broker + topic_or_queue between producers and consumers",
+        "Each matching pair creates a topic_link row with status RESOLVED",
+        "Covers Kafka, RabbitMQ, and ActiveMQ/JMS within the same manifest execution"
+      ],
+      "user_stories": [
+        { "id": "US033", "title": "Developer links event producers to consumers", "priority": "should", "type": "story", "gherkin_file": "features/E001-F013-event-link-resolution.feature" }
+      ]
+    },
+    {
+      "id": "F014",
+      "epic_id": "E001",
+      "name": "Extended SQLite Tables & Metrics",
+      "description": "Extended SQLite schema for structured trace persistence: execution_findings, topic_links, floating_links, and metrics tables alongside the existing tasks table.",
+      "background": "All resolution and link visitors complete.",
+      "business_rules": [
+        "execution_findings table stores per-task structured findings with schema_version",
+        "topic_links table stores deterministic producer-consumer matches",
+        "floating_links table stores outbound HTTP calls with resolution status",
+        "metrics table stores run-level counters (edges, links, tokens consumed)"
+      ],
+      "user_stories": [
+        { "id": "US034", "title": "Developer reviews structured trace output", "priority": "should", "type": "story", "gherkin_file": "features/E001-F014-structured-trace-sqlite-persistence.feature" },
+        { "id": "US035", "title": "Developer verifies floating link registration", "priority": "should", "type": "story", "gherkin_file": "features/E001-F014-structured-trace-sqlite-persistence.feature" }
+      ]
     }
   ],
   "stories": [],
@@ -477,7 +586,12 @@
       "features/E001-F006-cli-scan-orchestration.feature",
       "features/E002-F007-parser-abstraction-spi.feature",
       "features/E002-F008-parser-discovery-and-routing.feature",
-      "features/E002-F009-shared-pipeline-integration.feature"
+      "features/E002-F009-shared-pipeline-integration.feature",
+      "features/E001-F010-inter-file-call-graph.feature",
+      "features/E001-F011-database-access-detection.feature",
+      "features/E001-F012-outbound-http-detection.feature",
+      "features/E001-F013-event-link-resolution.feature",
+      "features/E001-F014-structured-trace-sqlite-persistence.feature"
     ]
   }
 }

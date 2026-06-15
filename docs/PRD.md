@@ -2,7 +2,7 @@
 
 ## AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)
 
-> **Version 3.5** — Fully revised, unified in English, and optimized for engineering execution. This version incorporates high-performance local Spring JDBC state storage, a **Dual-Engine Hybrid Indexing Pipeline** (Maven + JavaParser AST), an annotation-driven heuristic fallback strategy, a **Declarative Asynchronous Execution Model managed natively by Spring (`@Async`)**, streamed Map-Reduce processing to eliminate memory constraints, pure-Java parsing boundaries, and advanced CLI visual telemetry.
+> **Version 4.0** — Fully revised, unified in English, and optimized for engineering execution. This version introduces a **Two-Pass Deterministic Linker** architecture for inter-file structural tracing (call graph, database access, outbound HTTP, event flows) without LLM dependencies. Phase 2 is scoped to semantic enrichment only. Incorporates high-performance local Spring JDBC state storage, a **Dual-Engine Hybrid Indexing Pipeline** (Maven + JavaParser AST), an annotation-driven heuristic fallback strategy, a **Declarative Asynchronous Execution Model managed natively by Spring (`@Async`)**, streamed Map-Reduce processing to eliminate memory constraints, pure-Java parsing boundaries, and advanced CLI visual telemetry.
 
 ---
 
@@ -37,6 +37,14 @@ The CLI rejects the unpredictable, conversational agent-loop pattern. It adopts 
 ### 2.1 Phase 1: Deterministic Multi-Language Indexing
 
 Before any LLM interaction takes place, the CLI scans the physical workspace using local code-graph and parsing tools. To maintain platform-agnostic distribution without native OS-level JNI bindings (such as Tree-sitter), the engineering stack enforces pure-Java AST parsers (e.g., **JavaParser** for Spring/Java modules). This phase runs as a deterministic compiler-pass requiring zero network connectivity or LLM credentials. It maps signatures, endpoint routes, call frameworks, and event publishers into a local intermediate contract file, eliminating structural exploration overhead during LLM execution.
+
+To enable inter-file structural tracing without LLM dependencies, Phase 1 operates a **two-pass deterministic linker** architecture:
+
+1. **Pass 1 — Declaration Collection:** Every source file is parsed with JavaParser to extract method signatures, field types, and component stereotypes into a global `DeclarationRegistry` held in memory. No resolution or analysis is performed — only structural registration.
+2. **Pass 2 — Resolution Analysis:** Each file is re-analysed with the full visitor suite. Resolution visitors (`CallGraphVisitor`, `DbAccessVisitor`, `RestClientVisitor`) resolve method calls, database access patterns, and outbound HTTP calls against the registry built in Pass 1.
+3. **Post-Pass Link Resolution:** Once all files are processed, deterministic resolvers match event producers to consumers (`TopicLinkResolver`) and register outbound HTTP calls (`FloatingLinkResolver`).
+
+This design ensures that Controller → Service → Repository / Database / External System traces are resolved without LLM calls. The LLM is reserved exclusively for semantic enrichment in Phase 2.
 
 #### 2.1.1 Dual-Engine Indexing & Ecosystem Discovery
 
@@ -82,7 +90,28 @@ The indexer leverages a dedicated `VoidVisitorAdapter<Context>` traversal strate
 * **Companion Rules & Validations:**
 * *Custom Constraints:* Scan field and parameter annotations. If an annotation maps to a custom validation constraint (e.g., `@ValidOrder`), resolve its `validatedBy` target class via AST imports.
 
+* **Inter-File Call Resolution (Pass 2):**
+  * A `CallGraphVisitor` resolves each `MethodCallExpr` against the `DeclarationRegistry` built in Pass 1.
+  * For calls matching internal package boundaries, the edge is recorded with source file, target file, and method signatures.
+  * Overloaded methods are recorded as `AMBIGUOUS` when argument count cannot discriminate.
+  * Calls to JDK (`String.*`, `List.*`), Spring framework internals, and third-party libraries not resolved by the dependency graph are recorded as `unresolved_signatures`.
+  * Calls inside `@EventListener` method bodies are captured with up to 3 levels of nesting (existing behavior, now resolved against the registry).
 
+* **Database Access Patterns (Pass 2):**
+  * Detect `JdbcTemplate.update(query, args)`, `.query(sql, ...)`, `.queryForObject(sql, ...)`.
+  * Detect `@Procedure(name = "...")` on repository methods.
+  * Detect `EntityManager.persist()`, `.merge()`, `.find()`, `.createQuery()`.
+  * Detect `@Transactional` on method or class level as transaction boundaries.
+  * Detect `NamedParameterJdbcTemplate` and `SimpleJdbcCall`.
+  * SQL string literals are extracted from the AST; procedure names are extracted from annotation attributes; table names are inferred from SQL strings where possible.
+  * Spring Data interfaces (`CrudRepository`, `JpaRepository`) are registered as **virtual declarations** — their derived query methods (e.g., `findByLastName()`) have no AST body but are recognized as database access points.
+
+* **Outbound HTTP Client Patterns (Pass 2):**
+  * Detect `RestTemplate.getForObject(url, ...)`, `.postForObject(url, ...)`, `.exchange(url, method, ...)`.
+  * Detect `WebClient` fluent builder chains: `.method(HttpMethod.GET).uri(url).retrieve()`.
+  * Detect `@FeignClient(name = "...", url = "...")` on interfaces.
+  * URL literals are captured as-is; SpEL expressions and environment variable references (e.g., `${services.url}/api/v1/orders`) are captured as patterns with an `isExpression` flag.
+  * Each detected call is registered as a `floating_link` in the SQLite store.
 
 #### 2.1.3 The Intermediate Boundary: `code-graph-index.json`
 
@@ -120,6 +149,15 @@ The indexer flushes its in-memory graph into a standardized local JSON file save
       },
       "unresolved_signatures": [
         "com.thirdparty.telemetry.MetricsLogger.logEntry"
+      ],
+      "call_graph_edges": [
+        {
+          "source_method": "createOrder",
+          "target_class": "com.acme.orders.service.OrderService",
+          "target_method": "createOrder",
+          "target_file": "src/main/java/com/acme/orders/service/OrderService.java",
+          "resolved": true
+        }
       ]
     },
     {
@@ -143,6 +181,19 @@ The indexer flushes its in-memory graph into a standardized local JSON file save
         {
           "type": "DATABASE_PROCEDURE_CALL",
           "procedure_name": "PR_RESERVE_INVENTORY"
+        },
+        {
+          "type": "DATABASE_CALL",
+          "access_type": "JDBCTEMPLATE_QUERY",
+          "sql_literal": "SELECT * FROM orders WHERE status = ?",
+          "table_hint": "orders"
+        },
+        {
+          "type": "HTTP_CALL",
+          "method": "POST",
+          "url_pattern": "${payment.service.url}/api/v1/charges",
+          "is_expression": true,
+          "encapsulated_in": "processPayment"
         }
       ],
       "companion_logic_dependencies": {
@@ -152,6 +203,22 @@ The indexer flushes its in-memory graph into a standardized local JSON file save
         ]
       },
       "unresolved_signatures": []
+    }
+  ],
+  "topic_links": [
+    {
+      "broker": "KAFKA",
+      "topic": "order-events-topic",
+      "producer_task_id": "abc123...",
+      "consumer_task_id": "def456..."
+    }
+  ],
+  "floating_links": [
+    {
+      "method": "POST",
+      "url_pattern": "${payment.service.url}/api/v1/charges",
+      "is_expression": true,
+      "source_task_id": "abc123..."
     }
   ]
 }
@@ -168,7 +235,7 @@ Third-party vendor packages, generated code stubs, and build artifacts matching 
 
 #### 2.1.6 SQLite Ingestion Pipeline
 
-Immediately after writing `code-graph-index.json`, the indexer parses it using native Spring JDBC (`JdbcTemplate`) to populate the SQLite task store. For every record inside the `files` array of the JSON, a record is inserted into the `tasks` table with its initial state set to `PENDING`.
+Immediately after Pass 2 resolution completes, the indexer persists all findings to the SQLite store. For each file, a `tasks` row is created or updated. For each resolved call graph edge, a row is inserted into `execution_findings`. Topic links, floating links, and metrics are written to their respective tables.
 
 ```sql
 INSERT INTO tasks (
@@ -211,7 +278,9 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE TABLE IF NOT EXISTS execution_findings (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id         TEXT NOT NULL REFERENCES tasks(task_id),
+    finding_type    TEXT NOT NULL DEFAULT 'UNKNOWN',
     finding_json    TEXT NOT NULL,
+    resolved        INTEGER NOT NULL DEFAULT 1,
     schema_version  TEXT NOT NULL DEFAULT '1.0',
     created_at      TEXT DEFAULT (datetime('now'))
 );
@@ -223,6 +292,7 @@ CREATE TABLE IF NOT EXISTS topic_links (
     producer_task_id TEXT REFERENCES tasks(task_id),
     consumer_task_id TEXT REFERENCES tasks(task_id),
     resolved_status TEXT NOT NULL DEFAULT 'PENDING',
+    confidence      REAL DEFAULT 1.0,
     created_at      TEXT DEFAULT (datetime('now'))
 );
 
@@ -230,6 +300,7 @@ CREATE TABLE IF NOT EXISTS floating_links (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     method          TEXT NOT NULL,
     url_or_path     TEXT NOT NULL,
+    is_expression   INTEGER NOT NULL DEFAULT 0,
     source_task_id  TEXT NOT NULL REFERENCES tasks(task_id),
     target_endpoint TEXT,
     confidence      REAL,
@@ -242,6 +313,10 @@ CREATE TABLE IF NOT EXISTS metrics (
     run_id          TEXT NOT NULL,
     tasks_total     INTEGER DEFAULT 0,
     tasks_completed INTEGER DEFAULT 0,
+    edges_resolved  INTEGER DEFAULT 0,
+    edges_unresolved INTEGER DEFAULT 0,
+    topic_links_resolved INTEGER DEFAULT 0,
+    floating_links_registered INTEGER DEFAULT 0,
     tokens_consumed INTEGER DEFAULT 0,
     api_cost_estimated REAL DEFAULT 0.0,
     phase           TEXT NOT NULL,
@@ -259,15 +334,41 @@ CREATE TABLE IF NOT EXISTS metrics (
 * [ ] Create the Secret Redaction pipeline filter (in-memory swapping of hardcoded strings to `[REDACTED:secret_type]`).
 * [ ] Output a structurally valid `code-graph-index.json` file.
 * [ ] Write the Spring JDBC ingestion loop to transform JSON entities into `PENDING` relational rows inside SQLite, applying `PRAGMA journal_mode=WAL;`.
+* [ ] Implement `GlobalDeclarationRegistry` (Pass 1 collector).
+* [ ] Implement `CallGraphVisitor` (Pass 2 method call resolver).
+* [ ] Implement `DbAccessVisitor` (Pass 2 database access patterns).
+* [ ] Implement `RestClientVisitor` (Pass 2 outbound HTTP calls).
+* [ ] Implement `TopicLinkResolver` (post-pass producer&#8596;consumer matching).
+* [ ] Implement `FloatingLinkResolver` (post-pass URL&#8596;endpoint matching).
+* [ ] Implement `execution_findings`, `topic_links`, `floating_links`, `metrics` tables with extended columns.
+* [ ] Update `IndexWriter` with new finding types and link sections.
+* [ ] Add metrics collector for edges, topic links, floating links counts.
 
 ---
 
-### 2.2 Phase 2: Stateful Dynamic Execution (Plan-and-Execute)
+### 2.2 Phase 2: Semantic Enrichment (LLM-Scoped)
 
-* **The Planner:** Evaluates the static Code Call Graph stored in the SQLite database to build a Directed Acyclic Graph (DAG) of distinct file tasks. Processing order is prioritized by seeding execution from declared `entry_points` outwards, sorting by structural dependency density.
-* **The Centralized Lightweight State Store:** An embedded SQLite database managed via high-performance, low-overhead native **Spring JDBC (JdbcTemplate)** instead of an ORM framework. It tracks simple task lifecycles (`PENDING`, `RUNNING`, `SUCCESS`, `FAILED`). It acts as a fault-tolerant transaction engine, allowing runs to resume instantly after an interruption without re-processing successfully parsed components.
-* **The Executors:** Short-lived, isolated software workers configured as native Spring beans. Instead of manual thread management or complex semaphore loops, individual file parsing tasks are flagged with Spring's declarative **`@Async("orchestratorTaskExecutor")`** abstraction. Each Async Executor ingests exactly *one* source code file alongside its matching test file, applies a technology profile, distills rules into a strict JSON schema contract, writes it to the SQLite Store via plain SQL statements, and immediately exits. Keeping the initial index in Phase 1 lightweight ensures that these asynchronous worker threads carry only the precise, isolated textual slices they need without carrying excessive codebase overhead.
-* **The Orchestrator:** Processes the dependency DAG, submits tasks asynchronously to the Spring pool, and tracks progress via `CompletableFuture<ExecutionFinding>` responses. It uses non-blocking callbacks to handle results and seamlessly governs task life cycles without manually blocking threads.
+The structural trace produced by Phase 1 resolves all deterministic call paths (Controller &#8594; Service &#8594; Repository, database access, event flows, outbound HTTP calls). Phase 2 enriches this structural trace with **business semantics** for patterns that cannot be inferred from AST analysis alone.
+
+* **The Planner:** Uses the resolved call graph and SQLite topic/floating links from Phase 1 to identify files requiring semantic enrichment. A file qualifies for Phase 2 if any of these conditions are met:
+  * It has more than `llm-unresolved-threshold` (default: 5) unresolved signatures.
+  * It is a Spring Data interface (no AST body to analyse).
+  * It contains a stored procedure call with a body flagged for LLM interpretation.
+  * It is a custom `ConstraintValidator` with a complex `isValid` body.
+  * Test file assertions require semantic extraction (see §3.4).
+
+* **The Centralized Lightweight State Store:** An embedded SQLite database managed via high-performance, low-overhead native **Spring JDBC (JdbcTemplate)** instead of an ORM framework. It tracks enriched findings alongside the Phase 1 structural data.
+
+* **The Executors:** Short-lived, isolated software workers configured as native Spring beans with `@Async("orchestratorTaskExecutor")`. Each Executor receives **the pre-resolved structural context** from Phase 1 (its own call graph edges, database accesses, and link registrations) plus the raw source file. The LLM prompt explicitly instructs the model to NOT resolve structural dependencies (those are already complete) and to focus only on:
+  * Business purpose description (1&#8211;2 sentences per method).
+  * Implicit validation rules not captured by annotations.
+  * Inferred SQL for Spring Data derived query methods.
+  * Business logic interpretation of stored procedures.
+  * Edge cases extracted from test file assertions.
+
+* **The Orchestrator:** Processes the enrichment DAG, submits tasks asynchronously to the Spring pool, and tracks progress via `CompletableFuture<ExecutionFinding>` responses. The enriched `ExecutionFinding` JSON (§4) is merged with the Phase 1 structural data in the SQLite store.
+
+* **Phase Synchronization Barrier:** Phase 3 (synthesis) is blocked until ALL Phase 2 enrichment tasks complete, using `CompletableFuture.allOf(...)`. Phase 2 is skipped entirely if `--llm-threshold` is set to 0 or no files qualify.
 
 ---
 
@@ -322,21 +423,28 @@ execution:
 
 ### 3.2 Full-Stack Flow Stitching (Floating Links)
 
-The application must trace execution pathways across network boundaries. When a frontend source file defines an outbound call using environment variables or dynamic expressions (e.g., `${services.url}/api/v1/orders`), the Executor registers the `external_contract_hint` containing method type, payload properties, and endpoint parameters. The Phase 3 synthesis engine matches these "Floating Links" against the global registry of backend incoming paths using regex-based signature comparisons.
+The application must trace execution pathways across network boundaries.
+
+**Phase 1 (Deterministic):** The `RestClientVisitor` detects outbound HTTP calls from `RestTemplate`, `WebClient`, and `@FeignClient` declarations. Each call is registered as a `floating_link` in the SQLite store with its HTTP method, URL pattern (literal or expression), and source file task ID. After all files are processed, the `FloatingLinkResolver` performs deterministic matching: if a URL pattern is a literal string matching a known backend endpoint path (same HTTP method + path), the link is marked `RESOLVED` with confidence 1.0. If the URL contains path variables or query parameters matching structural patterns, the link is marked `RESOLVED` with confidence 0.8. Unresolved links remain `PENDING` for optional Phase 2 semantic enrichment, where the LLM can infer the intended target from method name, payload structure, and endpoint descriptions.
 
 ### 3.3 Asynchronous Message & Scheduled Trigger Tracing (Topic & Scheduled Links)
 
-The system must bridge decoupling gaps created by event-driven and time-driven patterns. When a backend Executor identifies a message dispatcher block (e.g., `KafkaTemplate.send("order-topic", ...)`, `RabbitTemplate.convertAndSend("order.exchange", "routing.key", ...)`, or `JmsTemplate.convertAndSend("order.queue", ...)`), it registers a "Topic Link" entry mapping the broker type and destination channel. The Planner uses this to automatically query and enqueue consumer files (`@KafkaListener(topics = "order-topic")`, `@RabbitListener(queues = "order.queue")`, or `@JmsListener(destination = "order.queue")`) across any repository in the manifest. Methods annotated with `@Scheduled` are traced as time-based inbound triggers; their schedule metadata is captured and linked to the business operations they initiate.
+The system must bridge decoupling gaps created by event-driven and time-driven patterns.
+
+**Phase 1 (Deterministic):** When a visitor identifies a message dispatcher block (e.g., `KafkaTemplate.send("order-topic", ...)`), it registers the publication in the analysis result. After all files are processed, the `TopicLinkResolver` performs a deterministic SQL JOIN across all scanned targets: it matches `broker` + `topic_or_queue` values between producers and consumers. For each matching pair, a `topic_link` row is created with status `RESOLVED`. This covers Kafka, RabbitMQ, and ActiveMQ/JMS flows within the same manifest execution.
+
+Methods annotated with `@Scheduled` are traced as time-based inbound triggers; their schedule metadata is captured and linked to the business operations they initiate via the call graph resolved in Pass 2.
 
 ### 3.4 Test Suite Mining (Assertion Extraction)
 
 To capture intended validations that may be obscured by technical debt in production classes, the Planner matches production files with their corresponding test files (e.g., `OrderService.java` paired with `OrderServiceTest.java`). The Executor processes both files concurrently, translating assertions (`assertEquals`, `assertThrows`, `expect()`) into functional edge cases and validation requirements.
 
-### 3.5 Dynamic Re-Planning Loop & Phase Synchronization Barrier
+### 3.5 Dynamic Re-Planning Loop & Phase 2 Threshold
 
 If an Executor uncovers an unindexed runtime dependency during LLM file analysis (such as dynamic reflections or factory class routing), it attaches a `discovered_dependency` array to its JSON output.
 
 * **Branch Isolation:** The Orchestrator pauses execution **only for that specific branch**, registers the new file tasks into the SQLite store as `PENDING`, updates task priorities, and triggers them asynchronously. Other branches of the DAG continue running completely uninterrupted.
+* **Phase 2 Threshold Guard:** The Phase 1 linker does not perform dynamic re-planning. If a deterministic resolution fails (unresolved signature), it is logged and counted. Only when the unresolved count per file exceeds `llm-unresolved-threshold` (default: 5) does the file qualify for Phase 2 enrichment.
 * **Phase Synchronization Barrier:** To prevent Phase 3 (Map-Reduce consolidation) from building partial or corrupted system maps, a strict execution barrier is enforced via Spring-managed completion frameworks. The engine is completely blocked from initiating Phase 3 if *any* task in the state store is flagged as `PENDING` or `RUNNING`. Using `CompletableFuture.allOf(...)`, synthesis only triggers when all futures across all branches have completed successfully and resolved.
 
 ### 3.6 Automated Constraint Extraction & Context Budgeting
@@ -347,14 +455,21 @@ To capture domain rules enforced via custom framework validations without breaki
 2. **Logic Slicing:** When a production class utilizing a custom validation annotation is queued for an Executor, the Orchestrator extracts **only the internal body of the matching `public boolean isValid(...)` method**.
 3. **Context Budgeting Protocol:** Before compiling the final Executor prompt, the system calculates the combined token weight of the target source file, its test file, and any extracted custom constraint slices using the model's explicit tokenization engine (e.g., Tiktoken for OpenAI, Anthropic Tokenizer for Claude). If the total token count exceeds 80% of the model's native context window, the system bypasses direct raw inclusion and triggers an intermediate, highly dense LLM semantic pre-summarization step for the companion logic slices before attaching them to the prompt under the `### COMPANION CUSTOM VALIDATORS` section.
 
-### 3.7 Database Logic Processing (Stored Procedures & Syntax Fallback)
+### 3.7 Database Logic Processing
 
 Legacy architectures often hide critical business logic inside procedural database entities, bypassing basic source file analysis.
 
+**Phase 1 — Structural Detection:**
+
 1. **DDL Source Collection:** The CLI ingests database schemas by monitoring Flyway/Liquibase migration directories or accepting a manual file dump using the `--db-schema` parameter.
-2. **Persistence Mapping:** When source code files declare native procedure calls (`@Procedure` annotations or explicit `CALL / EXECUTE` blocks), the engine extracts the matching `CREATE PROCEDURE` or `CREATE FUNCTION` block from the DDL cache.
-3. **Syntax Fallback Gateway:** If the local static DDL parser fails to cleanly isolate the procedure body due to vendor-specific SQL extensions or complex non-ANSI legacy schemas, a fallback mechanism is engaged. The engine uses a fuzzy regular-expression signature match to grab the raw code chunk. If this still fails to fulfill strict syntax splitting, it skips local extraction and delegates the full raw schema segment to a preliminary LLM text-cleaning pass to normalize the routine into ANSI-compliant procedural blocks before further execution.
-4. **Semantic Deserialization:** The procedural SQL code block is appended to the file context under a `### COMPANION DATABASE PROCEDURES` header. If the SQL block triggers a Context Budgeting violation (>80% window threshold), it is dynamically truncated to its transactional signature and exception conditions before ingestion. The system prompt directs the Executor to convert database constructs into standardized functional definitions:
+2. **Persistence Mapping (Deterministic):** When source code files declare native procedure calls (`@Procedure` annotations or explicit `CALL / EXECUTE` blocks), the `DbAccessVisitor` extracts the procedure name and registers a `DATABASE_PROCEDURE_CALL` egress point. If DDL sources are available, the matching `CREATE PROCEDURE` or `CREATE FUNCTION` block is extracted and associated with the call.
+3. **SQL String Extraction:** JDBC template invocations with inline SQL strings are captured as `DATABASE_CALL` egress points with the SQL literal and any inferable table reference.
+4. **Spring Data Virtual Declarations:** Repository interfaces extending `CrudRepository` or `JpaRepository` are registered as virtual database access points. Derived query methods (e.g., `findByLastName()`) are recorded with their inferred entity type.
+
+**Phase 2 — Semantic Interpretation (when needed):**
+
+5. **Syntax Fallback Gateway:** If the local static DDL parser fails to isolate the procedure body due to vendor-specific SQL extensions or complex non-ANSI legacy schemas, the raw schema segment is delegated to an LLM text-cleaning pass.
+6. **Semantic Deserialization:** The procedural SQL code block is sent to the LLM Executor which converts database constructs into standardized functional definitions:
 * Internal `RAISE_APPLICATION_ERROR` signals or exception states map to **Business Rejection Rules** (`validations`).
 * Cursor loops (`CURSOR + LOOP`) map to structural processing steps or collection groupings.
 * Database transaction controls (`COMMIT / ROLLBACK`) map to functional **Edge Cases** (`edge_cases`).
@@ -365,10 +480,12 @@ Legacy architectures often hide critical business logic inside procedural databa
 
 Phase 3 orchestrates individual data pieces into a unified system map using a structured Map-Reduce pattern powered by Embabel.
 
-1. **Semantic Reduce Phase:** Embabel groups JSON records by logical architectural boundaries. A targeted reasoning loop uses an efficient model to collapse duplicate validation signatures and overlapping data maps, generating clean, modular summaries.
+**Note:** Topic link resolution (broker + topic matching) and floating link registration (HTTP client detection) are now performed deterministically in Phase 1. Embabel's role in Phase 3 is limited to:
+
+1. **Semantic Reduce Phase:** Embabel groups enriched `ExecutionFinding` JSON records from Phase 2 by logical architectural boundaries. A targeted reasoning loop uses an efficient model to collapse duplicate validation signatures and overlapping data maps, generating clean, modular summaries.
 2. **Algorithmic Link Consolidation:**
-* *Topic Links:* The engine completes deterministic SQL JOIN operations matching asynchronous producers and consumers sharing identical topic keys.
-* *Floating Links:* Embabel assesses open HTTP client contracts against known endpoints. If the structural parameters, HTTP verbs, and DTO layouts match with a calculated semantic confidence of $\ge 85\%$, the connection is saved to the store as a `RESOLVED_FLOATING_LINK`.
+* *Topic Links:* Phase 1 results are confirmed and any cross-manifest topic pairs that could not be resolved within a single scan are now matched.
+* *Floating Links:* Embabel assesses open HTTP client contracts (still `PENDING` after Phase 1) against known endpoints. If the structural parameters, HTTP verbs, and DTO layouts match with a calculated semantic confidence of $\ge 85\%$, the connection is saved to the store as a `RESOLVED_FLOATING_LINK`.
 
 
 3. **Quality Audit Corrective Path:** If the randomized quality audit sampling managed by the Semantic Validation Agent fails to achieve the minimum $\ge 92\%$ pass rate, the entire synthesis batch for that module is automatically quarantined. The pipeline halts final file writing, increases the validation sample rate to 100% for that module, and routes the tasks through a multi-model consensus validation loop to isolate and correct the deviating outputs.
@@ -614,7 +731,7 @@ The application must expose the following commands via Spring Shell:
 |---|---|---|
 | `scan` | `[--manifest path]` | Run Phase 1 (indexing) only — produces `code-graph-index.json` and populates SQLite |
 | `plan` | `[--manifest path]` | Show the execution DAG without running executors (dry DAG view) |
-| `run` | `[--manifest path] [--dry-run]` | Execute all 3 phases end-to-end |
+| `run` | `[--manifest path] [--dry-run] [--llm-threshold N]` | Execute all 3 phases end-to-end. Phase 2 LLM enrichment only activates for files exceeding N unresolved signatures (default: 5). |
 | `status` | | Show current SQLite task state summary and counters |
 | `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `RUNNING` tasks, rebuild DAG, resume |
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |
@@ -748,6 +865,11 @@ A CLI run is considered successful when all of the following conditions are met.
 | **Custom Constraints** | $\ge 95\%$ | Verification that fields annotated with custom validators have their corresponding `isValid` logic slices extracted and represented. |
 | **Database Procedures** | $\ge 90\%$ | Complete end-to-end extraction and parsing of procedural statements invoked within active backend tasks. |
 | **Plan Execution Completeness** | $\ge 98\%$ | Processing tasks that reach the `SUCCESS` state (excluding tasks explicitly flagged as `AWAITING_HUMAN_REVIEW`). |
+| **Inter-File Call Resolution Rate** | $\ge 75\%$ | Ratio of resolved `MethodCallExpr` nodes to total non-JDK `MethodCallExpr` nodes in the codebase. |
+| **Database Access Point Detection** | $\ge 90\%$ | Verification that all `@Procedure` annotations and JdbcTemplate calls are captured. |
+| **Outbound HTTP Client Detection** | $\ge 90\%$ | Verification that all `RestTemplate`/`WebClient`/`FeignClient` usages are registered as `floating_links`. |
+| **Topic Link Resolution** | $\ge 95\%$ | Cross-reference of matching topic/queue/destination pairs between producers and consumers. |
+| **Phase 2 LLM Spend per Scan** | $\le 20\%$ of files | Only files exceeding `llm-unresolved-threshold` or flagged by semantic criteria qualify for LLM enrichment. |
 
 ### 7.2 Semantic & Structural Quality
 

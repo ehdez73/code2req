@@ -151,7 +151,78 @@
 - [x] Verify: `mvn test` (3 new tests)
 - [x] Manual: `scan --manifest ... && clean && status` — verify store empty
 
-## Story Index
+### Phase 12 — Language Extension Framework (Epic E002)
+
+#### 12.1 F007: Parser Abstraction SPI (US018, US019)
+- [ ] Gherkin: [`docs/sdlc/features/E002-F007-parser-abstraction-spi.feature`](docs/sdlc/features/E002-F007-parser-abstraction-spi.feature)
+- [ ] Depends on: 5.1 (IndexWriter output contract), 6.1 (ScanCommand pipeline)
+- [ ] Classes: `LanguageParser` (interface), `ParserResult`, `ParserComponent`, `ParserEndpoint`, `ParserEvent`, `ParserValidator`, `ParserTask`
+- [ ] Verify: `mvn test` (new tests for SPI contract compliance, optional field handling)
+- [ ] Manual: implement a test-only mock parser, register it, confirm pipeline accepts it
+
+#### 12.2 F008: Parser Discovery & Routing (US020, US021)
+- [ ] Gherkin: [`docs/sdlc/features/E002-F008-parser-discovery-and-routing.feature`](docs/sdlc/features/E002-F008-parser-discovery-and-routing.feature)
+- [ ] Depends on: 12.1
+- [ ] Classes: `ParserRegistry`, `ParserRegistration`, `FileRouter`
+- [ ] Verify: `mvn test` (new tests for extension mapping, first-registered-wins, unknown extension logging)
+- [ ] Manual: register a mock parser for `.js`, route a `.js` file, confirm it reaches the parser
+
+#### 12.3 F009: Shared Pipeline Integration (US022)
+- [ ] Gherkin: [`docs/sdlc/features/E002-F009-shared-pipeline-integration.feature`](docs/sdlc/features/E002-F009-shared-pipeline-integration.feature)
+- [ ] Depends on: 12.1, 12.2, 5.1, 6.1
+- [ ] Classes: `PipelineOrchestrator` (refactored from ScanCommand pipeline logic), `LanguageParserAdapter`
+- [ ] Verify: `mvn test` (new tests for parser-agnostic redaction, output, persistence; zero pipeline code changes)
+- [ ] Manual: add a dummy Kotlin parser, run `scan`, confirm output includes Kotlin findings alongside Java findings
+
+### Phase 7 — Call Graph Resolution
+
+#### 7.0 F010: Pipeline Refactoring (Two-Pass Orchestration)
+- [ ] Prerequisite: refactor `JavaAstAnalyzer` + `ScanCommand` from single-pass to two-pass orchestration
+- [ ] Pass 1: collect declarations from all files into `GlobalDeclarationRegistry`
+- [ ] Pass 2: run full visitor suite + resolution against the registry
+- [ ] Post-Pass: run `TopicLinkResolver` and `FloatingLinkResolver`
+- [ ] Classes: `ScanPipeline` (two-pass orchestrator, refactored from `ScanCommand`), `Pass1DeclarationCollector`
+- [ ] Verify: `mvn test` (existing tests pass unchanged; new tests for two-pass orchestration)
+
+#### 7.1 F010: Inter-File Call Resolution (US030)
+- [ ] Gherkin: [`docs/sdlc/features/E001-F010-inter-file-call-graph.feature`](docs/sdlc/features/E001-F010-inter-file-call-graph.feature)
+- [ ] Depends on: 4a (US006, US007), 7.0 (pipeline refactoring)
+- [ ] Classes: `GlobalDeclarationRegistry`, `CallGraphVisitor`, `CallGraphEdge`
+- [ ] Verify: `mvn test` (new tests for declaration registry, method resolution, overload handling, ambiguous overloads)
+
+### Phase 8 — Database Access Detection
+
+#### 8.1 F011: DB Access Patterns (US031)
+- [ ] Gherkin: [`docs/sdlc/features/E001-F011-database-access-detection.feature`](docs/sdlc/features/E001-F011-database-access-detection.feature)
+- [ ] Depends on: 4a (US006)
+- [ ] Classes: `DbAccessVisitor`, `DbAccessInfo`
+- [ ] Verify: `mvn test` (new tests for JdbcTemplate, @Procedure, EntityManager, @Transactional)
+
+### Phase 9 — Outbound HTTP Detection
+
+#### 9.1 F012: REST Client Detection & Floating Link Resolution (US032)
+- [ ] Gherkin: [`docs/sdlc/features/E001-F012-outbound-http-detection.feature`](docs/sdlc/features/E001-F012-outbound-http-detection.feature)
+- [ ] Depends on: 4a (US006), 7.0 (pipeline refactoring)
+- [ ] Classes: `RestClientVisitor`, `RestCallInfo`, `FloatingLinkResolver`
+- [ ] Verify: `mvn test` (new tests for RestTemplate, WebClient, FeignClient, floating link matching against known endpoints)
+
+### Phase 10 — Event Linking
+
+#### 10.1 F013: Topic Link Resolution (US033)
+- [ ] Gherkin: [`docs/sdlc/features/E001-F013-event-link-resolution.feature`](docs/sdlc/features/E001-F013-event-link-resolution.feature)
+- [ ] Depends on: 4d, 4g, 4h (US023, US026, US027)
+- [ ] Classes: `TopicLinkResolver`
+- [ ] Verify: `mvn test` (new tests for deterministic producer-consumer matching)
+
+### Phase 11 — Extended SQLite Schema
+
+#### 11.1 F014: Remaining Tables & Metrics (US034, US035)
+- [ ] Gherkin: [`docs/sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature`](docs/sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature)
+- [ ] Depends on: 4d, 4g, 4h, 7.1, 8.1, 9.1, 10.1
+- [ ] Classes: `TopicLinkStore`, `FloatingLinkStore`, `MetricsStore`, `Metric`
+- [ ] Verify: `mvn test` (new tests for extended schema, topic/floating/metrics tables)
+
+## Story Index (Extended)
 | Story | Feature | Priority | Phase |
 |-------|---------|----------|-------|
 | US001 | F001 | must | 1.1 |
@@ -177,6 +248,42 @@
 | US026 | F003 | should | 4g |
 | US027 | F003 | should | 4h |
 | US028 | F006 | should | 6.3 |
+| US018 | F007 | should | 12.1 |
+| US019 | F007 | should | 12.1 |
+| US020 | F008 | should | 12.2 |
+| US021 | F008 | should | 12.2 |
+| US022 | F009 | should | 12.3 |
+| US030 | F010 | must | 7.1 |
+| US031 | F011 | should | 8.1 |
+| US032 | F012 | should | 9.1 |
+| US033 | F013 | should | 10.1 |
+| US034 | F014 | should | 11.1 |
+| US035 | F014 | should | 11.1 |
+
+## Phase Dependency Graph
+
+```
+Phase 4a (Components + Endpoints)  ──┐
+    ├── Phase 4d (Kafka)               ─┤
+    ├── Phase 4g (RabbitMQ)            ─┤─── Phase 10 (Topic Link Resolution) ──┐
+    └── Phase 4h (ActiveMQ)            ─┘                                       │
+    │                                                                          │
+    └── Phase 7.0 (Pipeline Refactoring — two-pass orchestration)             │
+         │                              ┌───────────────────────────────────────┘
+         ├── Phase 7.1 (Call Graph)  ───┤── Phase 11 (Extended SQLite) ─── Phase 6 (Scan) ─── Phase 12 (Lang Ext)
+         ├── Phase 8 (DB Access)     ───┘
+         └── Phase 9 (HTTP Clients)  ───┤── (FloatingLinkResolver — post-pass)
+```
+
+## Decisions Made (Updated)
+- Phase 1 uses a **two-pass deterministic linker** architecture (PRD §2.1):
+  - **Pass 1** (Phase 7.0): `Pass1DeclarationCollector` builds a `GlobalDeclarationRegistry` from all source files. No resolution.
+  - **Pass 2** (Phases 7.1–9.1): `CallGraphVisitor`, `DbAccessVisitor`, `RestClientVisitor` resolve against the registry.
+  - **Post-Pass** (Phases 10.1, 9.1): `TopicLinkResolver` matches producers↔consumers; `FloatingLinkResolver` matches HTTP calls↔endpoints.
+- Topic links and floating links are resolved deterministically in Phase 1, not in Phase 3.
+- Phase 7.0 (pipeline refactoring) is a prerequisite for all resolution visitors — existing `ScanCommand`/`JavaAstAnalyzer` need two-pass orchestration.
+- Phase 2 is scoped to semantic enrichment only, triggered by `--llm-threshold` (default: 5 unresolved).
+- Epic E002 (Language Extension Framework) placed after Phase 6 — depends on pipeline completeness, not on call graph/DB/HTTP phases. All E002 boxes start unchecked (no code yet).
 
 ## Completed
 
