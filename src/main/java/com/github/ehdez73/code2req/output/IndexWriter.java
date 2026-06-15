@@ -8,6 +8,7 @@ import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.activemq.ActiveMqInfo;
 import com.github.ehdez73.code2req.analyzer.activemq.ActiveMqPublisherInfo;
 import com.github.ehdez73.code2req.analyzer.component.BeanMethodInfo;
+import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.analyzer.eventlink.TopicLink;
@@ -58,6 +59,7 @@ public class IndexWriter {
         FINDING_KEYS.put(ActiveMqInfo.class, "activemq_listeners");
         FINDING_KEYS.put(ActiveMqPublisherInfo.class, "activemq_publishers");
         FINDING_KEYS.put(XmlBeanInfo.class, "xml_beans");
+        FINDING_KEYS.put(DbAccessInfo.class, "database_access");
         FINDING_KEYS.put(XmlComponentScanInfo.class, "xml_component_scans");
         FINDING_KEYS.put(XmlAopConfigInfo.class, "xml_aop_configs");
         FINDING_KEYS.put(XmlNamespaceBeanInfo.class, "xml_namespace_beans");

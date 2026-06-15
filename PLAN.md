@@ -175,10 +175,12 @@
 ### Phase 9 — Database Access Detection
 
 #### 9.1 F011: DB Access Patterns (US031)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F011-database-access-detection.feature`](docs/sdlc/features/E001-F011-database-access-detection.feature)
-- [ ] Depends on: 4a (US006)
-- [ ] Classes: `DbAccessVisitor`, `DbAccessInfo`
-- [ ] Verify: `mvn test` (new tests for JdbcTemplate, @Procedure, EntityManager, @Transactional)
+- [x] Gherkin: [`docs/sdlc/features/E001-F011-database-access-detection.feature`](docs/sdlc/features/E001-F011-database-access-detection.feature)
+- [x] Depends on: 4a (US006)
+- [x] Classes: `DbAccessVisitor` (thin delegator), `DbAccessDetector` (interface), `DbAccessHelper`, `DbAccessInfo`, `DbAccessType`, `detector/JdbcTemplateDetector`, `detector/EntityManagerDetector`, `detector/HibernateSessionDetector`, `detector/ProcedureDetector`, `detector/TransactionalDetector`, `detector/SpringDataJpaDetector`
+- [x] Detection: JdbcTemplate (query/update/batchUpdate), @Procedure, @Transactional (dedup via class-level skip of @Transactional methods), Spring Data JPA (entity type + derived queries), EntityManager (persist/merge/find/remove/createQuery), Hibernate Session (save/get/load/delete/createQuery/createNativeQuery/byNaturalId)
+- [x] Architecture: Each detection path is a standalone `@Component DbAccessDetector` — adding a new DB type requires only a new class, zero changes to existing code (OCP)
+- [x] Verify: `mvn test` (259 total — 24 new DbAccessVisitorTest covering all 6 detection paths)
 
 ### Phase 10 — Call Graph Resolution
 
@@ -309,3 +311,4 @@ Phase 13.x (Language Extension Framework) ── (independent epic, depends on P
 - 2026-06-14 — **Phase 6.3 F006** (CleanCommand): `CleanCommand` (clean) — 3 new tests (CleanCommandTest) ✓
 - 2026-06-15 — **Phase 7.0 F010** (Pipeline Refactoring): `ScanPipeline`, `ScanPipelineResult`, `Pass1DeclarationCollector`, `GlobalDeclarationRegistry`, `DeclarationInfo`; enriched `AnalysisContext`; refactored `AstAnalysisVisitor` interface; refactored `ScanCommand`/`ResumeCommand` to delegate to pipeline — 18 new tests (7+5+6), 215 total, all existing tests pass unchanged ✓
 - 2026-06-15 — **Phase 8.1 F013** (Topic Link Resolution): `TopicLink`, `TopicLinkResolver`, `ScanPipelineResult` enriched with topic links, post-pass step in `ScanPipeline`, root-level `topic_links` in `IndexWriter`; `TopicLinkResolverTest` (12 scenarios covering all 3 broker types, cross-target, orphans, multi-topic, patterns) + 2 IndexWriter topic link tests — 229 total, all pass ✓
+- 2026-06-15 — **Phase 9.1 F011** (Database Access Detection): `DbAccessDetector` SPI, `DbAccessHelper`, 6 `@Component` detectors, `DbAccessVisitor` thin delegator; 24 new tests — 259 total, all pass ✓

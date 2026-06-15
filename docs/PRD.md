@@ -97,14 +97,16 @@ The indexer leverages a dedicated `VoidVisitorAdapter<Context>` traversal strate
   * Calls to JDK (`String.*`, `List.*`), Spring framework internals, and third-party libraries not resolved by the dependency graph are recorded as `unresolved_signatures`.
   * Calls inside `@EventListener` method bodies are captured with up to 3 levels of nesting (existing behavior, now resolved against the registry).
 
-* **Database Access Patterns (Pass 2):**
-  * Detect `JdbcTemplate.update(query, args)`, `.query(sql, ...)`, `.queryForObject(sql, ...)`.
-  * Detect `@Procedure(name = "...")` on repository methods.
-  * Detect `EntityManager.persist()`, `.merge()`, `.find()`, `.createQuery()`.
-  * Detect `@Transactional` on method or class level as transaction boundaries.
-  * Detect `NamedParameterJdbcTemplate` and `SimpleJdbcCall`.
-  * SQL string literals are extracted from the AST; procedure names are extracted from annotation attributes; table names are inferred from SQL strings where possible.
-  * Spring Data interfaces (`CrudRepository`, `JpaRepository`) are registered as **virtual declarations** — their derived query methods (e.g., `findByLastName()`) have no AST body but are recognized as database access points.
+ * **Database Access Patterns (Pass 2):**
+   * Detect `JdbcTemplate.update(query, args)`, `.query(sql, ...)`, `.queryForObject(sql, ...)`.
+   * Detect Hibernate Session operations: `session.save()`, `.get()`, `.load()`, `.delete()`, `.createQuery(hql)`, `.createNativeQuery(sql)`, `.byNaturalId()`.
+   * Detect `@Procedure(name = "...")` on repository methods.
+   * Detect `EntityManager.persist()`, `.merge()`, `.find()`, `.createQuery()`.
+   * Detect `@Transactional` on method or class level as transaction boundaries (class-level deduplicated against method-level override).
+   * Detect `NamedParameterJdbcTemplate` and `SimpleJdbcCall`.
+   * SQL string literals are extracted from the AST; procedure names are extracted from annotation attributes; table names are inferred from SQL strings where possible.
+   * Spring Data interfaces (`CrudRepository`, `JpaRepository`) are registered as **virtual declarations** — their derived query methods (e.g., `findByLastName()`) have no AST body but are recognized as database access points.
+   * Each detection path is implemented as a standalone `DbAccessDetector` component wired via Spring DI — adding a new database technology requires only a new class with zero changes to existing detector code.
 
 * **Outbound HTTP Client Patterns (Pass 2):**
   * Detect `RestTemplate.getForObject(url, ...)`, `.postForObject(url, ...)`, `.exchange(url, method, ...)`.
@@ -336,7 +338,7 @@ CREATE TABLE IF NOT EXISTS metrics (
 * [ ] Write the Spring JDBC ingestion loop to transform JSON entities into `PENDING` relational rows inside SQLite, applying `PRAGMA journal_mode=WAL;`.
 * [ ] Implement `GlobalDeclarationRegistry` (Pass 1 collector).
 * [ ] Implement `CallGraphVisitor` (Pass 2 method call resolver).
-* [ ] Implement `DbAccessVisitor` (Pass 2 database access patterns).
+* [ ] Implement `DbAccessVisitor` + `DbAccessDetector` SPI (Pass 2 database access patterns, OCP-friendly pluggable detector interface).
 * [ ] Implement `RestClientVisitor` (Pass 2 outbound HTTP calls).
 * [ ] Implement `TopicLinkResolver` (post-pass producer&#8596;consumer matching).
 * [ ] Implement `FloatingLinkResolver` (post-pass URL&#8596;endpoint matching).
