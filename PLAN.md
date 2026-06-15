@@ -154,13 +154,14 @@
 ### Phase 7 — Pipeline Refactoring & Call Graph Foundation
 
 #### 7.0 F010: Pipeline Refactoring (Two-Pass Orchestration) (US036)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature`](docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature)
-- [ ] Prerequisite: refactor `JavaAstAnalyzer` + `ScanCommand` from single-pass to two-pass orchestration
-- [ ] Pass 1: collect declarations from all files into `GlobalDeclarationRegistry`
-- [ ] Pass 2: run full visitor suite + resolution against the registry
-- [ ] Post-Pass: run `TopicLinkResolver` and `FloatingLinkResolver`
-- [ ] Classes: `ScanPipeline` (two-pass orchestrator, refactored from `ScanCommand`), `Pass1DeclarationCollector`
-- [ ] Verify: `mvn test` (existing tests pass unchanged; new tests for two-pass orchestration)
+- [x] Gherkin: [`docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature`](docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature)
+- [x] Prerequisite: refactor `JavaAstAnalyzer` + `ScanCommand` from single-pass to two-pass orchestration
+- [x] Pass 1: collect declarations from all files into `GlobalDeclarationRegistry`
+- [x] Pass 2: run full visitor suite + resolution against the registry (via `AnalysisContext.declarationRegistry()`)
+- [x] Post-Pass: reserved (stubs not created — YAGNI until Phases 8.1/11.1)
+- [x] Classes: `ScanPipeline` (two-pass orchestrator), `Pass1DeclarationCollector`, `GlobalDeclarationRegistry`, `DeclarationInfo`, `ScanPipelineResult`
+- [x] Interface: `AstAnalysisVisitor.analyze(cu, builder, String)` → `(cu, builder, AnalysisContext)`
+- [x] Verify: `mvn test` (215 total — 197 existing + 7 GlobalDeclarationRegistry + 5 Pass1DeclarationCollector + 6 ScanPipeline): all pass unchanged
 
 ### Phase 8 — Event Linking
 
@@ -283,7 +284,7 @@ Phase 13.x (Language Extension Framework) ── (independent epic, depends on P
   - **Pass 2** (Phases 9.1, 10.1, 11.1): `DbAccessVisitor`, `CallGraphVisitor`, `RestClientVisitor` resolve against the registry.
   - **Post-Pass** (Phases 8.1, 11.1): `TopicLinkResolver` matches producers↔consumers; `FloatingLinkResolver` matches HTTP calls↔endpoints.
 - Topic links and floating links are resolved deterministically in Phase 1, not in Phase 3.
-- Phase 7.0 (pipeline refactoring) is a prerequisite for all resolution visitors — existing `ScanCommand`/`JavaAstAnalyzer` need two-pass orchestration.
+- Phase 7.0 (pipeline refactoring) is a prerequisite for all resolution visitors — existing `ScanCommand`/`JavaAstAnalyzer` needed two-pass orchestration.
 - Phase 2 is scoped to semantic enrichment only, triggered by `--llm-threshold` (default: 5 unresolved).
 - Epic E002 (Language Extension Framework) placed after the core analysis pipeline — depends on Phase 5.1/6.1 only, independent of resolution visitors.
 
@@ -305,3 +306,4 @@ Phase 13.x (Language Extension Framework) ── (independent epic, depends on P
 - 2026-06-14 — **Phase 6.1 F006** (Scan Command): `ScanCommand` with 5-phase pipeline (manifest → orphan recovery → file discovery → analysis/redaction → index output) — 7 new tests ✓
 - 2026-06-14 — **Phase 6.2 F006** (Resume, Validate, Status Commands): `StatusCommand` (status), `ResumeCommand` (resume), existing `ValidateCommand` (validate) — 9 new tests (5 StatusCommandTest + 4 ResumeCommandTest) ✓
 - 2026-06-14 — **Phase 6.3 F006** (CleanCommand): `CleanCommand` (clean) — 3 new tests (CleanCommandTest) ✓
+- 2026-06-15 — **Phase 7.0 F010** (Pipeline Refactoring): `ScanPipeline`, `ScanPipelineResult`, `Pass1DeclarationCollector`, `GlobalDeclarationRegistry`, `DeclarationInfo`; enriched `AnalysisContext`; refactored `AstAnalysisVisitor` interface; refactored `ScanCommand`/`ResumeCommand` to delegate to pipeline — 18 new tests (7+5+6), 215 total, all existing tests pass unchanged ✓

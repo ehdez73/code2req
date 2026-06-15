@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.analyzer.endpoint;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
@@ -21,7 +22,7 @@ class EndpointVisitorTest {
         AnalysisResultBuilder builder = new AnalysisResultBuilder();
         // pre-populate with a controller component so EndpointVisitor doesn't short-circuit
         builder.addFinding(new ComponentInfo("RestController", "MyController", "com.example", "test.java"));
-        visitor.analyze(cu, builder, "test.java");
+        visitor.analyze(cu, builder, new AnalysisContext("test.java"));
         return builder.build("test.java");
     }
 
@@ -176,7 +177,7 @@ class EndpointVisitorTest {
             }
             """);
         AnalysisResultBuilder builder = new AnalysisResultBuilder();
-        visitor.analyze(cu, builder, "test.java");
+        visitor.analyze(cu, builder, new AnalysisContext("test.java"));
 
         assertTrue(builder.build("test.java").findings(EndpointInfo.class).isEmpty());
     }

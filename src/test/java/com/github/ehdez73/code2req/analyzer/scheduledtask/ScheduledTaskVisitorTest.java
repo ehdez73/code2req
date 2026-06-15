@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.analyzer.scheduledtask;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.javaparser.StaticJavaParser;
@@ -15,7 +16,7 @@ class ScheduledTaskVisitorTest {
     private AnalysisResult analyze(String filePath, String code) {
         CompilationUnit cu = StaticJavaParser.parse(code);
         AnalysisResultBuilder builder = new AnalysisResultBuilder();
-        visitor.analyze(cu, builder, filePath);
+        visitor.analyze(cu, builder, new AnalysisContext(filePath));
         return builder.build(filePath);
     }
 

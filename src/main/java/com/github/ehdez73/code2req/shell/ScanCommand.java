@@ -4,7 +4,6 @@ import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.config.ExcludeFilter;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
-import com.github.ehdez73.code2req.config.SecretRedactor;
 import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.model.ProjectManifest;
 import com.github.ehdez73.code2req.model.ScanTarget;
@@ -12,6 +11,8 @@ import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.output.IndexWriter;
 import com.github.ehdez73.code2req.output.OrphanRecovery;
+import com.github.ehdez73.code2req.pipeline.ScanPipeline;
+import com.github.ehdez73.code2req.pipeline.ScanPipelineResult;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
 import org.slf4j.Logger;
@@ -21,7 +22,6 @@ import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellOption;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -38,8 +38,7 @@ public class ScanCommand {
     private final ManifestLoader manifestLoader;
     private final ManifestValidator manifestValidator;
     private final ExcludeFilter excludeFilter;
-    private final SecretRedactor secretRedactor;
-    private final JavaAstAnalyzer astAnalyzer;
+    private final ScanPipeline pipeline;
     private final TaskStore taskStore;
     private final TaskIdHasher taskIdHasher;
     private final IndexWriter indexWriter;
@@ -49,8 +48,7 @@ public class ScanCommand {
             ManifestLoader manifestLoader,
             ManifestValidator manifestValidator,
             ExcludeFilter excludeFilter,
-            SecretRedactor secretRedactor,
-            JavaAstAnalyzer astAnalyzer,
+            ScanPipeline pipeline,
             TaskStore taskStore,
             TaskIdHasher taskIdHasher,
             IndexWriter indexWriter,
@@ -58,8 +56,7 @@ public class ScanCommand {
         this.manifestLoader = manifestLoader;
         this.manifestValidator = manifestValidator;
         this.excludeFilter = excludeFilter;
-        this.secretRedactor = secretRedactor;
-        this.astAnalyzer = astAnalyzer;
+        this.pipeline = pipeline;
         this.taskStore = taskStore;
         this.taskIdHasher = taskIdHasher;
         this.indexWriter = indexWriter;
@@ -82,9 +79,12 @@ public class ScanCommand {
         var batches = discoverFiles(manifest, report);
         if (batches == null) return report.toString();
 
-        var results = analyzeFiles(batches, report);
+        var allFiles = flattenBatches(batches);
 
-        writeIndex(manifest, results, report);
+        report.append("Phase 4/5 — Analysis (Two-Pass):\n");
+        var pipelineResult = pipeline.execute(allFiles, report);
+
+        writeIndex(manifest, pipelineResult.results(), report);
 
         appendSummary(report, scanStart);
         return report.toString();
@@ -166,55 +166,10 @@ public class ScanCommand {
         return batches;
     }
 
-    private List<AnalysisResult> analyzeFiles(List<JavaFileBatch> batches, StringBuilder report) {
-        var phaseStart = Instant.now();
-        List<AnalysisResult> allResults = new ArrayList<>();
-        int analyzed = 0;
-        int failed = 0;
-
-        for (var batch : batches) {
-            for (Path file : batch.files()) {
-                var result = analyzeSingleFile(file);
-                if (result == null) {
-                    failed++;
-                } else {
-                    allResults.add(result);
-                    analyzed++;
-                }
-            }
-        }
-
-        report.append(String.format("Phase 4/5 — Analysis: %d file(s) analyzed, %d failed%n", analyzed, failed));
-        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
-        return allResults;
-    }
-
-    private AnalysisResult analyzeSingleFile(Path file) {
-        String fp = file.toString();
-        String content;
-        try {
-            content = Files.readString(file, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            log.warn("Failed to read {}: {}", fp, e.getMessage());
-            storeFailedTask(fp);
-            return null;
-        }
-
-        String redactedContent = secretRedactor.redact(content);
-        AnalysisResult result = astAnalyzer.analyze(fp, redactedContent);
-
-        String contentHash = sha256Hex(content);
-        String taskId = taskIdHasher.hash(fp, contentHash);
-        taskStore.save(new Task(taskId, fp, TaskStatus.SUCCESS, "java", contentHash));
-
-        return result;
-    }
-
-    private void storeFailedTask(String filePath) {
-        var failedTask = new Task(
-            taskIdHasher.hash(filePath, "unreadable"),
-            filePath, TaskStatus.FAILED, "java", "unreadable");
-        taskStore.save(failedTask);
+    private List<Path> flattenBatches(List<JavaFileBatch> batches) {
+        return batches.stream()
+            .flatMap(b -> b.files().stream())
+            .toList();
     }
 
     private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results, StringBuilder report) {
@@ -239,16 +194,6 @@ public class ScanCommand {
 
     private static long elapsedSeconds(Instant start) {
         return Duration.between(start, Instant.now()).toSeconds();
-    }
-
-    private static String sha256Hex(String input) {
-        try {
-            var digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return java.util.HexFormat.of().formatHex(hash);
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
-        }
     }
 
     private record JavaFileBatch(ScanTarget target, List<Path> files) {}

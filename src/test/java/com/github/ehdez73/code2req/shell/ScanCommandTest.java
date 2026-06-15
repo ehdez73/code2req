@@ -3,12 +3,14 @@ package com.github.ehdez73.code2req.shell;
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
+import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
 import com.github.ehdez73.code2req.config.ExcludeFilter;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
 import com.github.ehdez73.code2req.config.SecretRedactor;
 import com.github.ehdez73.code2req.output.IndexWriter;
 import com.github.ehdez73.code2req.output.OrphanRecovery;
+import com.github.ehdez73.code2req.pipeline.ScanPipeline;
 import com.github.ehdez73.code2req.shell.ScanCommand;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
@@ -75,9 +77,12 @@ class ScanCommandTest {
         indexWriter = new IndexWriter();
         orphanRecovery = new OrphanRecovery(taskStore);
 
+        var pass1Collector = new Pass1DeclarationCollector();
+        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher);
+
         command = new ScanCommand(
-            manifestLoader, manifestValidator, excludeFilter, secretRedactor,
-            astAnalyzer, taskStore, taskIdHasher, indexWriter, orphanRecovery);
+            manifestLoader, manifestValidator, excludeFilter, pipeline,
+            taskStore, taskIdHasher, indexWriter, orphanRecovery);
     }
 
     @Test

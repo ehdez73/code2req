@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.analyzer.activemq;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.analyzer.AstAnalysisVisitor;
 import com.github.javaparser.ast.CompilationUnit;
@@ -22,9 +23,9 @@ import java.util.List;
 public class ActiveMqVisitor implements AstAnalysisVisitor {
 
     @Override
-    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, String filePath) {
+    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         ActiveMqCollector collector = new ActiveMqCollector();
-        cu.accept(new ActiveMqAstAdapter(filePath), collector);
+        cu.accept(new ActiveMqAstAdapter(context.filePath()), collector);
         collector.listeners.forEach(builder::addFinding);
         collector.publishers.forEach(builder::addFinding);
     }

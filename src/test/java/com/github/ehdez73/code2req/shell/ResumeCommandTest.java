@@ -3,6 +3,7 @@ package com.github.ehdez73.code2req.shell;
 import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.analyzer.component.BeanMethodVisitor;
 import com.github.ehdez73.code2req.analyzer.component.ComponentVisitor;
+import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointVisitor;
 import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskVisitor;
 import com.github.ehdez73.code2req.analyzer.eventlistener.EventListenerVisitor;
@@ -18,6 +19,7 @@ import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.output.IndexWriter;
 import com.github.ehdez73.code2req.output.OrphanRecovery;
+import com.github.ehdez73.code2req.pipeline.ScanPipeline;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
 import com.github.ehdez73.code2req.store.TaskStoreSchema;
@@ -86,9 +88,12 @@ class ResumeCommandTest {
         indexWriter = new IndexWriter();
         orphanRecovery = new OrphanRecovery(taskStore);
 
+        var pass1Collector = new Pass1DeclarationCollector();
+        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher);
+
         command = new ResumeCommand(
-            manifestLoader, manifestValidator, excludeFilter, secretRedactor,
-            astAnalyzer, taskStore, taskIdHasher, indexWriter, orphanRecovery);
+            manifestLoader, manifestValidator, excludeFilter, pipeline,
+            taskStore, taskIdHasher, indexWriter, orphanRecovery);
     }
 
     @Test

@@ -1,17 +1,18 @@
 package com.github.ehdez73.code2req.shell;
 
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
-import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.config.ExcludeFilter;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
-import com.github.ehdez73.code2req.config.SecretRedactor;
+import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.model.ProjectManifest;
 import com.github.ehdez73.code2req.model.ScanTarget;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.output.IndexWriter;
 import com.github.ehdez73.code2req.output.OrphanRecovery;
+import com.github.ehdez73.code2req.pipeline.ScanPipeline;
+import com.github.ehdez73.code2req.pipeline.ScanPipelineResult;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
 import org.slf4j.Logger;
@@ -39,8 +40,7 @@ public class ResumeCommand {
     private final ManifestLoader manifestLoader;
     private final ManifestValidator manifestValidator;
     private final ExcludeFilter excludeFilter;
-    private final SecretRedactor secretRedactor;
-    private final JavaAstAnalyzer astAnalyzer;
+    private final ScanPipeline pipeline;
     private final TaskStore taskStore;
     private final TaskIdHasher taskIdHasher;
     private final IndexWriter indexWriter;
@@ -50,8 +50,7 @@ public class ResumeCommand {
             ManifestLoader manifestLoader,
             ManifestValidator manifestValidator,
             ExcludeFilter excludeFilter,
-            SecretRedactor secretRedactor,
-            JavaAstAnalyzer astAnalyzer,
+            ScanPipeline pipeline,
             TaskStore taskStore,
             TaskIdHasher taskIdHasher,
             IndexWriter indexWriter,
@@ -59,8 +58,7 @@ public class ResumeCommand {
         this.manifestLoader = manifestLoader;
         this.manifestValidator = manifestValidator;
         this.excludeFilter = excludeFilter;
-        this.secretRedactor = secretRedactor;
-        this.astAnalyzer = astAnalyzer;
+        this.pipeline = pipeline;
         this.taskStore = taskStore;
         this.taskIdHasher = taskIdHasher;
         this.indexWriter = indexWriter;
@@ -83,13 +81,17 @@ public class ResumeCommand {
         var allFiles = discoverFiles(manifest, report);
         if (allFiles == null) return report.toString();
 
-        var pending = filterCompleted(allFiles, report);
+        var pendingFiles = filterCompleted(allFiles, report);
+        if (pendingFiles.isEmpty()) {
+            report.append("Phase 4/5 — Analysis: all files already completed, nothing to resume\n");
+        } else {
+            report.append("Phase 4/5 — Analysis (Two-Pass):\n");
+            var pipelineResult = pipeline.execute(pendingFiles, report);
+            var merged = mergeResults(pipelineResult, allFiles, manifest);
+            writeIndex(manifest, merged, report);
+        }
 
-        var results = analyzeFiles(pending, report);
-
-        writeIndex(manifest, results, report);
-
-        appendSummary(report, scanStart, allFiles.size(), pending.size());
+        appendSummary(report, scanStart, allFiles.size(), pendingFiles.size());
         return report.toString();
     }
 
@@ -130,9 +132,9 @@ public class ResumeCommand {
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
     }
 
-    private List<JavaFileBatch> discoverFiles(ProjectManifest manifest, StringBuilder report) {
+    private List<Path> discoverFiles(ProjectManifest manifest, StringBuilder report) {
         var phaseStart = Instant.now();
-        List<JavaFileBatch> batches = new ArrayList<>();
+        List<Path> allFiles = new ArrayList<>();
         int totalFiles = 0;
 
         for (ScanTarget target : manifest.targets()) {
@@ -154,7 +156,7 @@ public class ResumeCommand {
             }
 
             var excludeResult = excludeFilter.filter(targetPath, javaFiles, target.excludePatterns());
-            batches.add(new JavaFileBatch(target, excludeResult.included()));
+            allFiles.addAll(excludeResult.included());
             totalFiles += excludeResult.includedCount();
         }
 
@@ -163,33 +165,25 @@ public class ResumeCommand {
             return null;
         }
 
-        report.append(String.format("Phase 3/5 — File Discovery: %d Java file(s) across %d target(s)%n",
-            totalFiles, batches.size()));
+        report.append(String.format("Phase 3/5 — File Discovery: %d Java file(s)%n", totalFiles));
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
-        return batches;
+        return allFiles;
     }
 
-    private List<JavaFileBatch> filterCompleted(List<JavaFileBatch> batches, StringBuilder report) {
+    private List<Path> filterCompleted(List<Path> files, StringBuilder report) {
         var phaseStart = Instant.now();
         int skipped = 0;
-        List<JavaFileBatch> pending = new ArrayList<>();
+        List<Path> pending = new ArrayList<>();
 
-        for (var batch : batches) {
-            List<Path> pendingFiles = new ArrayList<>();
-            for (Path file : batch.files()) {
-                if (isAlreadyCompleted(file)) {
-                    skipped++;
-                } else {
-                    pendingFiles.add(file);
-                }
-            }
-            if (!pendingFiles.isEmpty()) {
-                pending.add(new JavaFileBatch(batch.target(), pendingFiles));
+        for (Path file : files) {
+            if (isAlreadyCompleted(file)) {
+                skipped++;
+            } else {
+                pending.add(file);
             }
         }
 
-        int remaining = pending.stream().mapToInt(b -> b.files().size()).sum();
-        report.append(String.format("  Skipped (already SUCCESS): %d, Remaining: %d%n", skipped, remaining));
+        report.append(String.format("  Skipped (already SUCCESS): %d, Remaining: %d%n", skipped, pending.size()));
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
         return pending;
     }
@@ -208,55 +202,10 @@ public class ResumeCommand {
         }
     }
 
-    private List<AnalysisResult> analyzeFiles(List<JavaFileBatch> pending, StringBuilder report) {
-        var phaseStart = Instant.now();
-        List<AnalysisResult> allResults = new ArrayList<>();
-        int analyzed = 0;
-        int failed = 0;
-
-        for (var batch : pending) {
-            for (Path file : batch.files()) {
-                var result = analyzeSingleFile(file);
-                if (result == null) {
-                    failed++;
-                } else {
-                    allResults.add(result);
-                    analyzed++;
-                }
-            }
-        }
-
-        report.append(String.format("Phase 4/5 — Analysis: %d file(s) analyzed, %d failed%n", analyzed, failed));
-        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
-        return allResults;
-    }
-
-    private AnalysisResult analyzeSingleFile(Path file) {
-        String fp = file.toString();
-        String content;
-        try {
-            content = Files.readString(file, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            log.warn("Failed to read {}: {}", fp, e.getMessage());
-            storeFailedTask(fp);
-            return null;
-        }
-
-        String redactedContent = secretRedactor.redact(content);
-        AnalysisResult result = astAnalyzer.analyze(fp, redactedContent);
-
-        String contentHash = sha256Hex(content);
-        String taskId = taskIdHasher.hash(fp, contentHash);
-        taskStore.save(new Task(taskId, fp, TaskStatus.SUCCESS, "java", contentHash));
-
-        return result;
-    }
-
-    private void storeFailedTask(String filePath) {
-        var failedTask = new Task(
-            taskIdHasher.hash(filePath, "unreadable"),
-            filePath, TaskStatus.FAILED, "java", "unreadable");
-        taskStore.save(failedTask);
+    private List<AnalysisResult> mergeResults(ScanPipelineResult pipelineResult, List<Path> allFiles, ProjectManifest manifest) {
+        // For resume, we only analyze pending files. Merging with previous results
+        // is handled by IndexWriter which groups by target path.
+        return pipelineResult.results();
     }
 
     private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results, StringBuilder report) {
@@ -294,6 +243,4 @@ public class ResumeCommand {
             throw new RuntimeException("SHA-256 not available", e);
         }
     }
-
-    private record JavaFileBatch(ScanTarget target, List<Path> files) {}
 }

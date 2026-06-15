@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.analyzer.scheduledtask;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.analyzer.AstAnalysisVisitor;
 import com.github.javaparser.ast.CompilationUnit;
@@ -22,9 +23,9 @@ import java.util.Optional;
 public class ScheduledTaskVisitor implements AstAnalysisVisitor {
 
     @Override
-    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, String filePath) {
+    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         List<ScheduledTaskInfo> tasks = new ArrayList<>();
-        cu.accept(new ScheduledTaskAstAdapter(filePath), tasks);
+        cu.accept(new ScheduledTaskAstAdapter(context.filePath()), tasks);
         tasks.forEach(builder::addFinding);
     }
 

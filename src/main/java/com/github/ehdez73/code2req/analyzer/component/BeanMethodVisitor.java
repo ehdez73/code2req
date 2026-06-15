@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.analyzer.component;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.analyzer.AstAnalysisVisitor;
 import com.github.javaparser.ast.CompilationUnit;
@@ -29,9 +30,9 @@ public class BeanMethodVisitor implements AstAnalysisVisitor {
     );
 
     @Override
-    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, String filePath) {
+    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         List<BeanMethodInfo> beans = new ArrayList<>();
-        cu.accept(new BeanMethodAstAdapter(filePath), beans);
+        cu.accept(new BeanMethodAstAdapter(context.filePath()), beans);
         beans.forEach(builder::addFinding);
     }
 

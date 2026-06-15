@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.analyzer.rabbitmq;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.analyzer.AstAnalysisVisitor;
 import com.github.javaparser.ast.CompilationUnit;
@@ -24,9 +25,9 @@ import java.util.stream.Collectors;
 public class RabbitMqVisitor implements AstAnalysisVisitor {
 
     @Override
-    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, String filePath) {
+    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         RabbitMqCollector collector = new RabbitMqCollector();
-        cu.accept(new RabbitMqAstAdapter(filePath), collector);
+        cu.accept(new RabbitMqAstAdapter(context.filePath()), collector);
         collector.listeners.forEach(builder::addFinding);
         collector.publishers.forEach(builder::addFinding);
     }

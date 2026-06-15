@@ -5,5 +5,5 @@ import com.github.javaparser.ast.CompilationUnit;
 @FunctionalInterface
 public interface AstAnalysisVisitor {
 
-    void analyze(CompilationUnit cu, AnalysisResultBuilder builder, String filePath);
+    void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context);
 }

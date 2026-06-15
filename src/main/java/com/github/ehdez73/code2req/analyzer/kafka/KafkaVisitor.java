@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.analyzer.kafka;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.analyzer.AstAnalysisVisitor;
 import com.github.javaparser.ast.CompilationUnit;
@@ -24,9 +25,9 @@ import java.util.stream.Collectors;
 public class KafkaVisitor implements AstAnalysisVisitor {
 
     @Override
-    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, String filePath) {
+    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         KafkaCollector collector = new KafkaCollector();
-        cu.accept(new KafkaAstAdapter(filePath), collector);
+        cu.accept(new KafkaAstAdapter(context.filePath()), collector);
         collector.listeners.forEach(builder::addFinding);
         collector.publishers.forEach(builder::addFinding);
     }

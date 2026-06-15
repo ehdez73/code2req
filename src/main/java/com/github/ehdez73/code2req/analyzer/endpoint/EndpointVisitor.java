@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.analyzer.endpoint;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.analyzer.AstAnalysisVisitor;
 import com.github.javaparser.ast.CompilationUnit;
@@ -21,12 +22,12 @@ import java.util.Optional;
 public class EndpointVisitor implements AstAnalysisVisitor {
 
     @Override
-    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, String filePath) {
+    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         if (!builder.hasControllerComponent()) {
             return;
         }
         List<EndpointInfo> endpoints = new ArrayList<>();
-            cu.accept(new EndpointAstAdapter(filePath), endpoints);
+            cu.accept(new EndpointAstAdapter(context.filePath()), endpoints);
         endpoints.forEach(builder::addFinding);
     }
 

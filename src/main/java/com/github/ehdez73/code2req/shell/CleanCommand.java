@@ -29,7 +29,7 @@ public class CleanCommand {
 
     @ShellMethod(key = "clean", value = "Deletes all scanned data: SQLite task store and output JSON files")
     public String clean(
-            @ShellOption(value = "--manifest", defaultValue = ShellOption.NULL,
+            @ShellOption(value = "--manifest", defaultValue = "project-manifest.yaml",
                          help = "Path to project manifest YAML (optional — uses default output paths)") String manifestPath) {
 
         var sb = new StringBuilder("=== clean ===\n\n");

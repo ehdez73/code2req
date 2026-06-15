@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.analyzer.eventlistener;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.analyzer.AstAnalysisVisitor;
 import com.github.javaparser.ast.CompilationUnit;
@@ -24,9 +25,9 @@ import java.util.List;
 public class EventListenerVisitor implements AstAnalysisVisitor {
 
     @Override
-    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, String filePath) {
+    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         EventListenerCollector collector = new EventListenerCollector();
-        cu.accept(new EventListenerAstAdapter(filePath), collector);
+        cu.accept(new EventListenerAstAdapter(context.filePath()), collector);
         collector.listeners.forEach(builder::addFinding);
         collector.publishers.forEach(builder::addFinding);
     }

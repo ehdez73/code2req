@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.analyzer.validator;
 
+import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.analyzer.AstAnalysisVisitor;
 import com.github.javaparser.ast.CompilationUnit;
@@ -26,9 +27,9 @@ public class ValidatorVisitor implements AstAnalysisVisitor {
     );
 
     @Override
-    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, String filePath) {
+    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         ValidatorCollector collector = new ValidatorCollector();
-        cu.accept(new ValidatorAstAdapter(filePath), collector);
+        cu.accept(new ValidatorAstAdapter(context.filePath()), collector);
         collector.findings.forEach(builder::addFinding);
     }
 
