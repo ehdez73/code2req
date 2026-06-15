@@ -5,6 +5,8 @@ import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.analyzer.declaration.GlobalDeclarationRegistry;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
+import com.github.ehdez73.code2req.analyzer.eventlink.TopicLink;
+import com.github.ehdez73.code2req.analyzer.eventlink.TopicLinkResolver;
 import com.github.ehdez73.code2req.config.SecretRedactor;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
@@ -34,18 +36,21 @@ public class ScanPipeline {
     private final SecretRedactor secretRedactor;
     private final TaskStore taskStore;
     private final TaskIdHasher taskIdHasher;
+    private final TopicLinkResolver topicLinkResolver;
 
     public ScanPipeline(
             Pass1DeclarationCollector pass1Collector,
             JavaAstAnalyzer astAnalyzer,
             SecretRedactor secretRedactor,
             TaskStore taskStore,
-            TaskIdHasher taskIdHasher) {
+            TaskIdHasher taskIdHasher,
+            TopicLinkResolver topicLinkResolver) {
         this.pass1Collector = pass1Collector;
         this.astAnalyzer = astAnalyzer;
         this.secretRedactor = secretRedactor;
         this.taskStore = taskStore;
         this.taskIdHasher = taskIdHasher;
+        this.topicLinkResolver = topicLinkResolver;
     }
 
     public ScanPipelineResult execute(List<Path> files, StringBuilder report) {
@@ -69,13 +74,19 @@ public class ScanPipeline {
             }
         }
 
+        List<TopicLink> topicLinks = topicLinkResolver.resolve(allResults);
+        long resolved = topicLinks.stream().filter(l -> TopicLink.STATUS_RESOLVED.equals(l.resolvedStatus())).count();
+        long pending = topicLinks.size() - resolved;
+
         report.append(String.format(
             "  Pass 1 (Declaration Collection): %d file(s), %d failed%n", files.size(), pass1Failed));
         report.append(String.format(
             "  Pass 2 (Full Analysis): %d file(s) analyzed, %d failed%n", pass2Analyzed, pass2Failed));
+        report.append(String.format(
+            "  Post-Pass (Topic Link Resolution): %d RESOLVED, %d PENDING%n", resolved, pending));
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
 
-        return new ScanPipelineResult(allResults, registry, pass2Analyzed, pass2Failed);
+        return new ScanPipelineResult(allResults, registry, pass2Analyzed, pass2Failed, topicLinks);
     }
 
     private int runPass1(List<Path> files, GlobalDeclarationRegistry registry, StringBuilder report) {

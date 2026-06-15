@@ -5,6 +5,7 @@ import com.github.ehdez73.code2req.analyzer.component.BeanMethodVisitor;
 import com.github.ehdez73.code2req.analyzer.component.ComponentVisitor;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointVisitor;
+import com.github.ehdez73.code2req.analyzer.eventlink.TopicLinkResolver;
 import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskVisitor;
 import com.github.ehdez73.code2req.analyzer.eventlistener.EventListenerVisitor;
 import com.github.ehdez73.code2req.analyzer.validator.ValidatorVisitor;
@@ -53,6 +54,7 @@ class ResumeCommandTest {
     private IndexWriter indexWriter;
     private OrphanRecovery orphanRecovery;
     private ResumeCommand command;
+    private TopicLinkResolver topicLinkResolver;
 
     private Path dbPath;
 
@@ -62,7 +64,7 @@ class ResumeCommandTest {
         manifestValidator = new ManifestValidator(manifestLoader);
         excludeFilter = new ExcludeFilter();
         secretRedactor = new SecretRedactor();
-
+        topicLinkResolver = new TopicLinkResolver();
         dbPath = tempDir.resolve("resume-test.db");
         var ds = new org.sqlite.SQLiteDataSource();
         ds.setUrl("jdbc:sqlite:" + dbPath.toAbsolutePath());
@@ -89,7 +91,7 @@ class ResumeCommandTest {
         orphanRecovery = new OrphanRecovery(taskStore);
 
         var pass1Collector = new Pass1DeclarationCollector();
-        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher);
+        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher, topicLinkResolver);
 
         command = new ResumeCommand(
             manifestLoader, manifestValidator, excludeFilter, pipeline,

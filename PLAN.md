@@ -166,10 +166,11 @@
 ### Phase 8 — Event Linking
 
 #### 8.1 F013: Topic Link Resolution (US033)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F013-event-link-resolution.feature`](docs/sdlc/features/E001-F013-event-link-resolution.feature)
-- [ ] Depends on: 4d, 4g, 4h (US023, US026, US027)
-- [ ] Classes: `TopicLinkResolver`
-- [ ] Verify: `mvn test` (new tests for deterministic producer-consumer matching)
+- [x] Gherkin: [`docs/sdlc/features/E001-F013-event-link-resolution.feature`](docs/sdlc/features/E001-F013-event-link-resolution.feature)
+- [x] Depends on: 4d, 4g, 4h (US023, US026, US027)
+- [x] Classes: `TopicLink`, `TopicLinkResolverStrategy` (interface), `KafkaTopicLinkResolver`, `RabbitMqTopicLinkResolver`, `ActiveMqTopicLinkResolver`, `TopicLinkResolver` (composite)
+- [x] Modified: `ScanPipelineResult` (topicLinks field), `ScanPipeline` (post-pass step), `IndexWriter` (root-level topic_links array), `ScanCommand`, `ResumeCommand`
+- [x] Verify: `mvn test` (235 total — 18 new across 4 test classes + existing all pass)
 
 ### Phase 9 — Database Access Detection
 
@@ -307,3 +308,4 @@ Phase 13.x (Language Extension Framework) ── (independent epic, depends on P
 - 2026-06-14 — **Phase 6.2 F006** (Resume, Validate, Status Commands): `StatusCommand` (status), `ResumeCommand` (resume), existing `ValidateCommand` (validate) — 9 new tests (5 StatusCommandTest + 4 ResumeCommandTest) ✓
 - 2026-06-14 — **Phase 6.3 F006** (CleanCommand): `CleanCommand` (clean) — 3 new tests (CleanCommandTest) ✓
 - 2026-06-15 — **Phase 7.0 F010** (Pipeline Refactoring): `ScanPipeline`, `ScanPipelineResult`, `Pass1DeclarationCollector`, `GlobalDeclarationRegistry`, `DeclarationInfo`; enriched `AnalysisContext`; refactored `AstAnalysisVisitor` interface; refactored `ScanCommand`/`ResumeCommand` to delegate to pipeline — 18 new tests (7+5+6), 215 total, all existing tests pass unchanged ✓
+- 2026-06-15 — **Phase 8.1 F013** (Topic Link Resolution): `TopicLink`, `TopicLinkResolver`, `ScanPipelineResult` enriched with topic links, post-pass step in `ScanPipeline`, root-level `topic_links` in `IndexWriter`; `TopicLinkResolverTest` (12 scenarios covering all 3 broker types, cross-target, orphans, multi-topic, patterns) + 2 IndexWriter topic link tests — 229 total, all pass ✓

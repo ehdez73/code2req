@@ -10,6 +10,7 @@ import com.github.ehdez73.code2req.analyzer.activemq.ActiveMqPublisherInfo;
 import com.github.ehdez73.code2req.analyzer.component.BeanMethodInfo;
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
+import com.github.ehdez73.code2req.analyzer.eventlink.TopicLink;
 import com.github.ehdez73.code2req.analyzer.eventlistener.EventListenerInfo;
 import com.github.ehdez73.code2req.analyzer.eventlistener.EventPublisherInfo;
 import com.github.ehdez73.code2req.analyzer.kafka.KafkaInfo;
@@ -69,6 +70,10 @@ public class IndexWriter {
     }
 
     public Path write(ProjectManifest manifest, List<AnalysisResult> results) throws IOException {
+        return write(manifest, results, List.of());
+    }
+
+    public Path write(ProjectManifest manifest, List<AnalysisResult> results, List<TopicLink> topicLinks) throws IOException {
         OutputConfig outputConfig = manifest.outputConfig();
         Path outputDir = Path.of(outputConfig.specDir());
         Files.createDirectories(outputDir);
@@ -88,6 +93,10 @@ public class IndexWriter {
                 .filter(r -> Path.of(r.filePath()).normalize().startsWith(targetPath))
                 .toList();
             targetsArray.add(buildTargetNode(target, targetResults));
+        }
+
+        if (!topicLinks.isEmpty()) {
+            root.set("topic_links", mapper.valueToTree(topicLinks));
         }
 
         Path outputPath = outputDir.resolve(outputConfig.indexFile());

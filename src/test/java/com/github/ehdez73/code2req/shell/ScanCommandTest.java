@@ -4,6 +4,7 @@ import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
+import com.github.ehdez73.code2req.analyzer.eventlink.TopicLinkResolver;
 import com.github.ehdez73.code2req.config.ExcludeFilter;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
@@ -40,6 +41,7 @@ class ScanCommandTest {
     private IndexWriter indexWriter;
     private OrphanRecovery orphanRecovery;
     private ScanCommand command;
+    private TopicLinkResolver topicLinkResolver;
 
     private Path dbPath;
 
@@ -49,6 +51,7 @@ class ScanCommandTest {
         manifestValidator = new ManifestValidator(manifestLoader);
         excludeFilter = new ExcludeFilter();
         secretRedactor = new SecretRedactor();
+        topicLinkResolver = new TopicLinkResolver();
 
         // Create a real task store backed by a temp-file SQLite database
         dbPath = tempDir.resolve("test.db");
@@ -78,7 +81,7 @@ class ScanCommandTest {
         orphanRecovery = new OrphanRecovery(taskStore);
 
         var pass1Collector = new Pass1DeclarationCollector();
-        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher);
+        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher, topicLinkResolver);
 
         command = new ScanCommand(
             manifestLoader, manifestValidator, excludeFilter, pipeline,

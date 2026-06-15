@@ -88,7 +88,7 @@ public class ResumeCommand {
             report.append("Phase 4/5 — Analysis (Two-Pass):\n");
             var pipelineResult = pipeline.execute(pendingFiles, report);
             var merged = mergeResults(pipelineResult, allFiles, manifest);
-            writeIndex(manifest, merged, report);
+            writeIndex(manifest, merged, pipelineResult.topicLinks(), report);
         }
 
         appendSummary(report, scanStart, allFiles.size(), pendingFiles.size());
@@ -208,10 +208,10 @@ public class ResumeCommand {
         return pipelineResult.results();
     }
 
-    private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results, StringBuilder report) {
+    private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results, List<com.github.ehdez73.code2req.analyzer.eventlink.TopicLink> topicLinks, StringBuilder report) {
         var phaseStart = Instant.now();
         try {
-            Path indexPath = indexWriter.write(manifest, results);
+            Path indexPath = indexWriter.write(manifest, results, topicLinks);
             report.append(String.format("Phase 5/5 — Index Output: %s%n", indexPath.toAbsolutePath()));
         } catch (IOException e) {
             report.append("Phase 5/5 — Index Output: FAILED — ").append(e.getMessage()).append("\n");

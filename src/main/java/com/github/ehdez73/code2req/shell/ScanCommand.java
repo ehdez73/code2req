@@ -84,7 +84,7 @@ public class ScanCommand {
         report.append("Phase 4/5 — Analysis (Two-Pass):\n");
         var pipelineResult = pipeline.execute(allFiles, report);
 
-        writeIndex(manifest, pipelineResult.results(), report);
+        writeIndex(manifest, pipelineResult.results(), pipelineResult.topicLinks(), report);
 
         appendSummary(report, scanStart);
         return report.toString();
@@ -172,10 +172,10 @@ public class ScanCommand {
             .toList();
     }
 
-    private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results, StringBuilder report) {
+    private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results, List<com.github.ehdez73.code2req.analyzer.eventlink.TopicLink> topicLinks, StringBuilder report) {
         var phaseStart = Instant.now();
         try {
-            Path indexPath = indexWriter.write(manifest, results);
+            Path indexPath = indexWriter.write(manifest, results, topicLinks);
             report.append(String.format("Phase 5/5 — Index Output: %s%n", indexPath.toAbsolutePath()));
         } catch (IOException e) {
             report.append("Phase 5/5 — Index Output: FAILED — ").append(e.getMessage()).append("\n");

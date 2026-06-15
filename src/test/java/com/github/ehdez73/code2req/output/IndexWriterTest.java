@@ -8,6 +8,7 @@ import com.github.ehdez73.code2req.analyzer.activemq.ActiveMqInfo;
 import com.github.ehdez73.code2req.analyzer.component.BeanMethodInfo;
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
+import com.github.ehdez73.code2req.analyzer.eventlink.TopicLink;
 import com.github.ehdez73.code2req.analyzer.eventlistener.EventListenerInfo;
 import com.github.ehdez73.code2req.analyzer.eventlistener.MethodCallInfo;
 import com.github.ehdez73.code2req.analyzer.kafka.KafkaInfo;
@@ -184,6 +185,47 @@ class IndexWriterTest {
         JsonNode root = mapper.readTree(outputPath.toFile());
         assertEquals(1, root.get("targets").get(0).get("components").size());
         assertEquals("AService", root.get("targets").get(0).get("components").get(0).get("className").asText());
+    }
+
+    @Test
+    void writesTopicLinksAtRootLevel() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("src"));
+        String filePath = targetDir.resolve("App.java").toString();
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
+        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
+            new OutputConfig(tempDir.toString(), "linked.json", null));
+
+        AnalysisResult result = new AnalysisResult(filePath, List.of(
+            new ComponentInfo("Service", "MyService", "com.app", filePath)
+        ));
+
+        List<TopicLink> topicLinks = List.of(
+            TopicLink.resolved("KAFKA", "events", "Producer", "/app/Producer.java", "Consumer", "/app/Consumer.java"),
+            TopicLink.orphanProducer("RABBITMQ", "unmatched.q", "OrphanPub", "/app/OrphanPub.java")
+        );
+
+        Path outputPath = writer.write(manifest, List.of(result), topicLinks);
+        JsonNode root = mapper.readTree(outputPath.toFile());
+
+        assertTrue(root.has("topic_links"), "Root should have topic_links array");
+        assertEquals(2, root.get("topic_links").size());
+        assertEquals("KAFKA", root.get("topic_links").get(0).get("brokerType").asText());
+        assertEquals("RESOLVED", root.get("topic_links").get(0).get("resolvedStatus").asText());
+        assertEquals("RABBITMQ", root.get("topic_links").get(1).get("brokerType").asText());
+        assertEquals("PENDING", root.get("topic_links").get(1).get("resolvedStatus").asText());
+    }
+
+    @Test
+    void topicLinksOmittedWhenEmpty() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("src"));
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
+        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
+            new OutputConfig(tempDir.toString(), "no-links.json", null));
+
+        Path outputPath = writer.write(manifest, List.of(), List.of());
+        JsonNode root = mapper.readTree(outputPath.toFile());
+
+        assertFalse(root.has("topic_links"), "Root should not have topic_links when empty");
     }
 
     @Test
