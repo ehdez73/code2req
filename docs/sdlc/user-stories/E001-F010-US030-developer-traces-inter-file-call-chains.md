@@ -1,7 +1,7 @@
 # US030 — Developer traces inter-file call chains
 
 **Epic:** E001 — Deterministic Multi-Language Indexing
-**Feature:** F010 — Inter-File Call Graph Resolution
+**Feature:** F010 — Two-Pass Pipeline Orchestration & Call Graph Resolution
 **Priority:** must | **Estimate:** 8 SP
 **Depends on:** US006, US007 | **Blocks:** US013
 

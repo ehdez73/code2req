@@ -455,7 +455,7 @@
     {
       "id": "F010",
       "epic_id": "E001",
-      "name": "Inter-File Call Resolution",
+      "name": "Two-Pass Pipeline Orchestration & Call Graph Resolution",
       "description": "Two-pass deterministic linker: Pass 1 collects method signatures into a GlobalDeclarationRegistry; Pass 2 resolves MethodCallExpr nodes against the registry to produce CallGraphEdge records. Overloaded methods recorded as AMBIGUOUS when arguments cannot discriminate.",
       "background": "Phase 4a (ComponentVisitor, EndpointVisitor) completed. Pipeline refactored to two-pass orchestration.",
       "business_rules": [
@@ -463,10 +463,13 @@
         "Pass 2 resolves each MethodCallExpr against the declaration registry built in Pass 1",
         "Calls matching internal package boundaries are recorded with source file, target file, and method signatures",
         "Overloaded methods are recorded as AMBIGUOUS when argument count cannot discriminate",
-        "Calls to JDK, Spring internals, and unresolvable third-party libraries are recorded as unresolved_signatures"
+        "Calls to JDK, Spring internals, and unresolvable third-party libraries are recorded as unresolved_signatures",
+        "Post-pass runs TopicLinkResolver and FloatingLinkResolver after all files are processed",
+        "Parse errors in one file do not block processing of other files"
       ],
       "user_stories": [
-        { "id": "US030", "title": "Developer traces inter-file call chains", "priority": "must", "type": "story", "gherkin_file": "features/E001-F010-inter-file-call-graph.feature" }
+        { "id": "US036", "title": "Developer upgrades pipeline to two-pass orchestration", "priority": "must", "type": "story", "gherkin_file": "features/E001-F010-two-pass-pipeline-and-call-graph.feature" },
+        { "id": "US030", "title": "Developer traces inter-file call chains", "priority": "must", "type": "story", "gherkin_file": "features/E001-F010-two-pass-pipeline-and-call-graph.feature" }
       ]
     },
     {
@@ -587,7 +590,7 @@
       "features/E002-F007-parser-abstraction-spi.feature",
       "features/E002-F008-parser-discovery-and-routing.feature",
       "features/E002-F009-shared-pipeline-integration.feature",
-      "features/E001-F010-inter-file-call-graph.feature",
+      "features/E001-F010-two-pass-pipeline-and-call-graph.feature",
       "features/E001-F011-database-access-detection.feature",
       "features/E001-F012-outbound-http-detection.feature",
       "features/E001-F013-event-link-resolution.feature",

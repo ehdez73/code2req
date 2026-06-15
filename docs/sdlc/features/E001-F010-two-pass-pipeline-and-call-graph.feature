@@ -1,12 +1,72 @@
-# Feature: Inter-File Call Graph Resolution
+# Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
 # Epic: E001 — Deterministic Multi-Language Indexing
 # Feature ID: F010
-# Stories: US030
+# Stories: US030, US036
 # Phase 1 draft generated: 2026-06-15
 # Last updated: 2026-06-15
 
-Feature: Inter-File Call Graph Resolution
-  Two-pass deterministic linker resolves method calls across files within the same scan target.
+Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
+  The ScanCommand pipeline is refactored to two-pass orchestration:
+  Pass 1 collects declarations into GlobalDeclarationRegistry,
+  Pass 2 resolves against the registry, Post-Pass runs link resolvers.
+
+  Rule: Pass 1 collects all declarations before any resolution runs
+
+    @US036 @E001 @F010 @must @draft
+    Scenario: All files are parsed in Pass 1 before Pass 2 begins
+      Given N source files in the scan target
+      When Pass 1 executes across all files
+      Then every file is visited by Pass1DeclarationCollector
+      And the GlobalDeclarationRegistry contains declarations from all N files
+      And no resolution or analysis is performed during Pass 1
+
+    @US036 @E001 @F010 @must @draft
+    Scenario: Pass 2 runs full visitor suite against populated registry
+      Given the GlobalDeclarationRegistry is populated from Pass 1
+      When Pass 2 executes across all files
+      Then ComponentVisitor, EndpointVisitor, and all companion visitors run
+      And each visitor has access to the complete registry
+      And resolution visitors resolve method calls against the registry
+
+  Rule: Existing tests pass unchanged after refactoring
+
+    @US036 @E001 @F010 @should @draft
+    Scenario: All existing F003 and F006 tests pass after refactoring
+      Given the codebase has been refactored to two-pass orchestration
+      When the full test suite is executed
+      Then all existing F003 tests pass
+      And all existing F006 tests pass
+      And no existing test assertions are modified
+
+  Rule: Post-pass runs after all files are processed
+
+    @US036 @E001 @F010 @should @draft
+    Scenario: Post-pass resolvers run after all files analyzed
+      Given Pass 2 has completed for all files
+      When the post-pass phase executes
+      Then TopicLinkResolver matches producers to consumers
+      And FloatingLinkResolver registers unmatched HTTP calls
+      And results are written to the scan output
+
+  Rule: Graceful degradation on parse errors
+
+    @US036 @E001 @F010 @should @draft
+    Scenario: Parse error in one file does not block other files
+      Given one source file has a syntax error
+      When Pass 1 runs
+      Then the file with the error is skipped with a warning
+      And all other files are successfully collected into the registry
+      And Pass 2 proceeds for all successfully parsed files
+
+  Rule: Empty codebase produces empty output
+
+    @US036 @E001 @F010 @should @draft
+    Scenario: Empty scan target produces empty registry
+      Given a scan target with zero source files
+      When Pass 1 runs
+      Then the GlobalDeclarationRegistry is empty
+      And Pass 2 produces no findings
+      And IndexWriter outputs valid JSON with no entries
 
   Background:
     Given Pass 1 has collected all method declarations into the GlobalDeclarationRegistry
