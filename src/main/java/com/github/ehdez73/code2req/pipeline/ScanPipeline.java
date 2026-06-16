@@ -1,19 +1,46 @@
 package com.github.ehdez73.code2req.pipeline;
 
 import com.github.ehdez73.code2req.analyzer.AnalysisContext;
+import com.github.ehdez73.code2req.analyzer.AnalysisFinding;
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
+import com.github.ehdez73.code2req.analyzer.activemq.ActiveMqInfo;
+import com.github.ehdez73.code2req.analyzer.activemq.ActiveMqPublisherInfo;
+import com.github.ehdez73.code2req.analyzer.callgraph.CallGraphEdge;
+import com.github.ehdez73.code2req.analyzer.component.BeanMethodInfo;
+import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
+import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.analyzer.declaration.GlobalDeclarationRegistry;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
+import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.analyzer.eventlink.TopicLink;
 import com.github.ehdez73.code2req.analyzer.eventlink.TopicLinkResolver;
+import com.github.ehdez73.code2req.analyzer.eventlistener.EventListenerInfo;
+import com.github.ehdez73.code2req.analyzer.eventlistener.EventPublisherInfo;
 import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkInfo;
 import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkResolver;
+import com.github.ehdez73.code2req.analyzer.httpclient.OutboundHttpCallInfo;
+import com.github.ehdez73.code2req.analyzer.kafka.KafkaInfo;
+import com.github.ehdez73.code2req.analyzer.kafka.KafkaPublisherInfo;
+import com.github.ehdez73.code2req.analyzer.rabbitmq.RabbitMqInfo;
+import com.github.ehdez73.code2req.analyzer.rabbitmq.RabbitMqPublisherInfo;
+import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskInfo;
+import com.github.ehdez73.code2req.analyzer.validator.ValidatorInfo;
+import com.github.ehdez73.code2req.analyzer.xml.XmlAopConfigInfo;
+import com.github.ehdez73.code2req.analyzer.xml.XmlBeanInfo;
+import com.github.ehdez73.code2req.analyzer.xml.XmlComponentScanInfo;
+import com.github.ehdez73.code2req.analyzer.xml.XmlNamespaceBeanInfo;
 import com.github.ehdez73.code2req.config.SecretRedactor;
+import com.github.ehdez73.code2req.model.Metric;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
+import com.github.ehdez73.code2req.store.ExecutionFindingStore;
+import com.github.ehdez73.code2req.store.FindingType;
+import com.github.ehdez73.code2req.store.FloatingLinkStore;
+import com.github.ehdez73.code2req.store.MetricsStore;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
+import com.github.ehdez73.code2req.store.TopicLinkStore;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import org.slf4j.Logger;
@@ -27,11 +54,36 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class ScanPipeline {
 
     private static final Logger log = LoggerFactory.getLogger(ScanPipeline.class);
+
+    private static final Map<Class<? extends AnalysisFinding>, String> FINDING_TYPE_MAP = Map.ofEntries(
+        Map.entry(ComponentInfo.class, FindingType.COMPONENT),
+        Map.entry(EndpointInfo.class, FindingType.ENDPOINT),
+        Map.entry(ScheduledTaskInfo.class, FindingType.SCHEDULED_TASK),
+        Map.entry(EventListenerInfo.class, FindingType.EVENT_LISTENER),
+        Map.entry(EventPublisherInfo.class, FindingType.EVENT_PUBLISHER),
+        Map.entry(ValidatorInfo.class, FindingType.VALIDATOR),
+        Map.entry(KafkaInfo.class, FindingType.KAFKA_LISTENER),
+        Map.entry(KafkaPublisherInfo.class, FindingType.KAFKA_PUBLISHER),
+        Map.entry(BeanMethodInfo.class, FindingType.BEAN_METHOD),
+        Map.entry(RabbitMqInfo.class, FindingType.RABBITMQ_LISTENER),
+        Map.entry(RabbitMqPublisherInfo.class, FindingType.RABBITMQ_PUBLISHER),
+        Map.entry(ActiveMqInfo.class, FindingType.ACTIVEMQ_LISTENER),
+        Map.entry(ActiveMqPublisherInfo.class, FindingType.ACTIVEMQ_PUBLISHER),
+        Map.entry(XmlBeanInfo.class, FindingType.XML_BEAN),
+        Map.entry(DbAccessInfo.class, FindingType.DB_ACCESS),
+        Map.entry(XmlComponentScanInfo.class, FindingType.XML_COMPONENT_SCAN),
+        Map.entry(XmlAopConfigInfo.class, FindingType.XML_AOP_CONFIG),
+        Map.entry(XmlNamespaceBeanInfo.class, FindingType.XML_NAMESPACE_BEAN),
+        Map.entry(CallGraphEdge.class, FindingType.CALL_GRAPH_EDGE),
+        Map.entry(OutboundHttpCallInfo.class, FindingType.OUTBOUND_HTTP_CALL)
+    );
 
     private final Pass1DeclarationCollector pass1Collector;
     private final JavaAstAnalyzer astAnalyzer;
@@ -40,6 +92,10 @@ public class ScanPipeline {
     private final TaskIdHasher taskIdHasher;
     private final TopicLinkResolver topicLinkResolver;
     private final FloatingLinkResolver floatingLinkResolver;
+    private final ExecutionFindingStore executionFindingStore;
+    private final TopicLinkStore topicLinkStore;
+    private final FloatingLinkStore floatingLinkStore;
+    private final MetricsStore metricsStore;
 
     public ScanPipeline(
             Pass1DeclarationCollector pass1Collector,
@@ -48,7 +104,11 @@ public class ScanPipeline {
             TaskStore taskStore,
             TaskIdHasher taskIdHasher,
             TopicLinkResolver topicLinkResolver,
-            FloatingLinkResolver floatingLinkResolver) {
+            FloatingLinkResolver floatingLinkResolver,
+            ExecutionFindingStore executionFindingStore,
+            TopicLinkStore topicLinkStore,
+            FloatingLinkStore floatingLinkStore,
+            MetricsStore metricsStore) {
         this.pass1Collector = pass1Collector;
         this.astAnalyzer = astAnalyzer;
         this.secretRedactor = secretRedactor;
@@ -56,11 +116,16 @@ public class ScanPipeline {
         this.taskIdHasher = taskIdHasher;
         this.topicLinkResolver = topicLinkResolver;
         this.floatingLinkResolver = floatingLinkResolver;
+        this.executionFindingStore = executionFindingStore;
+        this.topicLinkStore = topicLinkStore;
+        this.floatingLinkStore = floatingLinkStore;
+        this.metricsStore = metricsStore;
     }
 
     public ScanPipelineResult execute(List<Path> files, StringBuilder report) {
         var phaseStart = Instant.now();
         var registry = new GlobalDeclarationRegistry();
+        String runId = UUID.randomUUID().toString().substring(0, 8);
 
         int pass1Failed = runPass1(files, registry, report);
         int pass2Analyzed = 0;
@@ -80,12 +145,26 @@ public class ScanPipeline {
         }
 
         List<TopicLink> topicLinks = topicLinkResolver.resolve(allResults);
+        topicLinkStore.saveAll(topicLinks);
         long topicResolved = topicLinks.stream().filter(l -> TopicLink.STATUS_RESOLVED.equals(l.resolvedStatus())).count();
         long topicPending = topicLinks.size() - topicResolved;
 
         List<FloatingLinkInfo> floatingLinks = floatingLinkResolver.resolve(allResults);
+        floatingLinkStore.saveAll(floatingLinks);
         long floatResolved = floatingLinks.stream().filter(l -> FloatingLinkInfo.STATUS_RESOLVED.equals(l.resolvedStatus())).count();
         long floatPending = floatingLinks.size() - floatResolved;
+
+        int totalEdges = executionFindingStore.countByType(FindingType.CALL_GRAPH_EDGE);
+        int totalDbAccess = executionFindingStore.countByType(FindingType.DB_ACCESS);
+        int totalHttpCalls = executionFindingStore.countByType(FindingType.OUTBOUND_HTTP_CALL);
+        int edgesResolved = totalEdges + totalDbAccess + totalHttpCalls;
+        int edgesUnresolved = 0;
+
+        var metric = new Metric(runId, 1, files.size(), pass2Analyzed,
+            edgesResolved, edgesUnresolved,
+            (int) topicResolved, floatingLinks.size(),
+            0, 0.0, java.time.LocalDateTime.now().toString());
+        metricsStore.save(metric);
 
         report.append(String.format(
             "  Pass 1 (Declaration Collection): %d file(s), %d failed%n", files.size(), pass1Failed));
@@ -95,6 +174,9 @@ public class ScanPipeline {
             "  Post-Pass (Topic Link Resolution): %d RESOLVED, %d PENDING%n", topicResolved, topicPending));
         report.append(String.format(
             "  Post-Pass (Floating Link Resolution): %d RESOLVED, %d PENDING%n", floatResolved, floatPending));
+        report.append(String.format(
+            "  Persistence: %d execution finding(s), %d topic link(s), %d floating link(s), 1 metric row(s)%n",
+            executionFindingStore.count(), topicLinkStore.count(), floatingLinkStore.count()));
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
 
         return new ScanPipelineResult(allResults, registry, pass2Analyzed, pass2Failed, topicLinks, floatingLinks);
@@ -136,7 +218,18 @@ public class ScanPipeline {
         String taskId = taskIdHasher.hash(fp, contentHash);
         taskStore.save(new Task(taskId, fp, TaskStatus.SUCCESS, "java", contentHash));
 
+        persistFindings(taskId, result);
+
         return result;
+    }
+
+    private void persistFindings(String taskId, AnalysisResult result) {
+        for (var entry : FINDING_TYPE_MAP.entrySet()) {
+            var findings = result.findings(entry.getKey());
+            if (!findings.isEmpty()) {
+                executionFindingStore.saveAllForTask(taskId, findings, entry.getValue());
+            }
+        }
     }
 
     private void storeFailedTask(String filePath) {

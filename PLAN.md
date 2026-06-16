@@ -227,10 +227,13 @@
 ### Phase 12 — Extended SQLite Schema
 
 #### 12.1 F014: Remaining Tables & Metrics (US034, US035)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature`](docs/sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature)
-- [ ] Depends on: 4d, 4g, 4h, 8.1, 9.1, 10.1, 11a.1
-- [ ] Classes: `TopicLinkStore`, `FloatingLinkStore`, `MetricsStore`, `Metric`
-- [ ] Verify: `mvn test` (new tests for extended schema, topic/floating/metrics tables)
+- [x] Gherkin: [`docs/sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature`](docs/sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature)
+- [x] Depends on: 4d, 4g, 4h, 8.1, 9.1, 10.1, 11a.1
+- [x] Classes: `TopicLinkStore`, `FloatingLinkStore`, `MetricsStore`, `Metric`, `ExecutionFindingStore`, `FindingType`
+- [x] Schema: 4 new tables (`execution_findings`, `topic_links`, `floating_links`, `metrics`) with `CREATE TABLE IF NOT EXISTS` and `INSERT OR REPLACE` idempotency
+- [x] Persistence: per-file findings persisted in `ScanPipeline.analyzeSingleFile()`, topic/floating links and metrics persisted at end of `ScanPipeline.execute()`, template findings persisted in `ScanCommand.scan()`
+- [x] Clean: `CleanCommand` deletes from all 5 tables, `TaskStoreSchema.dropAllTables()` added
+- [x] Verify: `mvn test` (335 total — 15 new: 4 ExecutionFindingStore + 4 TopicLinkStore + 3 FloatingLinkStore + 4 MetricsStore + schema tests)
 
 ### Phase 13 — Language Extension Framework (Epic E002)
 
@@ -353,3 +356,4 @@ Phase 11c.1 (Template File Parsing) ── depends on Phase 4a + Phase 6.1 + Pha
 - 2026-06-15 — **Phase 9.1 F011** (Database Access Detection): `DbAccessDetector` SPI, `DbAccessHelper`, 6 `@Component` detectors, `DbAccessVisitor` thin delegator; 24 new tests — 259 total, all pass ✓
 - 2026-06-15 — **Phase 10.1 F010** (Inter-File Call Resolution): `CallGraphEdge`, `CallGraphVisitor`; extended `GlobalDeclarationRegistry.findMethods()`; `IndexWriter.FINDING_KEYS` entry for call_graph_edges; 10 visitor tests (RESOLVED/UNRESOLVED/AMBIGUOUS/overloads/JDK skip) + 3 registry tests + 2 IndexWriter tests — 274 total, all pass ✓
 - 2026-06-16 — **Phase 11a.1 F012** (HTTP Client Detection & Floating Link Resolution): `OutboundHttpVisitor`, `HttpClientDetector` SPI + 9 detectors (RestTemplate, WebClient, FeignClient, RestClient, HttpExchange, java.net.http, HttpURLConnection, Apache HttpClient, OkHttp), `FloatingLinkResolver` (post-pass matching), `FloatingLinkInfo`, `OutboundHttpCallInfo`; integrated into `ScanPipeline`/`ScanPipelineResult`/`IndexWriter`/`ScanCommand`; 34 new tests across 11 test classes — 315 total (excluding 16 pre-existing DbAccessVisitorTest failures on JDK 26), all new tests pass ✓
+- 2026-06-16 — **Phase 12.1 F014** (Extended SQLite Schema): 4 new tables (`execution_findings`, `topic_links`, `floating_links`, `metrics`); `ExecutionFindingStore`, `TopicLinkStore`, `FloatingLinkStore`, `MetricsStore`, `FindingType`, `Metric`; persistence wired into `ScanPipeline` (per-file findings, topic/floating links, metrics) and `ScanCommand` (template findings); `CleanCommand` cleans all 5 tables; 15 new store+ schema tests — 335 total, all pass ✓

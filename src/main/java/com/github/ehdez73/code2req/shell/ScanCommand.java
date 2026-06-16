@@ -17,6 +17,8 @@ import com.github.ehdez73.code2req.output.IndexWriter;
 import com.github.ehdez73.code2req.output.OrphanRecovery;
 import com.github.ehdez73.code2req.pipeline.ScanPipeline;
 import com.github.ehdez73.code2req.pipeline.ScanPipelineResult;
+import com.github.ehdez73.code2req.store.ExecutionFindingStore;
+import com.github.ehdez73.code2req.store.FindingType;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
 import org.slf4j.Logger;
@@ -49,6 +51,7 @@ public class ScanCommand {
     private final OrphanRecovery orphanRecovery;
     private final TemplateAnalyzer templateAnalyzer;
     private final TemplateLinkResolver templateLinkResolver;
+    private final ExecutionFindingStore executionFindingStore;
 
     public ScanCommand(
             ManifestLoader manifestLoader,
@@ -60,7 +63,8 @@ public class ScanCommand {
             IndexWriter indexWriter,
             OrphanRecovery orphanRecovery,
             TemplateAnalyzer templateAnalyzer,
-            TemplateLinkResolver templateLinkResolver) {
+            TemplateLinkResolver templateLinkResolver,
+            ExecutionFindingStore executionFindingStore) {
         this.manifestLoader = manifestLoader;
         this.manifestValidator = manifestValidator;
         this.excludeFilter = excludeFilter;
@@ -71,6 +75,7 @@ public class ScanCommand {
         this.orphanRecovery = orphanRecovery;
         this.templateAnalyzer = templateAnalyzer;
         this.templateLinkResolver = templateLinkResolver;
+        this.executionFindingStore = executionFindingStore;
     }
 
     @ShellMethod(key = "scan", value = "Runs the full Phase 1 scan pipeline: manifest, dependencies, analysis, redaction, and index output")
@@ -111,6 +116,8 @@ public class ScanCommand {
                 .toList();
             templateLinks = templateLinkResolver.resolve(templateForms, allEndpoints);
             report.append(String.format("  %d template-to-endpoint link(s) matched%n", templateLinks.size()));
+
+            persistTemplateFindings(pipelineResult, templateForms, templateLinks);
             report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(scanStart)));
         }
 
@@ -239,6 +246,31 @@ public class ScanCommand {
         return batches.stream()
             .flatMap(b -> b.files().stream())
             .toList();
+    }
+
+    private void persistTemplateFindings(ScanPipelineResult pipelineResult,
+                                          List<TemplateFormInfo> templateForms,
+                                          List<TemplateLinkInfo> templateLinks) {
+        var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        for (var form : templateForms) {
+            try {
+                String json = objectMapper.writeValueAsString(form);
+                String taskId = taskIdHasher.hash(form.templatePath(), "template-" + form.linkType());
+                String findingType = "FORM".equals(form.linkType()) ? FindingType.TEMPLATE_FORM : FindingType.TEMPLATE_LINK;
+                executionFindingStore.save(taskId, findingType, json, true);
+            } catch (Exception e) {
+                log.warn("Failed to persist template form/link: {}", e.getMessage());
+            }
+        }
+        for (var link : templateLinks) {
+            try {
+                String json = objectMapper.writeValueAsString(link);
+                String taskId = taskIdHasher.hash(link.templatePath() != null ? link.templatePath() : "unknown", "template-link");
+                executionFindingStore.save(taskId, FindingType.TEMPLATE_ENDPOINT_LINK, json, true);
+            } catch (Exception e) {
+                log.warn("Failed to persist template link: {}", e.getMessage());
+            }
+        }
     }
 
     private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results,

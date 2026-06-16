@@ -3,8 +3,12 @@ package com.github.ehdez73.code2req.shell;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
+import com.github.ehdez73.code2req.store.ExecutionFindingStore;
+import com.github.ehdez73.code2req.store.FloatingLinkStore;
+import com.github.ehdez73.code2req.store.MetricsStore;
 import com.github.ehdez73.code2req.store.TaskStore;
 import com.github.ehdez73.code2req.store.TaskStoreSchema;
+import com.github.ehdez73.code2req.store.TopicLinkStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,8 +38,12 @@ class CleanCommandTest {
         var schema = new TaskStoreSchema(jdbc);
         schema.createSchemaIfNotExists();
         taskStore = new TaskStore(jdbc);
+        var executionFindingStore = new ExecutionFindingStore(jdbc);
+        var topicLinkStore = new TopicLinkStore(jdbc);
+        var floatingLinkStore = new FloatingLinkStore(jdbc);
+        var metricsStore = new MetricsStore(jdbc);
         var manifestLoader = new ManifestLoader();
-        command = new CleanCommand(taskStore, manifestLoader);
+        command = new CleanCommand(taskStore, executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore, manifestLoader);
 
         specDir = tempDir.resolve("spec-output");
         indexPath = specDir.resolve("code-graph-index.json");
@@ -44,7 +52,7 @@ class CleanCommandTest {
     @Test
     void cleanWithEmptyStore() {
         String result = command.clean(null);
-        assertTrue(result.contains("Tasks removed: 0"));
+        assertTrue(result.contains("Rows removed:"), "Expected row counts in output");
         assertTrue(result.contains("Clean complete"));
     }
 
@@ -59,7 +67,7 @@ class CleanCommandTest {
         String result = command.clean(null);
 
         assertEquals(0, taskStore.count());
-        assertTrue(result.contains("Tasks removed: 3"));
+        assertTrue(result.contains("3 tasks"), "Expected 3 tasks in output");
         assertTrue(result.contains("Clean complete"));
     }
 
@@ -97,7 +105,7 @@ class CleanCommandTest {
         assertEquals(0, taskStore.count());
         assertFalse(Files.exists(indexPath));
         assertFalse(Files.exists(specDir));
-        assertTrue(result.contains("Tasks removed: 1"));
+        assertTrue(result.contains("1 tasks"), "Expected 1 task in output");
         assertTrue(result.contains("Clean complete"));
     }
 }

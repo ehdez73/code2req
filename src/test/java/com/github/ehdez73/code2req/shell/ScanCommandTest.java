@@ -16,6 +16,7 @@ import com.github.ehdez73.code2req.pipeline.ScanPipeline;
 import com.github.ehdez73.code2req.analyzer.template.TemplateAnalyzer;
 import com.github.ehdez73.code2req.analyzer.template.TemplateLinkResolver;
 import com.github.ehdez73.code2req.shell.ScanCommand;
+import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,7 +85,13 @@ class ScanCommandTest {
         orphanRecovery = new OrphanRecovery(taskStore);
 
         var pass1Collector = new Pass1DeclarationCollector();
-        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher, topicLinkResolver, new FloatingLinkResolver());
+        var executionFindingStore = new ExecutionFindingStore(jdbc);
+        var topicLinkStore = new com.github.ehdez73.code2req.store.TopicLinkStore(jdbc);
+        var floatingLinkStore = new com.github.ehdez73.code2req.store.FloatingLinkStore(jdbc);
+        var metricsStore = new com.github.ehdez73.code2req.store.MetricsStore(jdbc);
+        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher,
+            topicLinkResolver, new FloatingLinkResolver(),
+            executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore);
 
         var templateAnalyzer = new TemplateAnalyzer(List.of(new com.github.ehdez73.code2req.analyzer.template.JspTemplateParser(), new com.github.ehdez73.code2req.analyzer.template.ThymeleafTemplateParser()));
         var templateLinkResolver = new TemplateLinkResolver();
@@ -92,7 +99,7 @@ class ScanCommandTest {
         command = new ScanCommand(
             manifestLoader, manifestValidator, excludeFilter, pipeline,
             taskStore, taskIdHasher, indexWriter, orphanRecovery,
-            templateAnalyzer, templateLinkResolver);
+            templateAnalyzer, templateLinkResolver, executionFindingStore);
     }
 
     @Test

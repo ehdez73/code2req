@@ -32,10 +32,70 @@ public class TaskStoreSchema {
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """);
-        log.info("Task store schema initialized");
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS execution_findings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT NOT NULL REFERENCES tasks(task_id),
+                finding_type TEXT NOT NULL,
+                finding_json TEXT NOT NULL,
+                resolved INTEGER NOT NULL DEFAULT 1,
+                schema_version TEXT NOT NULL DEFAULT '1.0',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """);
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS topic_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                broker TEXT NOT NULL,
+                topic_or_queue TEXT NOT NULL,
+                producer_task_id TEXT REFERENCES tasks(task_id),
+                consumer_task_id TEXT REFERENCES tasks(task_id),
+                resolved_status TEXT NOT NULL DEFAULT 'PENDING',
+                confidence REAL DEFAULT 1.0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """);
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS floating_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                method TEXT NOT NULL,
+                url_or_path TEXT NOT NULL,
+                is_expression INTEGER NOT NULL DEFAULT 0,
+                source_task_id TEXT NOT NULL REFERENCES tasks(task_id),
+                target_endpoint TEXT,
+                confidence REAL,
+                resolved_status TEXT NOT NULL DEFAULT 'PENDING',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """);
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                phase INTEGER NOT NULL DEFAULT 1,
+                tasks_total INTEGER DEFAULT 0,
+                tasks_completed INTEGER DEFAULT 0,
+                edges_resolved INTEGER DEFAULT 0,
+                edges_unresolved INTEGER DEFAULT 0,
+                topic_links_resolved INTEGER DEFAULT 0,
+                floating_links_registered INTEGER DEFAULT 0,
+                tokens_consumed INTEGER DEFAULT 0,
+                api_cost_estimated REAL DEFAULT 0.0,
+                recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """);
+        log.info("Task store schema initialized with 5 tables");
+    }
+
+    public void dropAllTables() {
+        jdbc.execute("DROP TABLE IF EXISTS execution_findings");
+        jdbc.execute("DROP TABLE IF EXISTS topic_links");
+        jdbc.execute("DROP TABLE IF EXISTS floating_links");
+        jdbc.execute("DROP TABLE IF EXISTS metrics");
+        jdbc.execute("DROP TABLE IF EXISTS tasks");
     }
 
     public void dropTable() {
-        jdbc.execute("DROP TABLE IF EXISTS tasks");
+        dropAllTables();
     }
 }

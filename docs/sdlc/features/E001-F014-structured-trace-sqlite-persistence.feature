@@ -2,8 +2,8 @@
 # Epic: E001 — Deterministic Multi-Language Indexing
 # Feature ID: F014
 # Stories: US034, US035
-# Phase 1 draft generated: 2026-06-15
-# Last updated: 2026-06-15
+# Implemented: 2026-06-16
+# Last updated: 2026-06-16
 
 Feature: Structured Trace SQLite Persistence
   Extended SQLite schema with execution_findings, topic_links, floating_links, and metrics tables.
@@ -13,7 +13,7 @@ Feature: Structured Trace SQLite Persistence
 
   Rule: Call graph edges are persisted in execution_findings table
 
-    @US034 @E001 @F014 @must @draft
+    @US034 @E001 @F014 @must
     Scenario: Resolved call graph edge is persisted
       Given a resolved call graph edge from OrderController.createOrder to OrderService.createOrder
       When the linker persists findings to SQLite
@@ -21,7 +21,7 @@ Feature: Structured Trace SQLite Persistence
       And the finding_json contains source file, target file, and method signatures
       And resolved = 1
 
-    @US034 @E001 @F014 @should @draft
+    @US034 @E001 @F014 @should
     Scenario: Unresolved signature is persisted
       Given an unresolved call to thirdparty-sdk.calculateScore()
       When the linker persists findings to SQLite
@@ -30,7 +30,7 @@ Feature: Structured Trace SQLite Persistence
 
   Rule: Topic links are persisted in topic_links table
 
-    @US034 @E001 @F014 @should @draft
+    @US034 @E001 @F014 @should
     Scenario: Resolved topic link is persisted
       Given a resolved topic link for KAFKA topic "order-events"
       When the linker persists findings to SQLite
@@ -40,7 +40,7 @@ Feature: Structured Trace SQLite Persistence
 
   Rule: Floating links are persisted in floating_links table
 
-    @US035 @E001 @F014 @should @draft
+    @US035 @E001 @F014 @should
     Scenario: Outbound HTTP call is registered as floating link
       Given a detected RestTemplate POST call to "${payment.url}/charges"
       When the linker persists findings to SQLite
@@ -49,7 +49,7 @@ Feature: Structured Trace SQLite Persistence
       And is_expression = 1
       And resolved_status = PENDING
 
-    @US035 @E001 @F014 @should @draft
+    @US035 @E001 @F014 @should
     Scenario: Literal URL floating link is pre-resolved
       Given a RestTemplate GET call to "http://localhost:8080/api/orders"
       And a known endpoint GET /api/orders exists in the same manifest
@@ -59,7 +59,7 @@ Feature: Structured Trace SQLite Persistence
 
   Rule: Metrics are collected after full Phase 1 execution
 
-    @US034 @E001 @F014 @should @draft
+    @US034 @E001 @F014 @should
     Scenario: Metrics row is created after scan
       Given Phase 1 has completed with N files analysed, E edges resolved, T topic links, F floating links
       When the linker writes metrics
@@ -69,7 +69,7 @@ Feature: Structured Trace SQLite Persistence
 
   Rule: All tables survive a restart via idempotent upsert
 
-    @US034 @E001 @F014 @should @draft
+    @US034 @E001 @F014 @should
     Scenario: Re-running a scan overwrites existing rows
       Given a previous scan with persisted execution_findings
       When a new scan completes for the same workspace

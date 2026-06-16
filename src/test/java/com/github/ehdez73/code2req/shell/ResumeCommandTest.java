@@ -22,9 +22,13 @@ import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.output.IndexWriter;
 import com.github.ehdez73.code2req.output.OrphanRecovery;
 import com.github.ehdez73.code2req.pipeline.ScanPipeline;
+import com.github.ehdez73.code2req.store.ExecutionFindingStore;
+import com.github.ehdez73.code2req.store.FloatingLinkStore;
+import com.github.ehdez73.code2req.store.MetricsStore;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
 import com.github.ehdez73.code2req.store.TaskStoreSchema;
+import com.github.ehdez73.code2req.store.TopicLinkStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -92,7 +96,13 @@ class ResumeCommandTest {
         orphanRecovery = new OrphanRecovery(taskStore);
 
         var pass1Collector = new Pass1DeclarationCollector();
-        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher, topicLinkResolver, new FloatingLinkResolver());
+        var executionFindingStore = new ExecutionFindingStore(jdbc);
+        var topicLinkStore = new TopicLinkStore(jdbc);
+        var floatingLinkStore = new FloatingLinkStore(jdbc);
+        var metricsStore = new MetricsStore(jdbc);
+        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher,
+            topicLinkResolver, new FloatingLinkResolver(),
+            executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore);
 
         command = new ResumeCommand(
             manifestLoader, manifestValidator, excludeFilter, pipeline,
