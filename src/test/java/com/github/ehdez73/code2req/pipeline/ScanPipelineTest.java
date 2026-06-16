@@ -5,6 +5,7 @@ import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.analyzer.component.ComponentVisitor;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
 import com.github.ehdez73.code2req.analyzer.eventlink.TopicLinkResolver;
+import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkResolver;
 import com.github.ehdez73.code2req.config.SecretRedactor;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
@@ -47,7 +48,7 @@ class ScanPipelineTest {
         schema.createSchemaIfNotExists();
         taskStore = new TaskStore(jdbc);
 
-        pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher, new TopicLinkResolver());
+        pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher, new TopicLinkResolver(), new FloatingLinkResolver());
     }
 
     @Test

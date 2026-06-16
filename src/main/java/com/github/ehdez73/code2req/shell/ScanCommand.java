@@ -114,7 +114,8 @@ public class ScanCommand {
             report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(scanStart)));
         }
 
-        writeIndex(manifest, pipelineResult.results(), pipelineResult.topicLinks(), templateForms, templateLinks, report);
+        writeIndex(manifest, pipelineResult.results(), pipelineResult.topicLinks(), templateForms, templateLinks,
+            pipelineResult.floatingLinks(), report);
 
         appendSummary(report, scanStart);
         return report.toString();
@@ -243,10 +244,12 @@ public class ScanCommand {
     private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results,
                             List<com.github.ehdez73.code2req.analyzer.eventlink.TopicLink> topicLinks,
                             List<TemplateFormInfo> templateForms,
-                            List<TemplateLinkInfo> templateLinks, StringBuilder report) {
+                            List<TemplateLinkInfo> templateLinks,
+                            List<com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkInfo> floatingLinks,
+                            StringBuilder report) {
         var phaseStart = Instant.now();
         try {
-            Path indexPath = indexWriter.write(manifest, results, topicLinks, templateForms, templateLinks);
+            Path indexPath = indexWriter.write(manifest, results, topicLinks, templateForms, templateLinks, floatingLinks);
             report.append(String.format("Phase 5/5 — Index Output: %s%n", indexPath.toAbsolutePath()));
         } catch (IOException e) {
             report.append("Phase 5/5 — Index Output: FAILED — ").append(e.getMessage()).append("\n");

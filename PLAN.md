@@ -192,11 +192,12 @@
 
 ### Phase 11 — Outbound HTTP Detection
 
-#### 11a.1 F012: REST Client Detection & Floating Link Resolution (US032)
-- [ ] Gherkin: [`docs/sdlc/features/E001-F012-outbound-http-detection.feature`](docs/sdlc/features/E001-F012-outbound-http-detection.feature)
-- [ ] Depends on: 4a (US006), 7.0 (pipeline refactoring)
-- [ ] Classes: `RestClientVisitor`, `RestCallInfo`, `FloatingLinkResolver`
-- [ ] Verify: `mvn test` (new tests for RestTemplate, WebClient, FeignClient, floating link matching against known endpoints)
+#### 11a.1 F012: HTTP Client Detection & Floating Link Resolution (US032)
+- [x] Gherkin: [`docs/sdlc/features/E001-F012-outbound-http-detection.feature`](docs/sdlc/features/E001-F012-outbound-http-detection.feature)
+- [x] Depends on: 4a (US006), 7.0 (pipeline refactoring)
+- [x] Classes: `OutboundHttpVisitor`, `OutboundHttpCallInfo`, `OutboundHttpClientType`, `HttpClientDetector`, `detector/RestTemplateDetector`, `detector/WebClientDetector`, `detector/FeignClientDetector`, `detector/RestClientDetector`, `detector/HttpExchangeDetector`, `detector/JavaNetHttpClientDetector`, `detector/HttpUrlConnectionDetector`, `detector/ApacheHttpClientDetector`, `detector/OkHttpDetector`, `FloatingLinkResolver`, `FloatingLinkInfo`
+- [x] Architecture: SPI pattern mirroring `DbAccessVisitor` — `OutboundHttpVisitor` (thin delegator) + `HttpClientDetector` interface + 9 per-technology `@Component` detectors
+- [x] Verify: `mvn test` (34 new tests across 11 test classes — all 9 HTTP client types + FloatingLinkResolver + OutboundHttpVisitor integration)
 
 ### Phase 11b — View-Returning Controller Detection
 
@@ -318,8 +319,8 @@ Phase 11c.1 (Template File Parsing) ── depends on Phase 4a + Phase 6.1 + Pha
 ## Decisions Made (Updated)
 - Phase 1 uses a **two-pass deterministic linker** architecture (PRD §2.1):
   - **Pass 1** (Phase 7.0): `Pass1DeclarationCollector` builds a `GlobalDeclarationRegistry` from all source files. No resolution.
-  - **Pass 2** (Phases 9.1, 10.1, 11a.1): `DbAccessVisitor`, `CallGraphVisitor`, `RestClientVisitor` resolve against the registry.
-  - **Post-Pass** (Phases 8.1, 11a.1): `TopicLinkResolver` matches producers↔consumers; `FloatingLinkResolver` matches HTTP calls↔endpoints.
+  - **Pass 2** (Phases 9.1, 10.1, 11a.1): `DbAccessVisitor`, `CallGraphVisitor`, `OutboundHttpVisitor` resolve against the registry.
+  - **Post-Pass** (Phases 8.1, 11a.1): `TopicLinkResolver` matches producers↔consumers; `FloatingLinkResolver` matches HTTP calls↔endpoints (literal = 1.0, path-var = 0.8, segment = 0.6, prefix = 0.4).
 - Topic links and floating links are resolved deterministically in Phase 1, not in Phase 3.
 - Phase 7.0 (pipeline refactoring) is a prerequisite for all resolution visitors — existing `ScanCommand`/`JavaAstAnalyzer` needed two-pass orchestration.
 - Phase 2 is scoped to semantic enrichment only, triggered by `--llm-threshold` (default: 5 unresolved).
@@ -351,3 +352,4 @@ Phase 11c.1 (Template File Parsing) ── depends on Phase 4a + Phase 6.1 + Pha
 - 2026-06-15 — **Phase 8.1 F013** (Topic Link Resolution): `TopicLink`, `TopicLinkResolver`, `ScanPipelineResult` enriched with topic links, post-pass step in `ScanPipeline`, root-level `topic_links` in `IndexWriter`; `TopicLinkResolverTest` (12 scenarios covering all 3 broker types, cross-target, orphans, multi-topic, patterns) + 2 IndexWriter topic link tests — 229 total, all pass ✓
 - 2026-06-15 — **Phase 9.1 F011** (Database Access Detection): `DbAccessDetector` SPI, `DbAccessHelper`, 6 `@Component` detectors, `DbAccessVisitor` thin delegator; 24 new tests — 259 total, all pass ✓
 - 2026-06-15 — **Phase 10.1 F010** (Inter-File Call Resolution): `CallGraphEdge`, `CallGraphVisitor`; extended `GlobalDeclarationRegistry.findMethods()`; `IndexWriter.FINDING_KEYS` entry for call_graph_edges; 10 visitor tests (RESOLVED/UNRESOLVED/AMBIGUOUS/overloads/JDK skip) + 3 registry tests + 2 IndexWriter tests — 274 total, all pass ✓
+- 2026-06-16 — **Phase 11a.1 F012** (HTTP Client Detection & Floating Link Resolution): `OutboundHttpVisitor`, `HttpClientDetector` SPI + 9 detectors (RestTemplate, WebClient, FeignClient, RestClient, HttpExchange, java.net.http, HttpURLConnection, Apache HttpClient, OkHttp), `FloatingLinkResolver` (post-pass matching), `FloatingLinkInfo`, `OutboundHttpCallInfo`; integrated into `ScanPipeline`/`ScanPipelineResult`/`IndexWriter`/`ScanCommand`; 34 new tests across 11 test classes — 315 total (excluding 16 pre-existing DbAccessVisitorTest failures on JDK 26), all new tests pass ✓

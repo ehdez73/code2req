@@ -85,7 +85,7 @@
       "Global declaration registry for inter-file method resolution (Pass 1)",
       "Inter-file call graph resolution via CallGraphVisitor (Pass 2)",
       "Database access pattern detection (JdbcTemplate, @Procedure, EntityManager, @Transactional)",
-      "Outbound HTTP client detection and floating link resolution (RestTemplate, WebClient, @FeignClient, FloatingLinkResolver)",
+      "Outbound HTTP client detection and floating link resolution (RestTemplate, WebClient, FeignClient, RestClient, @HttpExchange, java.net.http, HttpURLConnection, Apache HttpClient, OkHttp, FloatingLinkResolver)",
       "Deterministic topic link resolution (producer-to-consumer matching across Kafka, RabbitMQ, ActiveMQ)",
       "Extended SQLite tables (execution_findings, topic_links, floating_links, metrics)",
       "CLI scan command — Phase 1 deterministic two-pass execution"
@@ -493,12 +493,18 @@
       "id": "F012",
       "epic_id": "E001",
       "name": "Outbound HTTP Detection & Floating Link Resolution",
-      "description": "Detect outbound HTTP calls via RestClientVisitor (RestTemplate, WebClient, @FeignClient). Post-pass FloatingLinkResolver matches HTTP calls to known endpoints deterministically.",
-      "background": "Two-pass pipeline operational. Pass 1 registry available.",
-      "business_rules": [
+      "description": "Detect outbound HTTP calls via OutboundHttpVisitor (RestTemplate, WebClient, FeignClient, RestClient, @HttpExchange, java.net.http.HttpClient, HttpURLConnection, Apache HttpClient, OkHttp). Post-pass FloatingLinkResolver matches HTTP calls to known endpoints deterministically.",
+
+      "acceptance_criteria": [
         "Detect RestTemplate.getForObject/postForObject/exchange with URL extraction",
         "Detect WebClient fluent builder chains (method/uri/retrieve)",
         "Detect @FeignClient(name, url) on interfaces",
+        "Detect Spring 6.1 RestClient fluent chains (get/post/put/delete + uri)",
+        "Detect Spring 6 @HttpExchange/@PostExchange/@GetExchange on interfaces",
+        "Detect Java 11+ java.net.http.HttpClient.send()/sendAsync() with HttpRequest",
+        "Detect legacy HttpURLConnection via openConnection/setRequestMethod/connect",
+        "Detect Apache HttpClient via HttpGet/HttpPost/HttpPut/HttpDelete constructors",
+        "Detect OkHttp via OkHttpClient.newCall() with Request.Builder",
         "URL literals captured as-is; SpEL/environment expressions captured as patterns with isExpression flag",
         "FloatingLinkResolver matches URL patterns to known endpoints: literal match = RESOLVED 1.0, path variable match = RESOLVED 0.8"
       ],

@@ -6,6 +6,7 @@ import com.github.ehdez73.code2req.analyzer.component.ComponentVisitor;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointVisitor;
 import com.github.ehdez73.code2req.analyzer.eventlink.TopicLinkResolver;
+import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkResolver;
 import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskVisitor;
 import com.github.ehdez73.code2req.analyzer.eventlistener.EventListenerVisitor;
 import com.github.ehdez73.code2req.analyzer.validator.ValidatorVisitor;
@@ -91,7 +92,7 @@ class ResumeCommandTest {
         orphanRecovery = new OrphanRecovery(taskStore);
 
         var pass1Collector = new Pass1DeclarationCollector();
-        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher, topicLinkResolver);
+        var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher, topicLinkResolver, new FloatingLinkResolver());
 
         command = new ResumeCommand(
             manifestLoader, manifestValidator, excludeFilter, pipeline,

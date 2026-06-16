@@ -10,6 +10,8 @@ import com.github.ehdez73.code2req.analyzer.activemq.ActiveMqPublisherInfo;
 import com.github.ehdez73.code2req.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.analyzer.component.BeanMethodInfo;
 import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
+import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkInfo;
+import com.github.ehdez73.code2req.analyzer.httpclient.OutboundHttpCallInfo;
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.analyzer.eventlink.TopicLink;
@@ -67,6 +69,7 @@ public class IndexWriter {
         FINDING_KEYS.put(XmlAopConfigInfo.class, "xml_aop_configs");
         FINDING_KEYS.put(XmlNamespaceBeanInfo.class, "xml_namespace_beans");
         FINDING_KEYS.put(CallGraphEdge.class, "call_graph_edges");
+        FINDING_KEYS.put(OutboundHttpCallInfo.class, "outbound_http_calls");
     }
 
     private final ObjectMapper mapper;
@@ -76,21 +79,28 @@ public class IndexWriter {
     }
 
     public Path write(ProjectManifest manifest, List<AnalysisResult> results) throws IOException {
-        return write(manifest, results, List.of(), List.of(), List.of());
+        return write(manifest, results, List.of(), List.of(), List.of(), List.of());
     }
 
     public Path write(ProjectManifest manifest, List<AnalysisResult> results, List<TopicLink> topicLinks) throws IOException {
-        return write(manifest, results, topicLinks, List.of(), List.of());
+        return write(manifest, results, topicLinks, List.of(), List.of(), List.of());
     }
 
     public Path write(ProjectManifest manifest, List<AnalysisResult> results, List<TopicLink> topicLinks,
                       List<TemplateFormInfo> templateForms) throws IOException {
-        return write(manifest, results, topicLinks, templateForms, List.of());
+        return write(manifest, results, topicLinks, templateForms, List.of(), List.of());
     }
 
     public Path write(ProjectManifest manifest, List<AnalysisResult> results, List<TopicLink> topicLinks,
                       List<TemplateFormInfo> templateForms,
                       List<TemplateLinkInfo> templateLinks) throws IOException {
+        return write(manifest, results, topicLinks, templateForms, templateLinks, List.of());
+    }
+
+    public Path write(ProjectManifest manifest, List<AnalysisResult> results, List<TopicLink> topicLinks,
+                      List<TemplateFormInfo> templateForms,
+                      List<TemplateLinkInfo> templateLinks,
+                      List<FloatingLinkInfo> floatingLinks) throws IOException {
         OutputConfig outputConfig = manifest.outputConfig();
         Path outputDir = Path.of(outputConfig.specDir());
         Files.createDirectories(outputDir);
@@ -121,6 +131,10 @@ public class IndexWriter {
 
         if (!templateLinks.isEmpty()) {
             root.set("template_endpoint_links", mapper.valueToTree(templateLinks));
+        }
+
+        if (!floatingLinks.isEmpty()) {
+            root.set("floating_links", mapper.valueToTree(floatingLinks));
         }
 
         Path outputPath = outputDir.resolve(outputConfig.indexFile());
