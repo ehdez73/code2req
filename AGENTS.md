@@ -30,6 +30,7 @@ Before writing code, consult these sources for tech stack decisions and rational
 - **`docs/sdlc/tech-stack.md`** — maps every technology (Java 21, Spring Boot 3.4.x, JavaParser, SQLite, etc.) to its version, purpose, and governing ADR. Use this to verify library choices and version alignment.
 - **`docs/sdlc/adrs/*.md`** — Architecture Decision Records covering: AST parsing strategy (ADR-001), Spring JDBC over ORM (ADR-002), SQLite WAL mode (ADR-003), deterministic task IDs (ADR-004), and in-memory secret redaction (ADR-005). Read the relevant ADR before implementing any feature that touches these areas.
 - **`.agents/skills/spring/SKILL.md`** — Spring framework coding patterns: Shell commands, JDBC/SQLite, JavaParser, @Async, testing. Read before writing Spring code.
+- Always try to follow coding best practices: SOLID, DRY, KISS, YAGNI, etc.
 
 ## Project Structure
 

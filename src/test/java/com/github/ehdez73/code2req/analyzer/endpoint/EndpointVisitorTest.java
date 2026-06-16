@@ -190,4 +190,139 @@ class EndpointVisitorTest {
         assertEquals("/users", EndpointVisitor.EndpointAstAdapter.combinePaths("", "/users"));
         assertEquals("", EndpointVisitor.EndpointAstAdapter.combinePaths("", ""));
     }
+
+    // --- View return detection tests ---
+
+    private AnalysisResult analyzeWithController(String code) {
+        CompilationUnit cu = StaticJavaParser.parse(code);
+        AnalysisResultBuilder builder = new AnalysisResultBuilder();
+        builder.addFinding(new ComponentInfo("Controller", "MyController", "com.example", "test.java"));
+        visitor.analyze(cu, builder, new AnalysisContext("test.java"));
+        return builder.build("test.java");
+    }
+
+    @Test
+    void stringReturnInControllerMarksAsView() {
+        AnalysisResult result = analyzeWithController("""
+            import org.springframework.stereotype.Controller;
+            import org.springframework.web.bind.annotation.GetMapping;
+            @Controller
+            public class MyController {
+                @GetMapping("/hello")
+                public String hello() { return "hello-view"; }
+            }
+            """);
+
+        EndpointInfo e = result.findings(EndpointInfo.class).getFirst();
+        assertTrue(e.servesView());
+        assertEquals("hello-view", e.viewName());
+    }
+
+    @Test
+    void modelAndViewReturnExtractsViewName() {
+        AnalysisResult result = analyzeWithController("""
+            import org.springframework.stereotype.Controller;
+            import org.springframework.web.bind.annotation.GetMapping;
+            import org.springframework.web.servlet.ModelAndView;
+            @Controller
+            public class MyController {
+                @GetMapping("/show")
+                public ModelAndView show() { return new ModelAndView("show-view"); }
+            }
+            """);
+
+        EndpointInfo e = result.findings(EndpointInfo.class).getFirst();
+        assertTrue(e.servesView());
+        assertEquals("show-view", e.viewName());
+    }
+
+    @Test
+    void voidReturnInControllerMarksAsView() {
+        AnalysisResult result = analyzeWithController("""
+            import org.springframework.stereotype.Controller;
+            import org.springframework.web.bind.annotation.GetMapping;
+            @Controller
+            public class MyController {
+                @GetMapping("/action")
+                public void doAction() {}
+            }
+            """);
+
+        EndpointInfo e = result.findings(EndpointInfo.class).getFirst();
+        assertTrue(e.servesView());
+        assertEquals("", e.viewName());
+    }
+
+    @Test
+    void restControllerStringReturnNotView() {
+        AnalysisResult result = analyze("""
+            import org.springframework.web.bind.annotation.GetMapping;
+            import org.springframework.web.bind.annotation.RestController;
+            @RestController
+            public class MyController {
+                @GetMapping("/api/hello")
+                public String hello() { return "hello"; }
+            }
+            """);
+
+        EndpointInfo e = result.findings(EndpointInfo.class).getFirst();
+        assertFalse(e.servesView());
+        assertEquals("", e.viewName());
+    }
+
+    @Test
+    void responseBodyOverridesViewDetection() {
+        CompilationUnit cu = StaticJavaParser.parse("""
+            import org.springframework.stereotype.Controller;
+            import org.springframework.web.bind.annotation.GetMapping;
+            import org.springframework.web.bind.annotation.ResponseBody;
+            @Controller
+            public class MyController {
+                @GetMapping("/data")
+                @ResponseBody
+                public String data() { return "raw-data"; }
+            }
+            """);
+        AnalysisResultBuilder builder = new AnalysisResultBuilder();
+        builder.addFinding(new ComponentInfo("Controller", "MyController", "com.example", "test.java"));
+        visitor.analyze(cu, builder, new AnalysisContext("test.java"));
+        AnalysisResult result = builder.build("test.java");
+
+        EndpointInfo e = result.findings(EndpointInfo.class).getFirst();
+        assertFalse(e.servesView());
+        assertEquals("", e.viewName());
+    }
+
+    @Test
+    void nonControllerEndpointNotMarkedAsView() {
+        AnalysisResult result = analyze("""
+            import org.springframework.web.bind.annotation.GetMapping;
+            import org.springframework.web.bind.annotation.RestController;
+            @RestController
+            public class MyController {
+                @GetMapping("/api/data")
+                public String data() { return "data"; }
+            }
+            """);
+
+        EndpointInfo e = result.findings(EndpointInfo.class).getFirst();
+        assertFalse(e.servesView());
+    }
+
+    @Test
+    void viewReturnMarkedAsView() {
+        AnalysisResult result = analyzeWithController("""
+            import org.springframework.stereotype.Controller;
+            import org.springframework.web.bind.annotation.GetMapping;
+            import org.springframework.web.servlet.View;
+            @Controller
+            public class MyController {
+                @GetMapping("/report")
+                public View report() { return null; }
+            }
+            """);
+
+        EndpointInfo e = result.findings(EndpointInfo.class).getFirst();
+        assertTrue(e.servesView());
+    }
 }

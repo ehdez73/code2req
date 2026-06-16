@@ -66,7 +66,7 @@ class IndexWriterTest {
 
         List<AnalysisFinding> findings = List.of(
             new ComponentInfo("RestController", "UserController", "com.app", filePath),
-            new EndpointInfo("GET", "/api/users", "UserController", List.of(), List.of(), filePath),
+            new EndpointInfo("GET", "/api/users", "UserController", List.of(), List.of(), filePath, false, ""),
             new ScheduledTaskInfo("cleanup", "CleanupTask", "0 0 * * *", null, null, "cron", filePath),
             new EventListenerInfo("UserCreatedEvent", "onUserCreated", "UserEventListener", filePath, List.of(
                 new MethodCallInfo("EmailService", "sendWelcomeEmail", 1)

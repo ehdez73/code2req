@@ -12,6 +12,8 @@ import com.github.ehdez73.code2req.config.SecretRedactor;
 import com.github.ehdez73.code2req.output.IndexWriter;
 import com.github.ehdez73.code2req.output.OrphanRecovery;
 import com.github.ehdez73.code2req.pipeline.ScanPipeline;
+import com.github.ehdez73.code2req.analyzer.template.TemplateAnalyzer;
+import com.github.ehdez73.code2req.analyzer.template.TemplateLinkResolver;
 import com.github.ehdez73.code2req.shell.ScanCommand;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
@@ -83,9 +85,13 @@ class ScanCommandTest {
         var pass1Collector = new Pass1DeclarationCollector();
         var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher, topicLinkResolver);
 
+        var templateAnalyzer = new TemplateAnalyzer(List.of(new com.github.ehdez73.code2req.analyzer.template.JspTemplateParser(), new com.github.ehdez73.code2req.analyzer.template.ThymeleafTemplateParser()));
+        var templateLinkResolver = new TemplateLinkResolver();
+
         command = new ScanCommand(
             manifestLoader, manifestValidator, excludeFilter, pipeline,
-            taskStore, taskIdHasher, indexWriter, orphanRecovery);
+            taskStore, taskIdHasher, indexWriter, orphanRecovery,
+            templateAnalyzer, templateLinkResolver);
     }
 
     @Test

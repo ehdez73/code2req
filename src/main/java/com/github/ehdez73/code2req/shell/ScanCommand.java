@@ -1,6 +1,10 @@
 package com.github.ehdez73.code2req.shell;
 
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
+import com.github.ehdez73.code2req.analyzer.template.TemplateAnalyzer;
+import com.github.ehdez73.code2req.analyzer.template.TemplateFormInfo;
+import com.github.ehdez73.code2req.analyzer.template.TemplateLinkInfo;
+import com.github.ehdez73.code2req.analyzer.template.TemplateLinkResolver;
 import com.github.ehdez73.code2req.config.ExcludeFilter;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
@@ -43,6 +47,8 @@ public class ScanCommand {
     private final TaskIdHasher taskIdHasher;
     private final IndexWriter indexWriter;
     private final OrphanRecovery orphanRecovery;
+    private final TemplateAnalyzer templateAnalyzer;
+    private final TemplateLinkResolver templateLinkResolver;
 
     public ScanCommand(
             ManifestLoader manifestLoader,
@@ -52,7 +58,9 @@ public class ScanCommand {
             TaskStore taskStore,
             TaskIdHasher taskIdHasher,
             IndexWriter indexWriter,
-            OrphanRecovery orphanRecovery) {
+            OrphanRecovery orphanRecovery,
+            TemplateAnalyzer templateAnalyzer,
+            TemplateLinkResolver templateLinkResolver) {
         this.manifestLoader = manifestLoader;
         this.manifestValidator = manifestValidator;
         this.excludeFilter = excludeFilter;
@@ -61,6 +69,8 @@ public class ScanCommand {
         this.taskIdHasher = taskIdHasher;
         this.indexWriter = indexWriter;
         this.orphanRecovery = orphanRecovery;
+        this.templateAnalyzer = templateAnalyzer;
+        this.templateLinkResolver = templateLinkResolver;
     }
 
     @ShellMethod(key = "scan", value = "Runs the full Phase 1 scan pipeline: manifest, dependencies, analysis, redaction, and index output")
@@ -84,7 +94,27 @@ public class ScanCommand {
         report.append("Phase 4/5 — Analysis (Two-Pass):\n");
         var pipelineResult = pipeline.execute(allFiles, report);
 
-        writeIndex(manifest, pipelineResult.results(), pipelineResult.topicLinks(), report);
+        var templateBatches = discoverTemplateFiles(manifest, report);
+        List<TemplateFormInfo> templateForms = new ArrayList<>();
+        List<TemplateLinkInfo> templateLinks = new ArrayList<>();
+        if (templateBatches != null) {
+            report.append("Phase 4b/5 — Template Analysis:\n");
+            for (var batch : templateBatches) {
+                for (Path tf : batch.files()) {
+                    templateForms.addAll(templateAnalyzer.analyze(tf));
+                }
+            }
+            report.append(String.format("  %d template form(s) and link(s) found%n", templateForms.size()));
+
+            var allEndpoints = pipelineResult.results().stream()
+                .flatMap(r -> r.findings(com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo.class).stream())
+                .toList();
+            templateLinks = templateLinkResolver.resolve(templateForms, allEndpoints);
+            report.append(String.format("  %d template-to-endpoint link(s) matched%n", templateLinks.size()));
+            report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(scanStart)));
+        }
+
+        writeIndex(manifest, pipelineResult.results(), pipelineResult.topicLinks(), templateForms, templateLinks, report);
 
         appendSummary(report, scanStart);
         return report.toString();
@@ -125,6 +155,44 @@ public class ScanCommand {
         var result = orphanRecovery.recover();
         report.append(String.format("Phase 2/5 — Orphan Recovery: %d task(s) reverted%n", result.revertedCount()));
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
+    }
+
+    private List<TemplateFileBatch> discoverTemplateFiles(ProjectManifest manifest, StringBuilder report) {
+        var phaseStart = Instant.now();
+        List<TemplateFileBatch> batches = new ArrayList<>();
+        int totalFiles = 0;
+
+        for (ScanTarget target : manifest.targets()) {
+            Path targetPath = Path.of(target.path());
+            if (!Files.isDirectory(targetPath)) continue;
+
+            List<Path> templateFiles;
+            try (Stream<Path> walk = Files.walk(targetPath)) {
+                templateFiles = walk
+                    .filter(p -> {
+                        String name = p.toString().toLowerCase();
+                        return name.endsWith(".jsp") || name.endsWith(".html");
+                    })
+                    .filter(Files::isRegularFile)
+                    .toList();
+            } catch (IOException e) {
+                log.warn("Failed to walk target '{}' for templates: {}", target.name(), e.getMessage());
+                continue;
+            }
+
+            if (!templateFiles.isEmpty()) {
+                batches.add(new TemplateFileBatch(target, templateFiles));
+                totalFiles += templateFiles.size();
+            }
+        }
+
+        if (totalFiles == 0) {
+            return null;
+        }
+
+        report.append(String.format("Phase 3b/5 — Template Discovery: %d template file(s) across %d target(s)%n",
+            totalFiles, batches.size()));
+        return batches;
     }
 
     private List<JavaFileBatch> discoverFiles(ProjectManifest manifest, StringBuilder report) {
@@ -172,14 +240,16 @@ public class ScanCommand {
             .toList();
     }
 
-    private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results, List<com.github.ehdez73.code2req.analyzer.eventlink.TopicLink> topicLinks, StringBuilder report) {
+    private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results,
+                            List<com.github.ehdez73.code2req.analyzer.eventlink.TopicLink> topicLinks,
+                            List<TemplateFormInfo> templateForms,
+                            List<TemplateLinkInfo> templateLinks, StringBuilder report) {
         var phaseStart = Instant.now();
         try {
-            Path indexPath = indexWriter.write(manifest, results, topicLinks);
+            Path indexPath = indexWriter.write(manifest, results, topicLinks, templateForms, templateLinks);
             report.append(String.format("Phase 5/5 — Index Output: %s%n", indexPath.toAbsolutePath()));
         } catch (IOException e) {
             report.append("Phase 5/5 — Index Output: FAILED — ").append(e.getMessage()).append("\n");
-            return;
         }
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
     }
@@ -197,4 +267,5 @@ public class ScanCommand {
     }
 
     private record JavaFileBatch(ScanTarget target, List<Path> files) {}
+    private record TemplateFileBatch(ScanTarget target, List<Path> files) {}
 }

@@ -20,6 +20,8 @@ import com.github.ehdez73.code2req.analyzer.kafka.KafkaPublisherInfo;
 import com.github.ehdez73.code2req.analyzer.rabbitmq.RabbitMqInfo;
 import com.github.ehdez73.code2req.analyzer.rabbitmq.RabbitMqPublisherInfo;
 import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskInfo;
+import com.github.ehdez73.code2req.analyzer.template.TemplateFormInfo;
+import com.github.ehdez73.code2req.analyzer.template.TemplateLinkInfo;
 import com.github.ehdez73.code2req.analyzer.validator.ValidatorInfo;
 import com.github.ehdez73.code2req.analyzer.xml.XmlAopConfigInfo;
 import com.github.ehdez73.code2req.analyzer.xml.XmlBeanInfo;
@@ -74,10 +76,21 @@ public class IndexWriter {
     }
 
     public Path write(ProjectManifest manifest, List<AnalysisResult> results) throws IOException {
-        return write(manifest, results, List.of());
+        return write(manifest, results, List.of(), List.of(), List.of());
     }
 
     public Path write(ProjectManifest manifest, List<AnalysisResult> results, List<TopicLink> topicLinks) throws IOException {
+        return write(manifest, results, topicLinks, List.of(), List.of());
+    }
+
+    public Path write(ProjectManifest manifest, List<AnalysisResult> results, List<TopicLink> topicLinks,
+                      List<TemplateFormInfo> templateForms) throws IOException {
+        return write(manifest, results, topicLinks, templateForms, List.of());
+    }
+
+    public Path write(ProjectManifest manifest, List<AnalysisResult> results, List<TopicLink> topicLinks,
+                      List<TemplateFormInfo> templateForms,
+                      List<TemplateLinkInfo> templateLinks) throws IOException {
         OutputConfig outputConfig = manifest.outputConfig();
         Path outputDir = Path.of(outputConfig.specDir());
         Files.createDirectories(outputDir);
@@ -96,11 +109,18 @@ public class IndexWriter {
             List<AnalysisResult> targetResults = results.stream()
                 .filter(r -> Path.of(r.filePath()).normalize().startsWith(targetPath))
                 .toList();
-            targetsArray.add(buildTargetNode(target, targetResults));
+            List<TemplateFormInfo> targetForms = templateForms.stream()
+                .filter(tf -> Path.of(tf.templatePath()).normalize().startsWith(targetPath))
+                .toList();
+            targetsArray.add(buildTargetNode(target, targetResults, targetForms));
         }
 
         if (!topicLinks.isEmpty()) {
             root.set("topic_links", mapper.valueToTree(topicLinks));
+        }
+
+        if (!templateLinks.isEmpty()) {
+            root.set("template_endpoint_links", mapper.valueToTree(templateLinks));
         }
 
         Path outputPath = outputDir.resolve(outputConfig.indexFile());
@@ -110,6 +130,10 @@ public class IndexWriter {
     }
 
     private ObjectNode buildTargetNode(ScanTarget target, List<AnalysisResult> results) {
+        return buildTargetNode(target, results, List.of());
+    }
+
+    private ObjectNode buildTargetNode(ScanTarget target, List<AnalysisResult> results, List<TemplateFormInfo> templateForms) {
         ObjectNode node = mapper.createObjectNode();
         node.put("name", target.name());
 
@@ -120,6 +144,17 @@ public class IndexWriter {
             }
             if (!collected.isEmpty()) {
                 node.set(entry.getValue(), mapper.valueToTree(collected));
+            }
+        }
+
+        if (!templateForms.isEmpty()) {
+            var forms = templateForms.stream().filter(f -> "FORM".equals(f.linkType())).toList();
+            var links = templateForms.stream().filter(f -> "LINK".equals(f.linkType())).toList();
+            if (!forms.isEmpty()) {
+                node.set("template_forms", mapper.valueToTree(forms));
+            }
+            if (!links.isEmpty()) {
+                node.set("template_anchor_links", mapper.valueToTree(links));
             }
         }
 

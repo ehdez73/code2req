@@ -115,6 +115,25 @@ The indexer leverages a dedicated `VoidVisitorAdapter<Context>` traversal strate
   * URL literals are captured as-is; SpEL expressions and environment variable references (e.g., `${services.url}/api/v1/orders`) are captured as patterns with an `isExpression` flag.
   * Each detected call is registered as a `floating_link` in the SQLite store.
 
+* **View-Returning Controller Detection (Pass 2):**
+  * Detect controller methods returning `ModelAndView`, `String` (logical view name), `View`, or `void` (with implicit view from request path).
+  * Each endpoint is tagged with `servesView: true` and the extracted `viewName`.
+  * Methods in `@RestController` classes or annotated with `@ResponseBody` are excluded (they return serialized data, not views).
+
+* **Template File Parsing (Post-Pass):**
+  * After Java AST analysis completes, template files (`.jsp`, Thymeleaf `.html`) are discovered and parsed to extract frontend-to-backend HTTP references.
+  * **JSP Form Detection:** Extract `<form action="..." method="...">` — capture HTTP method, URL pattern, and field names from `<input name="...">`.
+  * **JSP Link Detection:** Extract `<a href="...">` anchor links.
+  * **Thymeleaf Form Detection:** Extract `<form th:action="@{...}" th:method="...">` — capture HTTP method, Thymeleaf expression URL pattern, and field names.
+  * **Thymeleaf Link Detection:** Extract `<a th:href="@{...}">` anchor links.
+  * SpEL expressions in Thymeleaf `@{...}` paths are captured with an `isExpression` flag.
+  * Each form/link is recorded as a `TemplateFormInfo` finding with the template file path, HTTP method, URL pattern, and field names.
+
+* **Template-to-Endpoint Floating Link Resolution (Post-Pass):**
+  * After template parsing, form action URLs are matched against known controller `EndpointInfo` paths.
+  * Exact literal matches are linked with confidence 1.0; path-parameterized matches (e.g., `/owners/{ownerId}` ↔ form action `/owners/5`) at confidence 0.8.
+  * Matched pairs are registered as `template_endpoint_links` in the index output, enabling end-to-end frontend-to-backend traceability.
+
 #### 2.1.3 The Intermediate Boundary: `code-graph-index.json`
 
 The indexer flushes its in-memory graph into a standardized local JSON file saved in the execution root. This serves as an un-decoupled debugging boundary for developers and provides an extensible plugin path for other language processors in future iterations.

@@ -9,7 +9,10 @@ import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
+import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
+import com.github.javaparser.ast.expr.StringLiteralExpr;
+import com.github.javaparser.ast.stmt.ReturnStmt;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import org.springframework.stereotype.Component;
 
@@ -44,6 +47,7 @@ public class EndpointVisitor implements AstAnalysisVisitor {
         private final String filePath;
         private String classLevelPath = "";
         private String controllerName = "";
+        private boolean isRestController = false;
 
         EndpointAstAdapter(String filePath) {
             this.filePath = filePath;
@@ -52,11 +56,16 @@ public class EndpointVisitor implements AstAnalysisVisitor {
         @Override
         public void visit(ClassOrInterfaceDeclaration n, List<EndpointInfo> collector) {
             controllerName = n.getNameAsString();
+            isRestController = false;
             for (AnnotationExpr ann : n.getAnnotations()) {
-                if ("RequestMapping".equals(ann.getNameAsString())) {
+                String annName = ann.getNameAsString();
+                if ("RequestMapping".equals(annName)) {
                     classLevelPath = extractStringAttr(ann, "value")
                         .or(() -> extractStringAttr(ann, "path"))
                         .orElse("");
+                }
+                if ("RestController".equals(annName)) {
+                    isRestController = true;
                 }
             }
             super.visit(n, collector);
@@ -81,8 +90,60 @@ public class EndpointVisitor implements AstAnalysisVisitor {
                 List<String> pathVars = extractPathVariables(n);
                 List<String> queryParams = extractQueryParams(n);
 
-                collector.add(new EndpointInfo(httpMethod, fullPath, controllerName, pathVars, queryParams, filePath));
+                boolean servesView = false;
+                String viewName = "";
+                if (!isRestController && !hasResponseBody(n)) {
+                    servesView = isViewReturn(n);
+                    if (servesView) {
+                        viewName = extractViewName(n);
+                    }
+                }
+
+                collector.add(new EndpointInfo(httpMethod, fullPath, controllerName, pathVars, queryParams, filePath, servesView, viewName));
             }
+        }
+
+        private static boolean hasResponseBody(MethodDeclaration n) {
+            return n.getAnnotations().stream()
+                .anyMatch(a -> "ResponseBody".equals(a.getNameAsString()));
+        }
+
+        static boolean isViewReturn(MethodDeclaration n) {
+            String returnType = n.getType().toString();
+            return "ModelAndView".equals(returnType)
+                || returnType.endsWith(".ModelAndView")
+                || "String".equals(returnType)
+                || "View".equals(returnType)
+                || returnType.endsWith(".View")
+                || "void".equals(returnType);
+        }
+
+        static String extractViewName(MethodDeclaration n) {
+            return n.getBody()
+                .map(body -> {
+                    for (var stmt : body.getStatements()) {
+                        if (stmt instanceof ReturnStmt ret) {
+                            var expr = ret.getExpression();
+                            if (expr.isPresent()) {
+                                var e = expr.get();
+                                if (e instanceof StringLiteralExpr sle) {
+                                    return sle.asString();
+                                }
+                                if (e instanceof ObjectCreationExpr oce) {
+                                    String typeName = oce.getTypeAsString();
+                                    if ("ModelAndView".equals(typeName) || typeName.endsWith(".ModelAndView")) {
+                                        var args = oce.getArguments();
+                                        if (!args.isEmpty() && args.get(0) instanceof StringLiteralExpr sle) {
+                                            return sle.asString();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return "";
+                })
+                .orElse("");
         }
 
         static String combinePaths(String classPath, String methodPath) {

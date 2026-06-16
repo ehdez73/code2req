@@ -158,7 +158,7 @@
 - [x] Prerequisite: refactor `JavaAstAnalyzer` + `ScanCommand` from single-pass to two-pass orchestration
 - [x] Pass 1: collect declarations from all files into `GlobalDeclarationRegistry`
 - [x] Pass 2: run full visitor suite + resolution against the registry (via `AnalysisContext.declarationRegistry()`)
-- [x] Post-Pass: reserved (stubs not created — YAGNI until Phases 8.1/11.1)
+- [x] Post-Pass: reserved (stubs not created — YAGNI until Phases 8.1/11a.1)
 - [x] Classes: `ScanPipeline` (two-pass orchestrator), `Pass1DeclarationCollector`, `GlobalDeclarationRegistry`, `DeclarationInfo`, `ScanPipelineResult`
 - [x] Interface: `AstAnalysisVisitor.analyze(cu, builder, String)` → `(cu, builder, AnalysisContext)`
 - [x] Verify: `mvn test` (215 total — 197 existing + 7 GlobalDeclarationRegistry + 5 Pass1DeclarationCollector + 6 ScanPipeline): all pass unchanged
@@ -192,17 +192,42 @@
 
 ### Phase 11 — Outbound HTTP Detection
 
-#### 11.1 F012: REST Client Detection & Floating Link Resolution (US032)
+#### 11a.1 F012: REST Client Detection & Floating Link Resolution (US032)
 - [ ] Gherkin: [`docs/sdlc/features/E001-F012-outbound-http-detection.feature`](docs/sdlc/features/E001-F012-outbound-http-detection.feature)
 - [ ] Depends on: 4a (US006), 7.0 (pipeline refactoring)
 - [ ] Classes: `RestClientVisitor`, `RestCallInfo`, `FloatingLinkResolver`
 - [ ] Verify: `mvn test` (new tests for RestTemplate, WebClient, FeignClient, floating link matching against known endpoints)
 
+### Phase 11b — View-Returning Controller Detection
+
+#### 11b.1 F015: View-Returning Controllers (US037)
+- [x] Gherkin: `docs/sdlc/features/E001-F015-template-form-detection.feature`
+- [x] Depends on: 4a (US006, US007)
+- [x] Classes: modify `EndpointVisitor` to detect ModelAndView/String/View/void returns; add `servesView` + `viewName` to `EndpointInfo`
+- [x] Verify: `mvn test` (7 new tests for view return detection scenarios)
+- [x] Manual: scan petclinic → inspect JSON endpoints for `servesView: true` entries
+
+### Phase 11c — JSP/Thymeleaf Template Parsing
+
+#### 11c.1 F015: Template File Discovery & Parsing (US038, US039)
+- [x] Gherkin: `docs/sdlc/features/E001-F015-template-form-detection.feature`
+- [x] Depends on: 4a (US006), 6.1 (file discovery), 11b.1
+- [x] Classes: `TemplateFormInfo`, `TemplateAnalyzer`; modified: `ScanCommand` (template discovery), `IndexWriter` (new JSON keys)
+- [x] Verify: `mvn test` (281 pass)
+- [x] Manual: scan petclinic → inspect JSON for `template_forms` and `template_anchor_links` arrays
+
+#### 11c.2 F015: Template↔Endpoint Link Resolution (US040)
+- [x] Gherkin: `docs/sdlc/features/E001-F015-template-form-detection.feature`
+- [x] Depends on: 11c.1
+- [x] Classes: `TemplateLinkInfo`, `TemplateLinkResolver`; modified: `IndexWriter` (root-level `template_endpoint_links`)
+- [x] Verify: `mvn test` (281 pass)
+- [x] Manual: scan petclinic → inspect JSON for `template_endpoint_links` connecting JSP views to controller endpoints
+
 ### Phase 12 — Extended SQLite Schema
 
 #### 12.1 F014: Remaining Tables & Metrics (US034, US035)
 - [ ] Gherkin: [`docs/sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature`](docs/sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature)
-- [ ] Depends on: 4d, 4g, 4h, 8.1, 9.1, 10.1, 11.1
+- [ ] Depends on: 4d, 4g, 4h, 8.1, 9.1, 10.1, 11a.1
 - [ ] Classes: `TopicLinkStore`, `FloatingLinkStore`, `MetricsStore`, `Metric`
 - [ ] Verify: `mvn test` (new tests for extended schema, topic/floating/metrics tables)
 
@@ -259,9 +284,13 @@
 | US033 | F013 | should | 8.1 |
 | US031 | F011 | should | 9.1 |
 | US030 | F010 | must | 10.1 |
-| US032 | F012 | should | 11.1 |
+| US032 | F012 | should | 11a.1 |
 | US034 | F014 | should | 12.1 |
 | US035 | F014 | should | 12.1 |
+| US037 | F015 | should | 11b.1 |
+| US038 | F015 | should | 11c.1 |
+| US039 | F015 | should | 11c.1 |
+| US040 | F015 | should | 11c.2 |
 | US018 | F007 | should | 13.1 |
 | US019 | F007 | should | 13.1 |
 | US020 | F008 | should | 13.2 |
@@ -274,22 +303,31 @@
 Phase 7.0 (Pipeline Refactoring — two-pass orchestration) ───────┐
     │                                                              ├── Phase 10.1 (Call Graph) ──┐
     │                                                              ├── Phase 9.1 (DB Access) ─────┤
-    │                                                              ├── Phase 11.1 (HTTP Clients) ─┤── Phase 12.1 (Extended SQLite)
+    │                                                              ├── Phase 11a.1 (HTTP Clients) ─┤── Phase 12.1 (Extended SQLite)
     │                                                                                             │
 Phase 8.1 (Topic Link Resolution) ─────────────────────────────────────────────────────────────────┘
 
 Phase 13.x (Language Extension Framework) ── (independent epic, depends on Phase 5.1/6.1 only)
+
+Phase 11b.1 (View-Returning Controllers) ── depends on Phase 4a only
+
+Phase 11c.1 (Template File Parsing) ── depends on Phase 4a + Phase 6.1 + Phase 11b.1
+                                       └── Phase 11c.2 (Template↔Endpoint Links)
 ```
 
 ## Decisions Made (Updated)
 - Phase 1 uses a **two-pass deterministic linker** architecture (PRD §2.1):
   - **Pass 1** (Phase 7.0): `Pass1DeclarationCollector` builds a `GlobalDeclarationRegistry` from all source files. No resolution.
-  - **Pass 2** (Phases 9.1, 10.1, 11.1): `DbAccessVisitor`, `CallGraphVisitor`, `RestClientVisitor` resolve against the registry.
-  - **Post-Pass** (Phases 8.1, 11.1): `TopicLinkResolver` matches producers↔consumers; `FloatingLinkResolver` matches HTTP calls↔endpoints.
+  - **Pass 2** (Phases 9.1, 10.1, 11a.1): `DbAccessVisitor`, `CallGraphVisitor`, `RestClientVisitor` resolve against the registry.
+  - **Post-Pass** (Phases 8.1, 11a.1): `TopicLinkResolver` matches producers↔consumers; `FloatingLinkResolver` matches HTTP calls↔endpoints.
 - Topic links and floating links are resolved deterministically in Phase 1, not in Phase 3.
 - Phase 7.0 (pipeline refactoring) is a prerequisite for all resolution visitors — existing `ScanCommand`/`JavaAstAnalyzer` needed two-pass orchestration.
 - Phase 2 is scoped to semantic enrichment only, triggered by `--llm-threshold` (default: 5 unresolved).
 - Epic E002 (Language Extension Framework) placed after the core analysis pipeline — depends on Phase 5.1/6.1 only, independent of resolution visitors.
+- **F015 implementation refinements (PRD §2.1.2):**
+  - PRD records both forms and anchor links as `TemplateFormInfo` — PLAN separates them into `TemplateFormInfo` (form-specific fields) + `TemplateLinkInfo` (anchor hrefs) for cleaner structure. Output as `template_forms` and `template_anchor_links` per target.
+  - PRD describes form-action-to-endpoint linking — PLAN extends this to anchor links as well, producing `template_endpoint_links` for both.
+  - These extend rather than contradict the PRD specification.
 
 ## Completed
 
