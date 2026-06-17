@@ -1,9 +1,9 @@
 {
   "meta": {
-    "version": "1.3.0",
-    "phase": "1",
+    "version": "2.0.0",
+    "phase": "3",
     "created_at": "2026-06-12T12:00:00Z",
-    "last_updated": "2026-06-16T02:00:00Z",
+    "last_updated": "2026-06-17T12:00:00Z",
     "last_agent": "opencode"
   },
   "project": {
@@ -91,8 +91,8 @@
       "CLI scan command — Phase 1 deterministic two-pass execution"
     ],
     "out_of_scope": [
-      "Phase 2 — Stateful Dynamic Execution (LLM-powered analysis per file)",
-      "Phase 3 — Cascaded Semantic Synthesis (map-reduce, Markdown/JSON output)",
+      "Phase 2 — Semantic Enrichment (LLM-powered per-file analysis via Spring AI @Async)",
+      "Phase 3 — Agentic Functional Requirement Extraction (Embabel GOAP agent)",
       "Test framework generation (Gherkin, JUnit, etc.)",
       "Frontend or UI code analysis (JavaScript, TypeScript, HTML)",
       "Code modification or mutation on disk (read-only operation)"
@@ -170,6 +170,16 @@
       "metric": "Topic Link Resolution",
       "target": ">= 95%",
       "measurement": "Cross-reference of matching topic/queue/destination pairs between producers and consumers"
+    },
+    {
+      "metric": "Phase 2 LLM Spend per Scan",
+      "target": "<= 20% of files",
+      "measurement": "Only files exceeding llm-unresolved-threshold or flagged by semantic criteria qualify for LLM enrichment"
+    },
+    {
+      "metric": "Functional Flow Extraction Rate",
+      "target": ">= 85%",
+      "measurement": "Ratio of fully-extracted functional flows to total candidate flows inferred by the Embabel agent"
     }
   ],
   "non_functional_requirements": [
@@ -300,6 +310,18 @@
       "name": "Language Extension Framework",
       "description": "Define a common parser abstraction (SPI) so that adding support for new programming languages does not require modifying the core pipeline. Language parsers implement a shared contract and are discovered at runtime. The rest of the pipeline (redaction, output, orchestration) remains parser-agnostic.",
       "priority": "should"
+    },
+    {
+      "id": "E003",
+      "name": "Semantic Enrichment (Spring AI + @Async)",
+      "description": "Phase 2 of the pipeline: per-file LLM-powered semantic enrichment using Spring AI ChatClient and Spring @Async executors. A Planner qualifies files, an Executor enriches each file with business semantics, and an Orchestrator manages the DAG with a synchronization barrier before Phase 3.",
+      "priority": "must"
+    },
+    {
+      "id": "E004",
+      "name": "Agentic Functional Requirement Extraction (Embabel GOAP)",
+      "description": "Phase 3 of the pipeline: an Embabel goal-oriented agent extracts functional requirements from the aggregated structural + enriched codebase knowledge. Uses GOAP dynamic planning to resolve ambiguity through targeted code exploration. Produces Markdown specification and semantic_manifest.json.",
+      "priority": "must"
     }
   ],
   "features": [
@@ -562,6 +584,160 @@
         { "id": "US039", "title": "Developer parses Thymeleaf templates for forms and links", "priority": "should", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" },
         { "id": "US040", "title": "Developer links template forms to controller endpoints", "priority": "could", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" }
       ]
+    },
+    {
+      "id": "F016",
+      "epic_id": "E003",
+      "name": "Phase 2 Planner — Task Qualification for LLM Enrichment",
+      "description": "Reads the SQLite task store after Phase 1 and determines which tasks qualify for LLM enrichment based on configurable rules: unresolved signatures threshold, Spring Data interfaces, stored procedures, custom validators, test file pairing.",
+      "background": "Phase 1 indexing completed with tasks and findings in SQLite.",
+      "business_rules": [
+        "A task qualifies if it exceeds llm-unresolved-threshold (default: 5) unresolved signatures",
+        "A task qualifies if it is a Spring Data interface (CrudRepository, JpaRepository)",
+        "A task qualifies if it contains a stored procedure call flagged for LLM interpretation",
+        "A task qualifies if it is a custom ConstraintValidator with an isValid body",
+        "A task qualifies if it has a paired test file with assertions",
+        "The planner makes zero LLM calls — pure query + rule engine"
+      ],
+      "user_stories": [
+        { "id": "US041", "title": "Planner qualifies tasks for LLM enrichment", "priority": "must", "type": "story", "gherkin_file": "features/E003-F016-planner.feature" },
+        { "id": "US042", "title": "Planner supports dry-run DAG view", "priority": "should", "type": "story", "gherkin_file": "features/E003-F016-planner.feature" }
+      ]
+    },
+    {
+      "id": "F017",
+      "epic_id": "E003",
+      "name": "LLM Executor Framework — Per-file Semantic Enrichment",
+      "description": "Individual file enrichment workers. Each executor receives pre-resolved structural context from Phase 1 plus raw source file content, calls Spring AI ChatClient, validates output against §4 JSON Schema, and persists ExecutionFinding to SQLite.",
+      "background": "Planner has qualified tasks for enrichment. @Async pool configured.",
+      "business_rules": [
+        "Executor receives structural context (call graph edges, endpoints, database access, link registrations)",
+        "LLM prompt instructs model NOT to resolve structural dependencies — focus on business semantics only",
+        "Output must validate against §4 JSON Schema before task transitions to SUCCESS",
+        "Invalid output transitions task to FAILED with structural error classification",
+        "On HTTP 429, exponential backoff: 2s initial, 2.0 multiplier, 60s cap, 3 max retries",
+        "Discovered dependencies are registered in SQLite as PENDING for re-planning",
+        "Context budget: if combined tokens exceed 80% of model window, pre-summarize companion logic"
+      ],
+      "user_stories": [
+        { "id": "US043", "title": "Executor enriches a single file with LLM", "priority": "must", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" },
+        { "id": "US044", "title": "Executor supports dry-run simulation mode", "priority": "should", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" }
+      ]
+    },
+    {
+      "id": "F018",
+      "epic_id": "E003",
+      "name": "Orchestrator — Enrichment DAG Management",
+      "description": "Manages the enrichment DAG, submits tasks asynchronously via @Async, tracks progress via CompletableFuture, handles dynamic re-planning with branch isolation, and enforces the Phase 2→3 synchronization barrier.",
+      "background": "Planner decisions available. @Async pool configured.",
+      "business_rules": [
+        "Tasks are submitted via @Async(\"orchestratorTaskExecutor\") returning CompletableFuture<ExecutionFinding>",
+        "Phase 2→3 barrier uses CompletableFuture.allOf() — blocks Phase 3 until ALL tasks complete",
+        "Discovered dependencies trigger branch isolation: only the affected branch pauses",
+        "Max hop depth (default: 3) — exceeded tasks set to AWAITING_HUMAN_REVIEW",
+        "Visited registry: thread-safe set of hashes prevents redundant evaluation"
+      ],
+      "user_stories": [
+        { "id": "US045", "title": "Orchestrator manages enrichment DAG", "priority": "must", "type": "story", "gherkin_file": "features/E003-F018-orchestrator.feature" }
+      ]
+    },
+    {
+      "id": "F019",
+      "epic_id": "E003",
+      "name": "CLI Commands — plan and run",
+      "description": "The plan command displays the execution DAG without running. The run command orchestrates Phase 2 then Phase 3 with configurable thresholds and dry-run mode. Status command extended with Phase 2+3 counters.",
+      "background": "All Phase 2 components implemented.",
+      "business_rules": [
+        "plan makes zero LLM calls and zero SQLite mutations — read-only DAG view",
+        "run --manifest path orchestrates Phase 2 then Phase 3 end-to-end",
+        "run --llm-threshold 0 skips Phase 2 entirely",
+        "run --dry-run uses deterministic stubs with zero API spend",
+        "status shows enriched task count, tokens consumed, cost, flow extraction rate, ambiguity gaps"
+      ],
+      "user_stories": [
+        { "id": "US046", "title": "Developer views execution DAG with plan command", "priority": "must", "type": "story", "gherkin_file": "features/E003-F019-cli-run-command.feature" },
+        { "id": "US047", "title": "Developer runs full Phase 2 + Phase 3 pipeline", "priority": "must", "type": "story", "gherkin_file": "features/E003-F019-cli-run-command.feature" }
+      ]
+    },
+    {
+      "id": "F020",
+      "epic_id": "E003",
+      "name": "Test Suite Mining — Assertion Extraction",
+      "description": "Match production files with paired test files by naming convention, extract test assertions (assertEquals, assertThrows, expect()), and translate them into functional edge cases and validation requirements within the ExecutionFinding JSON.",
+      "background": "Executor framework operational.",
+      "business_rules": [
+        "Files are paired by stripping Test suffix from test file name",
+        "Assertions are extracted and translated to functional edge cases",
+        "Both production and test file are sent to the same executor for concurrent processing",
+        "Extracted insights populate the test_insights array in ExecutionFinding JSON"
+      ],
+      "user_stories": [
+        { "id": "US048", "title": "Developer mines test files for assertion insights", "priority": "should", "type": "story", "gherkin_file": "features/E003-F020-test-suite-mining.feature" }
+      ]
+    },
+    {
+      "id": "F021",
+      "epic_id": "E004",
+      "name": "Embabel Agent Framework Setup",
+      "description": "Uncomment and configure the Embabel dependency in pom.xml. Embabel provides the GOAP (Goal-Oriented Action Planning) engine for Phase 3's agentic functional requirement extraction.",
+      "background": "Embabel repository accessible. Phase 2 completion not required for setup.",
+      "business_rules": [
+        "Embabel dependency must be resolvable from configured Maven repositories",
+        "Embabel framework must initialize at application startup without errors",
+        "If Embabel repo is unreachable, Phase 3 cannot proceed"
+      ],
+      "user_stories": [
+        { "id": "US049", "title": "Developer configures Embabel agent framework", "priority": "must", "type": "story", "gherkin_file": "features/E004-F021-embabel-setup.feature" }
+      ]
+    },
+    {
+      "id": "F022",
+      "epic_id": "E004",
+      "name": "CodebaseKnowledge Builder + Phase 3 Orchestrator",
+      "description": "Pure-Java services that aggregate Phase 1 (structural findings) and Phase 2 (enriched ExecutionFinding records) into an in-memory CodebaseKnowledge domain model, pass it to the Embabel agent, and handle output after completion.",
+      "background": "Phase 2 enriched data in SQLite. Embabel framework configured.",
+      "business_rules": [
+        "Phase3Orchestrator queries SQLite for ALL Phase 1 and Phase 2 data before agent invocation",
+        "CodebaseKnowledge contains StructuralGraph, SemanticEnrichment, and LinkRegistry sub-models",
+        "Query methods: getFlowCandidates(), findUnresolvedLinks(), getComponentsByType(), getCallersOf(), getCalleesOf()",
+        "CodebaseKnowledge is passed to the Embabel agent as initial working memory — agent never queries SQLite directly",
+        "Output writing is pure Java, not agentic"
+      ],
+      "user_stories": [
+        { "id": "US050", "title": "System aggregates Phase 1+2 data into CodebaseKnowledge", "priority": "must", "type": "story", "gherkin_file": "features/E004-F022-codebase-knowledge.feature" }
+      ]
+    },
+    {
+      "id": "F023",
+      "epic_id": "E004",
+      "name": "Embabel Agent — Goals, Actions, Output",
+      "description": "The Embabel agent that extracts functional requirements using GOAP dynamic planning. Receives CodebaseKnowledge, pursues goals through actions (AnalyzeFindings, ResolveAmbiguity, CrossReferenceFloatingLinks, SynthesizeFunctionalSpec, QuarantineUnresolvable), and produces Markdown + JSON output.",
+      "background": "CodebaseKnowledge available. Embabel framework configured.",
+      "business_rules": [
+        "Agent runs in Focused mode — invoked explicitly by Phase3Orchestrator",
+        "GOAP dynamically chains actions based on goal completion — not a fixed pipeline",
+        "Guardrails: max-investigation-steps-per-flow (5), max-tokens-per-run (500000), ambiguity-confidence-threshold (0.7)",
+        "SynthesizeFunctionalSpec produces both Markdown (PRD §6.1) and semantic_manifest.json"
+      ],
+      "user_stories": [
+        { "id": "US051", "title": "Embabel agent extracts functional requirements", "priority": "must", "type": "story", "gherkin_file": "features/E004-F023-embabel-agent.feature" }
+      ]
+    },
+    {
+      "id": "F024",
+      "epic_id": "E004",
+      "name": "Quality Audit — Post-Agent Validation",
+      "description": "Post-agent validation pass (pure Java) that samples extracted requirements against raw source files to verify correctness. Enforces minimum pass rate and flags batches for human review on failure.",
+      "background": "Embabel agent completed. Output artifacts exist.",
+      "business_rules": [
+        "Sample rate: semantic-validation-sample-rate from manifest (default: 20%)",
+        "Pass threshold: ≥ 92% pass rate",
+        "On failure: flag batch for human review, increase sample rate to 100%",
+        "Audit is pure Java — not part of the Embabel agent"
+      ],
+      "user_stories": [
+        { "id": "US052", "title": "Tech Lead validates output quality via audit", "priority": "should", "type": "story", "gherkin_file": "features/E004-F024-quality-audit.feature" }
+      ]
     }
   ],
   "stories": [],
@@ -620,7 +796,16 @@
       "features/E001-F012-outbound-http-detection.feature",
       "features/E001-F013-event-link-resolution.feature",
       "features/E001-F014-structured-trace-sqlite-persistence.feature",
-      "features/E001-F015-template-form-detection.feature"
+      "features/E001-F015-template-form-detection.feature",
+      "features/E003-F016-planner.feature",
+      "features/E003-F017-llm-executor.feature",
+      "features/E003-F018-orchestrator.feature",
+      "features/E003-F019-cli-run-command.feature",
+      "features/E003-F020-test-suite-mining.feature",
+      "features/E004-F021-embabel-setup.feature",
+      "features/E004-F022-codebase-knowledge.feature",
+      "features/E004-F023-embabel-agent.feature",
+      "features/E004-F024-quality-audit.feature"
     ]
   }
 }

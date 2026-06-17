@@ -7,5 +7,7 @@ public enum DbAccessType {
     TRANSACTIONAL,
     SPRING_DATA,
     ENTITY_MANAGER,
-    HIBERNATE_SESSION
+    HIBERNATE_SESSION,
+    NATIVE_SQL,
+    JPQL_HQL
 }

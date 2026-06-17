@@ -33,8 +33,16 @@ public class EntityManagerDetector implements DbAccessDetector {
 
                 String sql = DbAccessHelper.isQueryMethod(callName)
                     ? DbAccessHelper.extractFirstStringArg(mce) : "";
+                String type;
+                if (DbAccessHelper.isJpqlQueryMethod(callName)) {
+                    type = DbAccessType.JPQL_HQL.name();
+                } else if (DbAccessHelper.isNativeQueryMethod(callName)) {
+                    type = DbAccessType.NATIVE_SQL.name();
+                } else {
+                    type = DbAccessType.ENTITY_MANAGER.name();
+                }
                 result.add(new DbAccessInfo(
-                    DbAccessType.ENTITY_MANAGER.name(), sql, "", "",
+                    type, sql, "", "",
                     methodName, className, filePath, "", false));
             })
         );

@@ -44,19 +44,32 @@
 
 Reads the SQLite task store after Phase 1 and determines which tasks qualify for LLM enrichment. Pure query + rule engine — no LLM calls.
 
-Qualification rules (§2.2):
-- File has > `llm-unresolved-threshold` (default: 5) unresolved signatures
-- File is a Spring Data interface (empty AST body — e.g., `CrudRepository`, `JpaRepository`)
-- File contains a stored procedure call flagged for LLM interpretation
-- File is a custom `ConstraintValidator` with a complex `isValid` body
-- File has a paired test file with assertions needing semantic extraction
+**9 qualification rules** (all enabled at runtime):
+1. File has > `llm-unresolved-threshold` (default: 5) unresolved signatures — queries `execution_findings` with `finding_type = 'CALL_GRAPH_EDGE' AND resolved = 0`
+2. File is a Spring Data interface (e.g., `CrudRepository`, `JpaRepository`) — queries `finding_type = 'SPRING_DATA_INTERFACE'`
+3. File contains a stored procedure call — queries `finding_type = 'DATABASE_PROCEDURE_CALL'`
+4. File is a custom `ConstraintValidator` with a complex `isValid` body — queries `finding_type = 'CONSTRAINT_VALIDATOR'`
+5. File has a paired test file with assertions — file system check for `*Test.java` or `*IT.java`
+6. File has unresolved floating links — queries `floating_links` with `resolved_status = 'PENDING'` matched to `tasks.file_path`
+7. File has a scheduled task (`@Scheduled` annotation) — queries `finding_type = 'SCHEDULED_TASK'`
+8. File contains a native SQL query (`@Query(nativeQuery=true)`, `@NamedNativeQuery`, `EntityManager.createNativeQuery()`, `Session.createNativeQuery()/createSQLQuery()`, raw JDBC) — queries `finding_type = 'NATIVE_SQL_QUERY'`
+9. File contains a JPQL/HQL query (`@Query(...)`, `@NamedQuery`, `EntityManager.createQuery()`, `Session.createQuery()`) — queries `finding_type = 'JPQL_HQL_QUERY'`
 
-- [ ] Gherkin: `docs/sdlc/features/E003-F016-planner.feature`
-- [ ] Depends on: Phase 1 complete (SQLite populated with task rows and execution_findings)
-- [ ] Classes: `Phase2Planner`, `PlannerDecision`, `PlannerQualificationReason`
-- [ ] Modified: `ExecutionConfig` (already has `maxConcurrentLlmCalls`, `maxDiscoveryDepth`, `semanticValidationSampleRate`)
-- [ ] Verify: `mvn test` — planner correctly qualifies/doesn't qualify based on task findings
-- [ ] Manual: run `plan --manifest ...` — confirm list matches expectations
+**Structural fixes completed:**
+- [x] `AnalysisFinding` interface gains `default boolean isResolved() { return true; }` — `CallGraphEdge` overrides to return `STATUS_RESOLVED.equals(resolvedStatus)`
+- [x] `ExecutionFindingStore.saveAllForTask()` uses `finding.isResolved()` instead of hardcoded `true`
+- [x] New `FindingType` constants: `SPRING_DATA_INTERFACE`, `DATABASE_PROCEDURE_CALL`, `CONSTRAINT_VALIDATOR`, `NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY` — created by a re-classification step in `ScanPipeline` after initial persist
+- [x] `FloatingLinkStore` gains `findSourceFilePathsByResolvedStatus(String)` query for planner access
+- [x] `llmQualificationRules` removed from `ExecutionConfig` (rule filtering not needed — all rules always enabled)
+
+- [x] **US041** (must): Planner qualifies tasks for LLM enrichment based on 9 self-contained rule components (Strategy Pattern)
+- [ ] **US042** (should): Planner supports dry-run DAG view via `plan` command — tracked in F019
+- [x] Gherkin: `docs/sdlc/features/E003-F016-planner.feature`
+- [x] Depends on: Phase 1 complete (SQLite populated with task rows and execution_findings)
+- [x] Classes: `Phase2Planner` (orchestrator), `QualificationRule` (interface), `PlanningContext` (shared data access), `PlannerDecision` (record), `QualificationReason` (enum), and 9 rule `@Component` classes in `planner/rule/` (`SpringDataInterfaceRule`, `StoredProcedureCallRule`, `CustomConstraintValidatorRule`, `ScheduledTaskPresentRule`, `UnresolvedSignaturesRule`, `UnresolvedFloatingLinkRule`, `TestAssertionsPresentRule`, `NativeSqlQueryRule`, `JpqlHqlQueryRule`)
+- [x] Modified: `AnalysisFinding` (add `isResolved()`), `CallGraphEdge` (override `isResolved()`), `ExecutionFindingStore` (use per-finding status), `FindingType` (5 new constants), `ScanPipeline` (re-classification step with 2 new cases), `FloatingLinkStore` (query by status), `Phase2Planner` (strategy refactor)
+- [x] Verify: `mvn test` — 364 tests pass, planner correctly qualifies/doesn't qualify
+- [ ] Manual: `plan` CLI command is tracked in F019
 
 #### F017: LLM Executor Framework (US043, US044)
 
@@ -71,7 +84,9 @@ Key behaviors:
 - Persists enriched JSON to `execution_findings` table via `ExecutionFindingStore`
 - Attaches `discovered_dependency` array when unindexed runtime deps uncovered (PRD §3.5)
 
-- [ ] Gherkin: `docs/sdlc/features/E003-F017-llm-executor.feature`
+- **US043** (must): Executor enriches a single file via Spring AI + `@Async`, validates output against §4 JSON Schema, handles exponential backoff and discovered dependencies
+- **US044** (should): Executor supports `--dry-run` mode with deterministic stubs — zero API calls
+- [x] Gherkin: `docs/sdlc/features/E003-F017-llm-executor.feature`
 - [ ] Depends on: F016 (Planner), `@EnableAsync` on Application.java, Spring AI auto-configuration
 - [ ] Classes: `SemanticExecutor`, `ExecutionFindingValidator` (JSON Schema), `ContextBudgetCalculator`, `SimulationStub`
 - [ ] New finding types in `FindingType`: `SEMANTIC_ENRICHMENT` (or store the full `ExecutionFinding` JSON via `execution_findings`)
@@ -95,7 +110,8 @@ Key behaviors:
 - **Visited Registry**: thread-safe set of hashes to prevent redundant evaluation (PRD §5.2)
 - Writes `metrics` after Phase 2 completes (tokens consumed, cost estimate)
 
-- [ ] Gherkin: `docs/sdlc/features/E003-F018-orchestrator.feature`
+- **US045** (must): Orchestrator manages enrichment DAG, submits tasks async, implements Phase 2→3 barrier via CompletableFuture.allOf(), handles dynamic re-planning with branch isolation, enforces max-hop-depth
+- [x] Gherkin: `docs/sdlc/features/E003-F018-orchestrator.feature`
 - [ ] Depends on: F016, F017, `TaskStore.findByStatus()`, `TaskStatus.AWAITING_HUMAN_REVIEW`
 - [ ] Classes: `Phase2Orchestrator`, `EnrichmentDag`, `BranchState`
 - [ ] Modified: `TaskStatus` (add `AWAITING_HUMAN_REVIEW`), `MetricsStore` (Phase 2 metrics writing)
@@ -112,10 +128,12 @@ Key behaviors:
   - `--dry-run` simulation mode (deterministic stubs, no API spend)
 - `status` — extend existing command to show Phase 2 metrics (enriched tasks, tokens consumed, estimated cost, pending/complete counts)
 
-- [ ] Gherkin: `docs/sdlc/features/E003-F019-cli-run-command.feature`
+- **US046** (must): `plan` command displays qualified tasks grouped by target with qualification reasons — zero LLM calls, zero SQLite mutations
+- **US047** (must): `run` command orchestrates Phase 2 → Phase 3 with `--dry-run`, `--llm-threshold N` support; `status` shows Phase 2+3 counters
+- [x] Gherkin: `docs/sdlc/features/E003-F019-cli-run-command.feature`
 - [ ] Depends on: F016, F017, F018, E004 (Phase 3 output)
 - [ ] Classes: `PlanCommand`, `RunCommand`
-- [ ] Modified: `StatusCommand` (Phase 2 metrics columns)
+- [ ] Modified: `StatusCommand` (Phase 2+3 metrics columns)
 - [ ] Verify: `mvn test` — plan produces correct DAG, run with `--dry-run` completes without network calls
 - [ ] Manual: `plan --manifest ...` then `run --dry-run --manifest ...` — verify end-to-end flow
 
@@ -127,7 +145,8 @@ Match production files with paired test files (e.g., `OrderService.java` ↔ `Or
 - Both test and production file sent to the same executor for concurrent processing
 - Merged into the `test_insights` array in the `ExecutionFinding` JSON schema (§4)
 
-- [ ] Gherkin: `docs/sdlc/features/E003-F020-test-suite-mining.feature`
+- **US048** (should): Test file paired by naming convention (strip Test suffix); assertEquals/assertThrows extracted into test_insights array
+- [x] Gherkin: `docs/sdlc/features/E003-F020-test-suite-mining.feature`
 - [ ] Depends on: F017 (executor framework)
 - [ ] Classes: `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver`
 - [ ] Verify: `mvn test` — paired test files produce `test_insights` with extracted scenarios
@@ -141,7 +160,8 @@ Match production files with paired test files (e.g., `OrderService.java` ↔ `Or
 
 Uncomment and configure Embabel in pom.xml. Embabel provides the GOAP (Goal-Oriented Action Planning) engine for Phase 3's agentic extraction.
 
-- [ ] Gherkin: `docs/sdlc/features/E004-F021-embabel-setup.feature`
+- **US049** (must): Embabel dependency uncommented in pom.xml, framework initializes at startup, AgentPlatform available for Phase 3
+- [x] Gherkin: `docs/sdlc/features/E004-F021-embabel-setup.feature`
 - [ ] Depends on: Phase 2 completion, Embabel repo availability
 - [ ] Modified: `pom.xml` (uncomment embabel-agent-starter), `application.properties` (Embabel config if needed), `model/ExecutionConfig.java` (add guardrail fields)
 - [ ] Verify: `mvn compile` succeeds with Embabel on classpath
@@ -165,7 +185,8 @@ Pure-Java services that prepare data for the Embabel agent and handle output aft
 
 **No fallback needed** — Embabel is the agent framework (decision-making), not a data-processing pipeline. If Embabel repo is unavailable, Phase 3 cannot run.
 
-- [ ] Gherkin: `docs/sdlc/features/E004-F022-codebase-knowledge.feature`
+- **US050** (must): Phase3Orchestrator aggregates Phase 1 (structural) + Phase 2 (enriched) data into CodebaseKnowledge with query methods (getFlowCandidates, getCallersOf, getCalleesOf, findUnresolvedLinks)
+- [x] Gherkin: `docs/sdlc/features/E004-F022-codebase-knowledge.feature`
 - [ ] Depends on: F021 (Embabel integration), Phase 2 enriched data in SQLite
 - [ ] Classes: `Phase3Orchestrator`, `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry`
 - [ ] Verify: `mvn test` — CodebaseKnowledge correctly aggregates Phase 1 + Phase 2 data
@@ -199,7 +220,8 @@ The Embabel agent that extracts functional requirements. This is the core of Pha
 - `MarkdownSpecWriter` — writes `spec-output/*.md` per PRD §6.1 template.
 - `SemanticManifestWriter` — writes `spec-output/semantic_manifest.json` with full traceability.
 
-- [ ] Gherkin: `docs/sdlc/features/E004-F023-embabel-agent.feature`
+- **US051** (must): Embabel agent in Focused mode with GOAP planning: AnalyzeFindings → candidate flows, ResolveAmbiguity → codebase search, CrossReferenceFloatingLinks → link resolution, QuarantineUnresolvable → guardrail enforcement, SynthesizeFunctionalSpec → Markdown + JSON output
+- [x] Gherkin: `docs/sdlc/features/E004-F023-embabel-agent.feature`
 - [ ] Depends on: F022 (CodebaseKnowledge), Embabel framework
 - [ ] Classes (agent): `FunctionalRequirementAgent`, `AnalyzeFindingsAction`, `ResolveAmbiguityAction`, `CrossReferenceLinksAction`, `SynthesizeSpecAction`, `QuarantineAction`
 - [ ] Classes (domain): `FunctionalFlow`, `BusinessRule`, `EndpointSpec`, `CodePattern`, `AmbiguityGap`, `FlowStep`, `TraceabilityEntry`
@@ -215,7 +237,8 @@ Post-agent validation pass (pure Java, not part of the Embabel agent):
 - On failure: flag batch for human review, increase sample rate to 100% for next run
 - Output: audit report in Markdown (spec-output/audit-report.md)
 
-- [ ] Gherkin: `docs/sdlc/features/E004-F024-quality-audit.feature`
+- **US052** (should): Post-agent quality audit (pure Java) samples 20% of requirements against source files, enforces ≥92% pass rate, flags batch for review on failure
+- [x] Gherkin: `docs/sdlc/features/E004-F024-quality-audit.feature`
 - [ ] Depends on: F023 (output artifacts exist to audit)
 - [ ] Classes: `Phase3QualityAudit`, `AuditSample`, `AuditReport`
 - [ ] Verify: `mvn test` — audit passes on deterministic dry-run output (100% pass rate)
@@ -275,21 +298,28 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 
 ## Modified / New Files Summary
 
-### Modified (existing files changed):
+### Modified (existing files changed, F016-related additions in *italic*, completed items prefixed with ✓):
 | File | Change |
 |------|--------|
 | `Application.java` | Add `@EnableAsync` |
 | `model/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
+| ✓ `model/AnalysisFinding.java` | Add `default boolean isResolved() { return true; }` |
+| ✓ `analyzer/callgraph/CallGraphEdge.java` | Override `isResolved()` to return `STATUS_RESOLVED.equals(resolvedStatus)` |
+| ✓ `store/ExecutionFindingStore.java` | `saveAllForTask` uses `finding.isResolved()` instead of hardcoded `true` |
+| ✓ `store/FindingType.java` | Add `SPRING_DATA_INTERFACE`, `DATABASE_PROCEDURE_CALL`, `CONSTRAINT_VALIDATOR`, `NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY` |
+| ✓ `pipeline/ScanPipeline.java` | Add re-classification step after `persistFindings()` to create granular FindingType rows (now 5 mapping cases) |
+| ✓ `store/FloatingLinkStore.java` | Add `findSourceFilePathsByResolvedStatus(String)` query for planner |
+| ✓ `planner/Phase2Planner.java` | Refactored with Strategy Pattern — delegates to 9 `QualificationRule` components |
 | `shell/StatusCommand.java` | Add Phase 2 metrics (tokens, cost, enriched count) + Phase 3 metrics (flow extraction rate, ambiguity gaps) |
 | `pom.xml` | Uncomment `embabel-agent-starter` dependency |
-| `store/FindingType.java` | Add `SEMANTIC_ENRICHMENT` type |
-| `model/ExecutionConfig.java` | Add `maxInvestigationStepsPerFlow`, `maxTokensPerRun`, `ambiguityConfidenceThreshold` |
-| `project-manifest.yaml` | Add new guardrail fields under `execution:` |
+| `model/ExecutionConfig.java` | Add `maxInvestigationStepsPerFlow`, `maxTokensPerRun`, `ambiguityConfidenceThreshold` (removed `llmQualificationRules`) |
+| `project-manifest.yaml` | Add `llm-unresolved-threshold` and guardrail fields under `execution:` (removed `llm-qualification-rules`) |
 
 ### New files:
 | Package | Files |
 |---------|-------|
-| `plan/` | `Phase2Planner`, `PlannerDecision`, `PlannerQualificationReason` |
+| `planner/` | `QualificationRule.java` (interface), `PlanningContext.java` (shared data access), `PlannerDecision.java` (record), `QualificationReason.java` (enum) |
+| `planner/rule/` | `SpringDataInterfaceRule`, `StoredProcedureCallRule`, `CustomConstraintValidatorRule`, `ScheduledTaskPresentRule`, `UnresolvedSignaturesRule`, `UnresolvedFloatingLinkRule`, `TestAssertionsPresentRule`, `NativeSqlQueryRule`, `JpqlHqlQueryRule`, `AbstractFindingTypeRule` (base class) |
 | `executor/` | `SemanticExecutor`, `ExecutionFindingValidator`, `ContextBudgetCalculator`, `SimulationStub` |
 | `orchestrator/` | `Phase2Orchestrator`, `EnrichmentDag`, `BranchState` |
 | `executor/testmining/` | `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver` |

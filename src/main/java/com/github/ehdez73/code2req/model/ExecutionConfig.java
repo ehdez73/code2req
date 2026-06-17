@@ -5,9 +5,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record ExecutionConfig(
     @JsonProperty("max-concurrent-llm-calls") Integer maxConcurrentLlmCalls,
     @JsonProperty("max-discovery-depth") Integer maxDiscoveryDepth,
-    @JsonProperty("semantic-validation-sample-rate") Double semanticValidationSampleRate
+    @JsonProperty("semantic-validation-sample-rate") Double semanticValidationSampleRate,
+    @JsonProperty("llm-unresolved-threshold") Integer llmUnresolvedThreshold
 ) {
     public static ExecutionConfig defaultConfig() {
-        return new ExecutionConfig(5, 3, 0.20);
+        return new ExecutionConfig(5, 3, 0.20, 5);
+    }
+
+    public int resolvedUnresolvedThreshold() {
+        return llmUnresolvedThreshold != null ? llmUnresolvedThreshold : 5;
     }
 }

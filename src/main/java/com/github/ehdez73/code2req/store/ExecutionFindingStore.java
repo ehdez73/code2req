@@ -33,7 +33,7 @@ public class ExecutionFindingStore {
         for (AnalysisFinding finding : findings) {
             try {
                 String json = MAPPER.writeValueAsString(finding);
-                save(taskId, findingType, json, true);
+                save(taskId, findingType, json, finding.isResolved());
             } catch (JsonProcessingException e) {
                 log.warn("Failed to serialize finding {} for task {}: {}", findingType, taskId, e.getMessage());
             }

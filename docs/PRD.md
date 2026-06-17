@@ -2,7 +2,7 @@
 
 ## AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)
 
-> **Version 5.0** — Fully revised, unified in English, and optimized for engineering execution. This version introduces a **Two-Pass Deterministic Linker** architecture for inter-file structural tracing (call graph, database access, outbound HTTP, event flows) without LLM dependencies. Phase 2 is scoped to semantic enrichment via Spring `@Async` executors, while Phase 3 employs an **Embabel agentic framework** to extract functional requirements from the enriched corpus, with dynamic re-planning (GOAP) to resolve ambiguity through targeted code exploration. Incorporates high-performance local Spring JDBC state storage, a **Dual-Engine Hybrid Indexing Pipeline** (Maven + JavaParser AST), an annotation-driven heuristic fallback strategy, pure-Java parsing boundaries, and advanced CLI visual telemetry.
+> **Version 5.2** — Updated Phase 2 Planner qualification rules. Adds: native SQL and JPQL/HQL query detection as LLM enrichment criteria (PRD §2.2); granular `FindingType` constants (`NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY`) for custom SQL/HQL queries in Spring Data `@Query` annotations, `@NamedQuery`/`@NamedNativeQuery` entity annotations, `EntityManager`/`Session` programmatic queries, and raw JDBC (`Connection`, `Statement`) native SQL calls.
 
 ---
 
@@ -106,7 +106,12 @@ The indexer leverages a dedicated `VoidVisitorAdapter<Context>` traversal strate
    * Detect `@Transactional` on method or class level as transaction boundaries (class-level deduplicated against method-level override).
    * Detect `NamedParameterJdbcTemplate` and `SimpleJdbcCall`.
    * SQL string literals are extracted from the AST; procedure names are extracted from annotation attributes; table names are inferred from SQL strings where possible.
-   * Spring Data interfaces (`CrudRepository`, `JpaRepository`) are registered as **virtual declarations** — their derived query methods (e.g., `findByLastName()`) have no AST body but are recognized as database access points.
+   * Spring Data interfaces (`CrudRepository`, `JpaRepository`) are registered as **virtual declarations** — their derived query methods (e.g., `findByLastName()`) have no AST body but are recognized as database access points. Methods with `@Query` are no longer skipped — they produce findings with the query string and a `nativeQuery` flag distinguishing native SQL from JPQL/HQL.
+   * Detect `@Query(value = "...", nativeQuery = true/false)` on Spring Data repository methods — extracts the query string and routes to `NATIVE_SQL` or `JPQL_HQL` type.
+   * Detect `@NamedQuery(query = "...")` and `@NamedNativeQuery(query = "...")` on entity classes — individual and container (`@NamedQueries`/`@NamedNativeQueries`) forms supported. Routes to `JPQL_HQL` or `NATIVE_SQL` type respectively.
+   * Detect `EntityManager.createNativeQuery(sql)` (→ `NATIVE_SQL`), `createQuery(jpql)` (→ `JPQL_HQL`), `createNamedQuery(name)` (→ `JPQL_HQL`). Non-query EM methods (`persist`, `merge`, `find`, etc.) remain `ENTITY_MANAGER`.
+   * Detect `Session.createNativeQuery(sql)` and `Session.createSQLQuery(sql)` (→ `NATIVE_SQL`), `Session.createQuery(hql)` (→ `JPQL_HQL`). Non-query Session methods (`save`, `get`, `delete`, etc.) remain `HIBERNATE_SESSION`.
+   * Detect raw JDBC calls: `Connection.prepareStatement(sql)` / `prepareCall(sql)` on `connection`/`conn` scope; `Statement.executeQuery(sql)` / `executeUpdate(sql)` / `execute(sql)` / `executeLargeUpdate(sql)` / `addBatch(sql)` on any scope with a string first argument (→ `NATIVE_SQL`).
    * Each detection path is implemented as a standalone `DbAccessDetector` component wired via Spring DI — adding a new database technology requires only a new class with zero changes to existing detector code.
 
 * **Outbound HTTP Client Patterns (Pass 2):**
@@ -263,7 +268,7 @@ Third-party vendor packages, generated code stubs, and build artifacts matching 
 
 #### 2.1.6 SQLite Ingestion Pipeline
 
-Immediately after Pass 2 resolution completes, the indexer persists all findings to the SQLite store. For each file, a `tasks` row is created or updated. For each resolved call graph edge, a row is inserted into `execution_findings`. Topic links, floating links, and metrics are written to their respective tables.
+Immediately after Pass 2 resolution completes, the indexer persists all findings to the SQLite store. For each file, a `tasks` row is created or updated. For each call graph edge, a row is inserted into `execution_findings` with the `resolved` column set per-finding via `AnalysisFinding.isResolved()` — unresolved edges receive `resolved=0`. Topic links, floating links, and metrics are written to their respective tables. A re-classification step then creates additional `execution_findings` rows with granular finding types (`SPRING_DATA_INTERFACE`, `DATABASE_PROCEDURE_CALL`, `CONSTRAINT_VALIDATOR`, `NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY`) so the Phase 2 Planner can qualify files via clean SQL queries without JSON deserialization.
 
 ```sql
 INSERT INTO tasks (
@@ -385,6 +390,12 @@ The structural trace produced by Phase 1 resolves all deterministic call paths (
   * It contains a stored procedure call with a body flagged for LLM interpretation.
   * It is a custom `ConstraintValidator` with a complex `isValid` body.
   * Test file assertions require semantic extraction (see §3.4).
+  * It has unresolved floating links — outbound HTTP calls where `FloatingLinkResolver` could not match a target endpoint (`floating_links.resolved_status = 'PENDING'`). The LLM infers the external service's business purpose from method name, parameter structure, and call-site context.
+  * It has a scheduled task (`@Scheduled` annotation) — the cron/fixed-delay expression conveys *when* but not *what* business operation the method performs.
+  * It contains a native SQL query (`@Query(nativeQuery=true)`, `@NamedNativeQuery`, `EntityManager.createNativeQuery()`, `Session.createNativeQuery()/createSQLQuery()`, or raw JDBC `Connection.prepareStatement()`/`Statement.executeQuery()`) — native SQL strings encode database-specific business logic that cannot be inferred from AST structure alone.
+  * It contains a JPQL/HQL query (`@Query(...)`, `@NamedQuery`, `EntityManager.createQuery()`, `Session.createQuery()`) — custom query strings encode business rules and filtering logic beyond what Spring Data derived method names convey.
+  
+  Qualification rules are individually togglable via the `llm-qualification-rules` array in the manifest. All rules are enabled by default. The planner is a pure rule engine — zero LLM calls are made during the qualification phase.
 
 * **The Centralized Lightweight State Store:** An embedded SQLite database managed via high-performance, low-overhead native **Spring JDBC (JdbcTemplate)** instead of an ORM framework. It tracks enriched findings alongside the Phase 1 structural data.
 
@@ -484,6 +495,8 @@ The application must trace execution pathways across network boundaries.
 
 **Phase 1 (Deterministic):** The `OutboundHttpVisitor` detects outbound HTTP calls from `RestTemplate`, `WebClient`, `@FeignClient`, `RestClient` (Spring 6.1), `@HttpExchange` (Spring 6), `java.net.http.HttpClient`, `HttpURLConnection`, Apache `HttpClient`, and OkHttp declarations. Each call is registered as a `floating_link` in the SQLite store with its HTTP method, URL pattern (literal or expression), and source file task ID. After all files are processed, the `FloatingLinkResolver` performs deterministic matching: if a URL pattern is a literal string matching a known backend endpoint path (same HTTP method + path), the link is marked `RESOLVED` with confidence 1.0. If the URL contains path variables or query parameters matching structural patterns, the link is marked `RESOLVED` with confidence 0.8. Unresolved links remain `PENDING` for optional Phase 2 semantic enrichment, where the LLM can infer the intended target from method name, payload structure, and endpoint descriptions.
 
+**Phase 2 (Planner):** Files with unresolved floating links (`floating_links.resolved_status = 'PENDING'`) qualify for LLM enrichment. The LLM receives the HTTP method, URL pattern, and call-site context (surrounding method, parameters) and infers the external service's business purpose — e.g., `POST ${payment.service.url}/api/v1/charges` → "Delegates payment processing to the external Payment Service; expects a charge response."
+
 ### 3.3 Asynchronous Message & Scheduled Trigger Tracing (Topic & Scheduled Links)
 
 The system must bridge decoupling gaps created by event-driven and time-driven patterns.
@@ -491,6 +504,8 @@ The system must bridge decoupling gaps created by event-driven and time-driven p
 **Phase 1 (Deterministic):** When a visitor identifies a message dispatcher block (e.g., `KafkaTemplate.send("order-topic", ...)`), it registers the publication in the analysis result. After all files are processed, the `TopicLinkResolver` performs a deterministic SQL JOIN across all scanned targets: it matches `broker` + `topic_or_queue` values between producers and consumers. For each matching pair, a `topic_link` row is created with status `RESOLVED`. This covers Kafka, RabbitMQ, and ActiveMQ/JMS flows within the same manifest execution.
 
 Methods annotated with `@Scheduled` are traced as time-based inbound triggers; their schedule metadata is captured and linked to the business operations they initiate via the call graph resolved in Pass 2.
+
+**Phase 2 (Planner):** Files with `@Scheduled` findings qualify for LLM enrichment. The LLM receives the cron/fixed-delay/fixed-rate expression plus the method body and infers the business operation — e.g., `0 0 2 * * ?` invoked on `purgeExpiredSessions()` → "Runs daily at 2 AM to purge expired user sessions; prevents session table bloat."
 
 ### 3.4 Test Suite Mining (Assertion Extraction)
 

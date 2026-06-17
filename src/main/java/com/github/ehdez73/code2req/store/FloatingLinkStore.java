@@ -56,4 +56,10 @@ public class FloatingLinkStore {
     public void deleteAll() {
         jdbc.execute("DELETE FROM floating_links");
     }
+
+    public List<String> findSourceFilePathsByResolvedStatus(String status) {
+        return jdbc.queryForList(
+            "SELECT DISTINCT source_task_id FROM floating_links WHERE resolved_status = ?",
+            String.class, status);
+    }
 }

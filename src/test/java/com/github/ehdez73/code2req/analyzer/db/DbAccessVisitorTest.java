@@ -8,7 +8,9 @@ import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.analyzer.db.detector.EntityManagerDetector;
 import com.github.ehdez73.code2req.analyzer.db.detector.HibernateSessionDetector;
 import com.github.ehdez73.code2req.analyzer.db.detector.JdbcTemplateDetector;
+import com.github.ehdez73.code2req.analyzer.db.detector.NamedQueryDetector;
 import com.github.ehdez73.code2req.analyzer.db.detector.ProcedureDetector;
+import com.github.ehdez73.code2req.analyzer.db.detector.RawJdbcDetector;
 import com.github.ehdez73.code2req.analyzer.db.detector.SpringDataJpaDetector;
 import com.github.ehdez73.code2req.analyzer.db.detector.TransactionalDetector;
 import com.github.javaparser.StaticJavaParser;
@@ -23,9 +25,11 @@ class DbAccessVisitorTest {
         new JdbcTemplateDetector(),
         new EntityManagerDetector(),
         new HibernateSessionDetector(),
+        new NamedQueryDetector(),
         new ProcedureDetector(),
         new TransactionalDetector(),
-        new SpringDataJpaDetector()
+        new SpringDataJpaDetector(),
+        new RawJdbcDetector()
     ));
 
     private AnalysisResult analyze(String filePath, String code) {
@@ -237,7 +241,7 @@ class DbAccessVisitorTest {
     }
 
     @Test
-    void springDataSkipQueryAnnotation() {
+    void springDataQueryAnnotationDefault_producesJpqlHql() {
         AnalysisResult result = analyze("OrderRepository.java", """
             import org.springframework.data.jpa.repository.JpaRepository;
             import org.springframework.data.jpa.repository.Query;
@@ -248,9 +252,34 @@ class DbAccessVisitorTest {
             }
             """);
 
+        assertEquals(2, result.findings(DbAccessInfo.class).size());
+        var jpql = result.findings(DbAccessInfo.class).stream()
+            .filter(i -> DbAccessType.JPQL_HQL.name().equals(i.type()))
+            .findFirst().orElseThrow();
+        assertEquals("SELECT o FROM Order o WHERE o.name = :name", jpql.sql());
+        assertEquals("findCustom", jpql.methodName());
+        var derived = result.findings(DbAccessInfo.class).stream()
+            .filter(i -> DbAccessType.SPRING_DATA.name().equals(i.type()))
+            .findFirst().orElseThrow();
+        assertEquals("findByStatus", derived.methodName());
+    }
+
+    @Test
+    void springDataQueryAnnotationNative_producesNativeSql() {
+        AnalysisResult result = analyze("OrderRepository.java", """
+            import org.springframework.data.jpa.repository.JpaRepository;
+            import org.springframework.data.jpa.repository.Query;
+            public interface OrderRepository extends JpaRepository<Order, Long> {
+                @Query(value = "SELECT * FROM orders WHERE status = :status", nativeQuery = true)
+                Order findCustom(String status);
+            }
+            """);
+
         assertEquals(1, result.findings(DbAccessInfo.class).size());
-        assertEquals("findByStatus",
-            result.findings(DbAccessInfo.class).getFirst().methodName());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
+        assertEquals("SELECT * FROM orders WHERE status = :status", info.sql());
+        assertEquals("findCustom", info.methodName());
     }
 
     @Test
@@ -271,9 +300,31 @@ class DbAccessVisitorTest {
 
         assertEquals(1, result.findings(DbAccessInfo.class).size());
         DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
-        assertEquals(DbAccessType.ENTITY_MANAGER.name(), info.type());
+        assertEquals(DbAccessType.JPQL_HQL.name(), info.type());
         assertEquals("SELECT o FROM Order o WHERE o.status = :status", info.sql());
         assertEquals("findOrders", info.methodName());
+    }
+
+    @Test
+    void entityManagerCreateNativeQuery_producesNativeSql() {
+        AnalysisResult result = analyze("OrderService.java", """
+            import org.springframework.stereotype.Service;
+            import jakarta.persistence.EntityManager;
+            import jakarta.persistence.PersistenceContext;
+            @Service
+            public class OrderService {
+                @PersistenceContext
+                private EntityManager entityManager;
+                public void findOrders() {
+                    entityManager.createNativeQuery("SELECT * FROM orders WHERE status = :status");
+                }
+            }
+            """);
+
+        assertEquals(1, result.findings(DbAccessInfo.class).size());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
+        assertEquals("SELECT * FROM orders WHERE status = :status", info.sql());
     }
 
     @Test
@@ -363,12 +414,12 @@ class DbAccessVisitorTest {
 
         assertEquals(1, result.findings(DbAccessInfo.class).size());
         DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
-        assertEquals(DbAccessType.HIBERNATE_SESSION.name(), info.type());
+        assertEquals(DbAccessType.JPQL_HQL.name(), info.type());
         assertEquals("from Order where status = :status", info.sql());
     }
 
     @Test
-    void hibernateSessionCreateNativeQuery_detected() {
+    void hibernateSessionCreateNativeQuery_producesNativeSql() {
         AnalysisResult result = analyze("ReportDao.java", """
             import org.hibernate.Session;
             import org.springframework.stereotype.Repository;
@@ -384,7 +435,7 @@ class DbAccessVisitorTest {
 
         assertEquals(1, result.findings(DbAccessInfo.class).size());
         DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
-        assertEquals(DbAccessType.HIBERNATE_SESSION.name(), info.type());
+        assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
         assertEquals("SELECT * FROM reports WHERE id = ?", info.sql());
     }
 
@@ -462,7 +513,7 @@ class DbAccessVisitorTest {
             """);
 
         assertEquals(1, result.findings(DbAccessInfo.class).size());
-        assertEquals(DbAccessType.ENTITY_MANAGER.name(),
+        assertEquals(DbAccessType.JPQL_HQL.name(),
             result.findings(DbAccessInfo.class).getFirst().type());
     }
 
@@ -507,6 +558,84 @@ class DbAccessVisitorTest {
     }
 
     @Test
+    void namedQueryAnnotation_detectedAsJpql() {
+        AnalysisResult result = analyze("Order.java", """
+            import jakarta.persistence.Entity;
+            import jakarta.persistence.NamedQuery;
+            @Entity
+            @NamedQuery(name = "Order.findByStatus", query = "SELECT o FROM Order o WHERE o.status = :status")
+            public class Order {
+                private Long id;
+                private String status;
+            }
+            """);
+
+        assertEquals(1, result.findings(DbAccessInfo.class).size());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.JPQL_HQL.name(), info.type());
+        assertEquals("SELECT o FROM Order o WHERE o.status = :status", info.sql());
+    }
+
+    @Test
+    void namedNativeQueryAnnotation_detectedAsNativeSql() {
+        AnalysisResult result = analyze("Order.java", """
+            import jakarta.persistence.Entity;
+            import jakarta.persistence.NamedNativeQuery;
+            @Entity
+            @NamedNativeQuery(name = "Order.findCustom", query = "SELECT * FROM orders WHERE status = ?", resultClass = Order.class)
+            public class Order {
+                private Long id;
+                private String status;
+            }
+            """);
+
+        assertEquals(1, result.findings(DbAccessInfo.class).size());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
+        assertEquals("SELECT * FROM orders WHERE status = ?", info.sql());
+    }
+
+    @Test
+    void namedQueriesContainer_detected() {
+        AnalysisResult result = analyze("Order.java", """
+            import jakarta.persistence.Entity;
+            import jakarta.persistence.NamedQuery;
+            @Entity
+            @NamedQuery(name = "Order.byStatus", query = "SELECT o FROM Order o WHERE o.status = :status")
+            @NamedQuery(name = "Order.byCustomer", query = "SELECT o FROM Order o WHERE o.customer = :customer")
+            public class Order {
+                private Long id;
+                private String status;
+            }
+            """);
+
+        assertEquals(2, result.findings(DbAccessInfo.class).size());
+        assertTrue(result.findings(DbAccessInfo.class).stream()
+            .allMatch(i -> DbAccessType.JPQL_HQL.name().equals(i.type())));
+    }
+
+    @Test
+    void hibernateSessionCreateSQLQuery_producesNativeSql() {
+        AnalysisResult result = analyze("ReportDao.java", """
+            import org.hibernate.Session;
+            import org.springframework.stereotype.Repository;
+            @Repository
+            public class ReportDao {
+                private final Session session;
+                public ReportDao(Session session) { this.session = session; }
+                public void runReport() {
+                    session.createSQLQuery("SELECT * FROM reports WHERE id = ?");
+                }
+            }
+            """);
+
+        assertEquals(1, result.findings(DbAccessInfo.class).size());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
+        assertEquals("SELECT * FROM reports WHERE id = ?", info.sql());
+    }
+
+    @Test
     void tableHintInference_multiplePatterns() {
         AnalysisResult result = analyze("Dao.java", """
             import org.springframework.jdbc.core.JdbcTemplate;
@@ -527,5 +656,128 @@ class DbAccessVisitorTest {
         assertEquals("products", findings.get(0).tableHint());
         assertEquals("audit_log", findings.get(1).tableHint());
         assertEquals("sessions", findings.get(2).tableHint());
+    }
+
+    @Test
+    void rawJdbcConnectionPrepareStatement_detected() {
+        AnalysisResult result = analyze("OrderDao.java", """
+            import java.sql.Connection;
+            import java.sql.PreparedStatement;
+            import javax.sql.DataSource;
+            import org.springframework.stereotype.Repository;
+            @Repository
+            public class OrderDao {
+                private final DataSource ds;
+                public OrderDao(DataSource ds) { this.ds = ds; }
+                public void findOrders() throws Exception {
+                    Connection connection = ds.getConnection();
+                    PreparedStatement ps = connection.prepareStatement("SELECT * FROM orders WHERE id = ?");
+                }
+            }
+            """);
+
+        assertEquals(1, result.findings(DbAccessInfo.class).size());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
+        assertEquals("SELECT * FROM orders WHERE id = ?", info.sql());
+        assertEquals("findOrders", info.methodName());
+    }
+
+    @Test
+    void rawJdbcConnectionPrepareCall_detected() {
+        AnalysisResult result = analyze("ReportDao.java", """
+            import java.sql.Connection;
+            import java.sql.CallableStatement;
+            import javax.sql.DataSource;
+            import org.springframework.stereotype.Repository;
+            @Repository
+            public class ReportDao {
+                private final DataSource ds;
+                public ReportDao(DataSource ds) { this.ds = ds; }
+                public void runReport() throws Exception {
+                    Connection conn = ds.getConnection();
+                    CallableStatement cs = conn.prepareCall("{call SP_GENERATE_REPORT(?)}");
+                }
+            }
+            """);
+
+        assertEquals(1, result.findings(DbAccessInfo.class).size());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
+        assertEquals("{call SP_GENERATE_REPORT(?)}", info.sql());
+    }
+
+    @Test
+    void rawJdbcStatementExecuteQuery_detected() {
+        AnalysisResult result = analyze("OrderDao.java", """
+            import java.sql.Connection;
+            import java.sql.Statement;
+            import javax.sql.DataSource;
+            import org.springframework.stereotype.Repository;
+            @Repository
+            public class OrderDao {
+                private final DataSource ds;
+                public OrderDao(DataSource ds) { this.ds = ds; }
+                public void findOrders() throws Exception {
+                    Connection connection = ds.getConnection();
+                    Statement stmt = connection.createStatement();
+                    stmt.executeQuery("SELECT * FROM orders");
+                }
+            }
+            """);
+
+        assertEquals(1, result.findings(DbAccessInfo.class).size());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
+        assertEquals("SELECT * FROM orders", info.sql());
+    }
+
+    @Test
+    void rawJdbcStatementExecuteUpdate_detected() {
+        AnalysisResult result = analyze("OrderDao.java", """
+            import java.sql.Connection;
+            import java.sql.Statement;
+            import javax.sql.DataSource;
+            import org.springframework.stereotype.Repository;
+            @Repository
+            public class OrderDao {
+                private final DataSource ds;
+                public OrderDao(DataSource ds) { this.ds = ds; }
+                public void updateOrder() throws Exception {
+                    Connection connection = ds.getConnection();
+                    Statement stmt = connection.createStatement();
+                    stmt.executeUpdate("UPDATE orders SET status = 'closed' WHERE id = 1");
+                }
+            }
+            """);
+
+        assertEquals(1, result.findings(DbAccessInfo.class).size());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
+        assertEquals("UPDATE orders SET status = 'closed' WHERE id = 1", info.sql());
+    }
+
+    @Test
+    void rawJdbcChainedCreateStatement_detected() {
+        AnalysisResult result = analyze("OrderDao.java", """
+            import java.sql.Connection;
+            import java.sql.ResultSet;
+            import javax.sql.DataSource;
+            import org.springframework.stereotype.Repository;
+            @Repository
+            public class OrderDao {
+                private final DataSource ds;
+                public OrderDao(DataSource ds) { this.ds = ds; }
+                public void findOrders() throws Exception {
+                    Connection connection = ds.getConnection();
+                    ResultSet rs = connection.createStatement().executeQuery("SELECT name FROM orders");
+                }
+            }
+            """);
+
+        assertEquals(1, result.findings(DbAccessInfo.class).size());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
+        assertEquals("SELECT name FROM orders", info.sql());
     }
 }

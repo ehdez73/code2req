@@ -4,32 +4,32 @@ import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisFinding;
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
-import com.github.ehdez73.code2req.analyzer.event.broker.activemq.ActiveMqInfo;
-import com.github.ehdez73.code2req.analyzer.event.broker.activemq.ActiveMqPublisherInfo;
-import com.github.ehdez73.code2req.analyzer.callgraph.CallGraphEdge;
-import com.github.ehdez73.code2req.analyzer.bean.java.BeanMethodInfo;
 import com.github.ehdez73.code2req.analyzer.bean.ComponentInfo;
-import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
-import com.github.ehdez73.code2req.analyzer.declaration.GlobalDeclarationRegistry;
-import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
-import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointInfo;
-import com.github.ehdez73.code2req.analyzer.event.link.TopicLink;
-import com.github.ehdez73.code2req.analyzer.event.link.TopicLinkResolver;
-import com.github.ehdez73.code2req.analyzer.event.listener.EventListenerInfo;
-import com.github.ehdez73.code2req.analyzer.event.listener.EventPublisherInfo;
-import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkInfo;
-import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkResolver;
-import com.github.ehdez73.code2req.analyzer.httpclient.OutboundHttpCallInfo;
-import com.github.ehdez73.code2req.analyzer.event.broker.kafka.KafkaInfo;
-import com.github.ehdez73.code2req.analyzer.event.broker.kafka.KafkaPublisherInfo;
-import com.github.ehdez73.code2req.analyzer.event.broker.rabbitmq.RabbitMqInfo;
-import com.github.ehdez73.code2req.analyzer.event.broker.rabbitmq.RabbitMqPublisherInfo;
-import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskInfo;
-import com.github.ehdez73.code2req.analyzer.validator.ValidatorInfo;
+import com.github.ehdez73.code2req.analyzer.bean.java.BeanMethodInfo;
 import com.github.ehdez73.code2req.analyzer.bean.xml.XmlAopConfigInfo;
 import com.github.ehdez73.code2req.analyzer.bean.xml.XmlBeanInfo;
 import com.github.ehdez73.code2req.analyzer.bean.xml.XmlComponentScanInfo;
 import com.github.ehdez73.code2req.analyzer.bean.xml.XmlNamespaceBeanInfo;
+import com.github.ehdez73.code2req.analyzer.callgraph.CallGraphEdge;
+import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
+import com.github.ehdez73.code2req.analyzer.declaration.GlobalDeclarationRegistry;
+import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
+import com.github.ehdez73.code2req.analyzer.event.listener.EventListenerInfo;
+import com.github.ehdez73.code2req.analyzer.event.listener.EventPublisherInfo;
+import com.github.ehdez73.code2req.analyzer.event.broker.activemq.ActiveMqInfo;
+import com.github.ehdez73.code2req.analyzer.event.broker.activemq.ActiveMqPublisherInfo;
+import com.github.ehdez73.code2req.analyzer.event.broker.kafka.KafkaInfo;
+import com.github.ehdez73.code2req.analyzer.event.broker.kafka.KafkaPublisherInfo;
+import com.github.ehdez73.code2req.analyzer.event.broker.rabbitmq.RabbitMqInfo;
+import com.github.ehdez73.code2req.analyzer.event.broker.rabbitmq.RabbitMqPublisherInfo;
+import com.github.ehdez73.code2req.analyzer.event.link.TopicLink;
+import com.github.ehdez73.code2req.analyzer.event.link.TopicLinkResolver;
+import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkInfo;
+import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkResolver;
+import com.github.ehdez73.code2req.analyzer.httpclient.OutboundHttpCallInfo;
+import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskInfo;
+import com.github.ehdez73.code2req.analyzer.validator.ValidatorInfo;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.config.SecretRedactor;
 import com.github.ehdez73.code2req.model.Metric;
 import com.github.ehdez73.code2req.model.Task;
@@ -41,6 +41,8 @@ import com.github.ehdez73.code2req.store.MetricsStore;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
 import com.github.ehdez73.code2req.store.TopicLinkStore;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import org.slf4j.Logger;
@@ -96,6 +98,7 @@ public class ScanPipeline {
     private final TopicLinkStore topicLinkStore;
     private final FloatingLinkStore floatingLinkStore;
     private final MetricsStore metricsStore;
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public ScanPipeline(
             Pass1DeclarationCollector pass1Collector,
@@ -219,6 +222,7 @@ public class ScanPipeline {
         taskStore.save(new Task(taskId, fp, TaskStatus.SUCCESS, "java", contentHash));
 
         persistFindings(taskId, result);
+        reclassifyFindings(taskId, result);
 
         return result;
     }
@@ -229,6 +233,35 @@ public class ScanPipeline {
             if (!findings.isEmpty()) {
                 executionFindingStore.saveAllForTask(taskId, findings, entry.getValue());
             }
+        }
+    }
+
+    private void reclassifyFindings(String taskId, AnalysisResult result) {
+        for (DbAccessInfo dba : result.findings(DbAccessInfo.class)) {
+            String granularType = switch (dba.type()) {
+                case "SPRING_DATA" -> FindingType.SPRING_DATA_INTERFACE;
+                case "PROCEDURE" -> FindingType.DATABASE_PROCEDURE_CALL;
+                case "NATIVE_SQL" -> FindingType.NATIVE_SQL_QUERY;
+                case "JPQL_HQL" -> FindingType.JPQL_HQL_QUERY;
+                default -> null;
+            };
+            if (granularType != null) {
+                saveGranularFinding(taskId, dba, granularType);
+            }
+        }
+        for (ValidatorInfo vi : result.findings(ValidatorInfo.class)) {
+            if (!vi.isBuiltIn() && vi.isValidBody() != null && !vi.isValidBody().isBlank()) {
+                saveGranularFinding(taskId, vi, FindingType.CONSTRAINT_VALIDATOR);
+            }
+        }
+    }
+
+    private void saveGranularFinding(String taskId, AnalysisFinding finding, String findingType) {
+        try {
+            String json = MAPPER.writeValueAsString(finding);
+            executionFindingStore.save(taskId, findingType, json, true);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize {} for granular finding {}: {}", findingType, taskId, e.getMessage());
         }
     }
 

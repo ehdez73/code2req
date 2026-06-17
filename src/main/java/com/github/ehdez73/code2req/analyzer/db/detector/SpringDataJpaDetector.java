@@ -1,14 +1,21 @@
 package com.github.ehdez73.code2req.analyzer.db.detector;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
 import com.github.ehdez73.code2req.analyzer.db.DbAccessDetector;
+import com.github.ehdez73.code2req.analyzer.db.DbAccessHelper;
 import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.analyzer.db.DbAccessType;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.expr.AnnotationExpr;
+import com.github.javaparser.ast.expr.BooleanLiteralExpr;
+import com.github.javaparser.ast.expr.MemberValuePair;
+import com.github.javaparser.ast.expr.NormalAnnotationExpr;
+import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 
 @Component
@@ -35,9 +42,19 @@ public class SpringDataJpaDetector implements DbAccessDetector {
             .findFirst().orElse("");
 
         for (MethodDeclaration method : clazz.getMethods()) {
-            if (method.getAnnotationByName("Query").isPresent()) continue;
-
             String methodName = method.getNameAsString();
+
+            Optional<AnnotationExpr> queryAnn = method.getAnnotationByName("Query");
+            if (queryAnn.isPresent()) {
+                String sql = extractQueryValue(queryAnn.get());
+                boolean nativeQuery = isNativeQuery(queryAnn.get());
+                result.add(new DbAccessInfo(
+                    nativeQuery ? DbAccessType.NATIVE_SQL.name() : DbAccessType.JPQL_HQL.name(),
+                    sql, "", "",
+                    methodName, className, filePath, entityType, false));
+                continue;
+            }
+
             if (isDerivedQueryMethod(methodName)) {
                 result.add(new DbAccessInfo(
                     DbAccessType.SPRING_DATA.name(), "", "", "",
@@ -56,6 +73,32 @@ public class SpringDataJpaDetector implements DbAccessDetector {
             .filter(ta -> !ta.isEmpty())
             .map(ta -> ta.get(0).toString())
             .orElse("");
+    }
+
+    private static String extractQueryValue(AnnotationExpr ann) {
+        if (ann instanceof SingleMemberAnnotationExpr smae) {
+            return DbAccessHelper.extractStringLiteral(smae.getMemberValue());
+        }
+        if (ann instanceof NormalAnnotationExpr nae) {
+            for (MemberValuePair pair : nae.getPairs()) {
+                if ("value".equals(pair.getNameAsString())) {
+                    return DbAccessHelper.extractStringLiteral(pair.getValue());
+                }
+            }
+        }
+        return "";
+    }
+
+    private static boolean isNativeQuery(AnnotationExpr ann) {
+        if (ann instanceof NormalAnnotationExpr nae) {
+            for (MemberValuePair pair : nae.getPairs()) {
+                if ("nativeQuery".equals(pair.getNameAsString())
+                        && pair.getValue() instanceof BooleanLiteralExpr ble) {
+                    return ble.getValue();
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean isDerivedQueryMethod(String methodName) {

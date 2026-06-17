@@ -1,6 +1,6 @@
 targets:
   - name: <YOUR_PROJECT_NAME>
-    path: <PATH_TO_YOUR_PROJECT>
+    path: <PROJECT_PATH>
     layer: backend
     tech_profile: java-spring-legacy
     entry_points:
@@ -12,8 +12,8 @@ execution:
   max-concurrent-llm-calls: 5
   max-discovery-depth: 3
   semantic-validation-sample-rate: 0.20
-
+  llm-unresolved-threshold: 5
 output:
-  spec-dir: <PATH_TO_YOUR_PROJECT>/spec-output
+  spec-dir: ./target/spec-output
   index-file: code-graph-index.json
-  db-path: <PATH_TO_YOUR_PROJECT>/.code2req_cache.db
+  db-path: ./target/spec-output/sqlite.db

@@ -60,9 +60,16 @@ public final class DbAccessHelper {
     }
 
     public static boolean isQueryMethod(String methodName) {
+        return isJpqlQueryMethod(methodName) || isNativeQueryMethod(methodName);
+    }
+
+    public static boolean isJpqlQueryMethod(String methodName) {
         return "createQuery".equals(methodName)
-            || "createNamedQuery".equals(methodName)
-            || "createNativeQuery".equals(methodName)
+            || "createNamedQuery".equals(methodName);
+    }
+
+    public static boolean isNativeQueryMethod(String methodName) {
+        return "createNativeQuery".equals(methodName)
             || "createSQLQuery".equals(methodName);
     }
 }

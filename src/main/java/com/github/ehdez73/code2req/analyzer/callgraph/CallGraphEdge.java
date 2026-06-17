@@ -21,6 +21,11 @@ public record CallGraphEdge(
     public static final String STATUS_AMBIGUOUS = "AMBIGUOUS";
 
     @Override
+    public boolean isResolved() {
+        return STATUS_RESOLVED.equals(resolvedStatus());
+    }
+
+    @Override
     public String className() {
         return sourceClassName;
     }
