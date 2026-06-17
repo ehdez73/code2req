@@ -1,6 +1,6 @@
 package com.github.ehdez73.code2req.store;
 
-import com.github.ehdez73.code2req.analyzer.eventlink.TopicLink;
+import com.github.ehdez73.code2req.analyzer.event.link.TopicLink;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;

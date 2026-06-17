@@ -2,7 +2,7 @@ package com.github.ehdez73.code2req.pipeline;
 
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.declaration.GlobalDeclarationRegistry;
-import com.github.ehdez73.code2req.analyzer.eventlink.TopicLink;
+import com.github.ehdez73.code2req.analyzer.event.link.TopicLink;
 import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkInfo;
 
 import java.util.Collections;

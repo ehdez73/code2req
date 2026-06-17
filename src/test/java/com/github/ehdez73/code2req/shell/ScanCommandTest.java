@@ -6,7 +6,7 @@ import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointDetector;
 import com.github.ehdez73.code2req.analyzer.endpoint.detector.SpringEndpointDetector;
-import com.github.ehdez73.code2req.analyzer.eventlink.TopicLinkResolver;
+import com.github.ehdez73.code2req.analyzer.event.link.TopicLinkResolver;
 import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkResolver;
 import com.github.ehdez73.code2req.analyzer.xml.WebXmlAnalyzer;
 import com.github.ehdez73.code2req.config.ExcludeFilter;
@@ -76,12 +76,12 @@ class ScanCommandTest {
             new com.github.ehdez73.code2req.analyzer.component.ComponentVisitor(),
             new com.github.ehdez73.code2req.analyzer.endpoint.EndpointVisitor(endpointDetectors),
             new com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskVisitor(),
-            new com.github.ehdez73.code2req.analyzer.eventlistener.EventListenerVisitor(),
+            new com.github.ehdez73.code2req.analyzer.event.listener.EventListenerVisitor(),
             new com.github.ehdez73.code2req.analyzer.validator.ValidatorVisitor(),
-            new com.github.ehdez73.code2req.analyzer.kafka.KafkaVisitor(),
+            new com.github.ehdez73.code2req.analyzer.event.broker.kafka.KafkaVisitor(),
             new com.github.ehdez73.code2req.analyzer.component.BeanMethodVisitor(),
-            new com.github.ehdez73.code2req.analyzer.rabbitmq.RabbitMqVisitor(),
-            new com.github.ehdez73.code2req.analyzer.activemq.ActiveMqVisitor()
+            new com.github.ehdez73.code2req.analyzer.event.broker.rabbitmq.RabbitMqVisitor(),
+            new com.github.ehdez73.code2req.analyzer.event.broker.activemq.ActiveMqVisitor()
         );
         astAnalyzer = new JavaAstAnalyzer(visitors);
 

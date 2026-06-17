@@ -208,7 +208,7 @@ public class ResumeCommand {
         return pipelineResult.results();
     }
 
-    private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results, List<com.github.ehdez73.code2req.analyzer.eventlink.TopicLink> topicLinks, StringBuilder report) {
+    private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results, List<com.github.ehdez73.code2req.analyzer.event.link.TopicLink> topicLinks, StringBuilder report) {
         var phaseStart = Instant.now();
         try {
             Path indexPath = indexWriter.write(manifest, results, topicLinks);

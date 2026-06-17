@@ -319,7 +319,7 @@ public class ScanCommand {
     }
 
     private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results,
-                            List<com.github.ehdez73.code2req.analyzer.eventlink.TopicLink> topicLinks,
+                            List<com.github.ehdez73.code2req.analyzer.event.link.TopicLink> topicLinks,
                             List<TemplateFormInfo> templateForms,
                             List<TemplateLinkInfo> templateLinks,
                             List<com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkInfo> floatingLinks,

@@ -1,6 +1,6 @@
 package com.github.ehdez73.code2req.store;
 
-import com.github.ehdez73.code2req.analyzer.eventlink.TopicLink;
+import com.github.ehdez73.code2req.analyzer.event.link.TopicLink;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
