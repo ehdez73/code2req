@@ -4,18 +4,18 @@ import com.github.ehdez73.code2req.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
+import com.github.ehdez73.code2req.analyzer.endpoint.detector.SpringEndpointDetector;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class EndpointVisitorTest {
 
-    private final EndpointVisitor visitor = new EndpointVisitor();
+    private final EndpointVisitor visitor = new EndpointVisitor(List.of(new SpringEndpointDetector()));
 
     private AnalysisResult analyze(String code) {
         CompilationUnit cu = StaticJavaParser.parse(code);
@@ -184,11 +184,11 @@ class EndpointVisitorTest {
 
     @Test
     void combinePathsHandlesVariousFormats() {
-        assertEquals("/api/users", EndpointVisitor.EndpointAstAdapter.combinePaths("/api", "/users"));
-        assertEquals("/api/users", EndpointVisitor.EndpointAstAdapter.combinePaths("/api/", "users"));
-        assertEquals("/api", EndpointVisitor.EndpointAstAdapter.combinePaths("/api", ""));
-        assertEquals("/users", EndpointVisitor.EndpointAstAdapter.combinePaths("", "/users"));
-        assertEquals("", EndpointVisitor.EndpointAstAdapter.combinePaths("", ""));
+        assertEquals("/api/users", SpringEndpointDetector.combinePaths("/api", "/users"));
+        assertEquals("/api/users", SpringEndpointDetector.combinePaths("/api/", "users"));
+        assertEquals("/api", SpringEndpointDetector.combinePaths("/api", ""));
+        assertEquals("/users", SpringEndpointDetector.combinePaths("", "/users"));
+        assertEquals("", SpringEndpointDetector.combinePaths("", ""));
     }
 
     // --- View return detection tests ---

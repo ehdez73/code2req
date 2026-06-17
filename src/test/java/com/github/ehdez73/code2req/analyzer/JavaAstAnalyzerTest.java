@@ -2,8 +2,10 @@ package com.github.ehdez73.code2req.analyzer;
 
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.component.ComponentVisitor;
+import com.github.ehdez73.code2req.analyzer.endpoint.EndpointDetector;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointVisitor;
+import com.github.ehdez73.code2req.analyzer.endpoint.detector.SpringEndpointDetector;
 import com.github.ehdez73.code2req.analyzer.eventlistener.EventListenerInfo;
 import com.github.ehdez73.code2req.analyzer.eventlistener.EventListenerVisitor;
 import com.github.ehdez73.code2req.analyzer.eventlistener.EventPublisherInfo;
@@ -24,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class JavaAstAnalyzerTest {
 
     private final JavaAstAnalyzer analyzer = new JavaAstAnalyzer(
-        List.of(new ComponentVisitor(), new EndpointVisitor(), new ScheduledTaskVisitor(), new EventListenerVisitor(), new ValidatorVisitor())
+        List.of(new ComponentVisitor(), new EndpointVisitor(List.<EndpointDetector>of(new SpringEndpointDetector())), new ScheduledTaskVisitor(), new EventListenerVisitor(), new ValidatorVisitor())
     );
 
     @Test

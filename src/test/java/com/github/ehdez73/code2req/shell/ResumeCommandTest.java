@@ -4,7 +4,9 @@ import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.analyzer.component.BeanMethodVisitor;
 import com.github.ehdez73.code2req.analyzer.component.ComponentVisitor;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
+import com.github.ehdez73.code2req.analyzer.endpoint.EndpointDetector;
 import com.github.ehdez73.code2req.analyzer.endpoint.EndpointVisitor;
+import com.github.ehdez73.code2req.analyzer.endpoint.detector.SpringEndpointDetector;
 import com.github.ehdez73.code2req.analyzer.eventlink.TopicLinkResolver;
 import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkResolver;
 import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskVisitor;
@@ -79,9 +81,10 @@ class ResumeCommandTest {
         taskStore = new TaskStore(jdbc);
         taskIdHasher = new TaskIdHasher();
 
+        var endpointDetectors = List.<EndpointDetector>of(new SpringEndpointDetector());
         var visitors = List.of(
             new ComponentVisitor(),
-            new EndpointVisitor(),
+            new EndpointVisitor(endpointDetectors),
             new ScheduledTaskVisitor(),
             new EventListenerVisitor(),
             new ValidatorVisitor(),

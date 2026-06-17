@@ -1,14 +1,15 @@
 package com.github.ehdez73.code2req.shell;
 
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
+import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.analyzer.template.TemplateAnalyzer;
 import com.github.ehdez73.code2req.analyzer.template.TemplateFormInfo;
 import com.github.ehdez73.code2req.analyzer.template.TemplateLinkInfo;
 import com.github.ehdez73.code2req.analyzer.template.TemplateLinkResolver;
+import com.github.ehdez73.code2req.analyzer.xml.WebXmlAnalyzer;
 import com.github.ehdez73.code2req.config.ExcludeFilter;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
-import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.model.ProjectManifest;
 import com.github.ehdez73.code2req.model.ScanTarget;
 import com.github.ehdez73.code2req.model.Task;
@@ -52,6 +53,7 @@ public class ScanCommand {
     private final TemplateAnalyzer templateAnalyzer;
     private final TemplateLinkResolver templateLinkResolver;
     private final ExecutionFindingStore executionFindingStore;
+    private final WebXmlAnalyzer webXmlAnalyzer;
 
     public ScanCommand(
             ManifestLoader manifestLoader,
@@ -64,7 +66,8 @@ public class ScanCommand {
             OrphanRecovery orphanRecovery,
             TemplateAnalyzer templateAnalyzer,
             TemplateLinkResolver templateLinkResolver,
-            ExecutionFindingStore executionFindingStore) {
+            ExecutionFindingStore executionFindingStore,
+            WebXmlAnalyzer webXmlAnalyzer) {
         this.manifestLoader = manifestLoader;
         this.manifestValidator = manifestValidator;
         this.excludeFilter = excludeFilter;
@@ -76,6 +79,7 @@ public class ScanCommand {
         this.templateAnalyzer = templateAnalyzer;
         this.templateLinkResolver = templateLinkResolver;
         this.executionFindingStore = executionFindingStore;
+        this.webXmlAnalyzer = webXmlAnalyzer;
     }
 
     @ShellMethod(key = "scan", value = "Runs the full Phase 1 scan pipeline: manifest, dependencies, analysis, redaction, and index output")
@@ -121,7 +125,13 @@ public class ScanCommand {
             report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(scanStart)));
         }
 
-        writeIndex(manifest, pipelineResult.results(), pipelineResult.topicLinks(), templateForms, templateLinks,
+        report.append("Phase 4c/5 — web.xml Endpoint Analysis:\n");
+        var webXmlResults = analyzeWebXmlFiles(manifest, report);
+        List<AnalysisResult> allResults = new ArrayList<>(pipelineResult.results());
+        allResults.addAll(webXmlResults);
+        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(scanStart)));
+
+        writeIndex(manifest, allResults, pipelineResult.topicLinks(), templateForms, templateLinks,
             pipelineResult.floatingLinks(), report);
 
         appendSummary(report, scanStart);
@@ -240,6 +250,41 @@ public class ScanCommand {
             totalFiles, batches.size()));
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
         return batches;
+    }
+
+    private List<AnalysisResult> analyzeWebXmlFiles(ProjectManifest manifest, StringBuilder report) {
+        List<AnalysisResult> results = new ArrayList<>();
+        int totalFiles = 0;
+        int totalEndpoints = 0;
+
+        for (ScanTarget target : manifest.targets()) {
+            Path targetPath = Path.of(target.path());
+            if (!Files.isDirectory(targetPath)) continue;
+            List<Path> webXmlFiles;
+            try (Stream<Path> walk = Files.walk(targetPath)) {
+                webXmlFiles = walk
+                    .filter(p -> p.toString().endsWith("web.xml"))
+                    .filter(Files::isRegularFile)
+                    .toList();
+            } catch (IOException e) {
+                log.warn("Failed to walk target '{}' for web.xml: {}", target.name(), e.getMessage());
+                continue;
+            }
+
+            for (Path wf : webXmlFiles) {
+                List<EndpointInfo> endpoints = webXmlAnalyzer.analyze(wf);
+                if (!endpoints.isEmpty()) {
+                    results.add(new AnalysisResult(wf.toString(),
+                        new java.util.ArrayList<>(endpoints)));
+                    totalEndpoints += endpoints.size();
+                }
+            }
+            totalFiles += webXmlFiles.size();
+        }
+
+        report.append(String.format("  %d web.xml file(s) found, %d endpoint(s) extracted%n",
+            totalFiles, totalEndpoints));
+        return results;
     }
 
     private List<Path> flattenBatches(List<JavaFileBatch> batches) {

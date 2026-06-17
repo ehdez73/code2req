@@ -70,7 +70,9 @@ The indexer leverages a dedicated `VoidVisitorAdapter<Context>` traversal strate
 
 * **Component Identification & Types:** Detect classes, interfaces, and records. Identify stereotypes by inspecting class-level annotations (e.g., `@RestController`, `@Service`, `@Component`, `@Repository`).
 * **Inbound Ingress Points (HTTP/Events/Scheduled):**
-* *REST Endpoints:* Map methods annotated with `@RequestMapping`, `@PostMapping`, `@GetMapping`, etc. Extract literal path strings and HTTP verbs.
+* *REST Endpoints (Pass 2):* Map methods annotated with `@RequestMapping`, `@PostMapping`, `@GetMapping`, etc. Extract literal path strings and HTTP verbs. Implemented via `SpringEndpointDetector` (`@Component` implementing `EndpointDetector` SPI).
+* *Servlet Endpoints (Pass 2):* Map `HttpServlet` subclasses (both `javax.servlet.http.HttpServlet` and `jakarta.servlet.http.HttpServlet`). Detect `doGet`/`doPost`/`doPut`/`doDelete`/`doPatch`/`doHead`/`doTrace`/`doOptions` method names and map to HTTP verbs. Extract URL patterns from `@WebServlet` annotation (`javax.servlet.annotation.WebServlet` and `jakarta.servlet.annotation.WebServlet`). Validate method signature includes `HttpServletRequest` and `HttpServletResponse` parameters. Implemented via `ServletEndpointDetector` (`@Component` implementing `EndpointDetector` SPI). Adding a new endpoint framework (e.g., JAX-RS) requires only a new `@Component EndpointDetector` class — zero changes to the delegating `EndpointVisitor`.
+* *web.xml Endpoint Discovery (Post-Pass):* After Java AST analysis, `**/web.xml` files are discovered and DOM-parsed via `WebXmlAnalyzer`. `<servlet>` elements are mapped to `<servlet-class>` and `<servlet-mapping>` elements to `<url-pattern>`, producing `EndpointInfo` entries with `httpMethod=""` (all methods) and the mapped servlet class name. No Java source modification or cross-referencing with `@WebServlet` annotations is performed — both sources produce independent `EndpointInfo` entries.
 * *Event Consumers:* Map methods annotated with message broker listener frameworks:
   * *Kafka:* `@KafkaListener(topics = "...")` — extract target topics.
   * *RabbitMQ:* `@RabbitListener(queues = "...")` — extract target queues.
@@ -357,6 +359,7 @@ CREATE TABLE IF NOT EXISTS metrics (
 * [ ] Integrate optional non-blocking `depgraph-maven-plugin` execution step.
 * [ ] Integrate **JavaParser** core engines without native OS wrapper layers.
 * [ ] Configure `CombinedTypeSolver` with annotation fallback heuristic behavior.
+* [x] Implement `EndpointDetector` SPI + `SpringEndpointDetector` + `ServletEndpointDetector` (OCP-friendly pluggable detector interface, covers both Spring MVC and Servlet-based endpoints).
 * [ ] Implement `unresolved_signatures` collection inside the traversal visitor.
 * [ ] Create the Secret Redaction pipeline filter (in-memory swapping of hardcoded strings to `[REDACTED:secret_type]`).
 * [ ] Output a structurally valid `code-graph-index.json` file.

@@ -65,8 +65,13 @@
 #### 4a F003: Components + Endpoints + Scheduled Tasks (US006, US007, US010)
 - [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
 - [x] Depends on: 1.1, 1.2, 2.1, 3.1
-- [x] Classes: `JavaAstAnalyzer`, `AnalysisContext`, `AnalysisResult`, `ComponentVisitor`, `EndpointVisitor`, `ScheduledTaskVisitor`
-- [x] Verify: `mvn test` (28 new tests — 9 ComponentVisitor, 9 EndpointVisitor, 4 ScheduledTaskVisitor, 6 JavaAstAnalyzer)
+- [x] Classes: `JavaAstAnalyzer`, `AnalysisContext`, `AnalysisResult`, `ComponentVisitor`, `EndpointVisitor`, `ScheduledTaskVisitor`, `EndpointDetector` (SPI), `SpringEndpointDetector`, `ServletEndpointDetector`, `WebXmlAnalyzer`
+- [x] Architecture: `EndpointVisitor` refactored from monolithic adapter to thin delegator — injects `List<EndpointDetector>` (Spring-collected `@Component` implementations), mirroring `DbAccessVisitor`/`OutboundHttpVisitor` OCP pattern. Adding a new endpoint type requires only a new `@Component` implementing `EndpointDetector`; zero changes to `EndpointVisitor`.
+- [x] Spring detection: `@RestController`, `@Controller`, `@RequestMapping`, `@GetMapping`/`@PostMapping`/`@PutMapping`/`@DeleteMapping`/`@PatchMapping`, `@PathVariable`, `@RequestParam`, `@ResponseBody`, view return detection (`servesView`/`viewName`). Extracted into `SpringEndpointDetector`.
+- [x] Servlet detection: `@WebServlet` (javax/jakarta), `doGet`/`doPost`/`doPut`/`doDelete`/`doPatch`/`doHead`/`doTrace`/`doOptions` method name mapping, `HttpServlet` subclass check (javax/jakarta), `HttpServletRequest` + `HttpServletResponse` parameter validation. Implemented in `ServletEndpointDetector`.
+- [x] web.xml detection: `WebXmlAnalyzer` DOM-parses `**/web.xml` files, extracts `<servlet>`→`<servlet-class>` + `<servlet-mapping>`→`<url-pattern>` pairs, produces `EndpointInfo` entries. Integrated into `ScanCommand` as a post-pipeline phase (following template-discovery pattern).
+- [x] No changes: `EndpointInfo` record (both `httpMethod=""` and empty path are valid for Servlet endpoints), `IndexWriter` (reuses existing `EndpointInfo.class` → `"endpoints"` key), `FindingType`, `ScanPipeline`.
+- [x] Verify: `mvn test` (17 existing EndpointVisitor tests pass unchanged; all related tests updated for constructor-injected detectors)
 - [x] Manual: scan petclinic → inspect JSON for: component list, endpoint paths (e.g. `/api/owners`), scheduled tasks with cron
 
 #### 4b F003: Event Listeners (US008)
@@ -320,6 +325,7 @@ Phase 11c.1 (Template File Parsing) ── depends on Phase 4a + Phase 6.1 + Pha
 ```
 
 ## Decisions Made (Updated)
+- **EndpointVisitor OCP refactoring (2026-06-17):** `EndpointVisitor` refactored from monolithic `EndpointAstAdapter` to thin delegator with constructor-injected `List<EndpointDetector>`, matching the established `DbAccessVisitor`/`OutboundHttpVisitor` SPI pattern. The guard clause `builder.hasControllerComponent()` was removed — detectors self-select via internal checks. Class-level annotation context is obtained via `method.findAncestor(ClassOrInterfaceDeclaration.class)` to avoid mutable state in singleton detectors. Adding a new endpoint type (e.g., JAX-RS) now requires only a new `@Component EndpointDetector` class.
 - Phase 1 uses a **two-pass deterministic linker** architecture (PRD §2.1):
   - **Pass 1** (Phase 7.0): `Pass1DeclarationCollector` builds a `GlobalDeclarationRegistry` from all source files. No resolution.
   - **Pass 2** (Phases 9.1, 10.1, 11a.1): `DbAccessVisitor`, `CallGraphVisitor`, `OutboundHttpVisitor` resolve against the registry.
@@ -357,3 +363,4 @@ Phase 11c.1 (Template File Parsing) ── depends on Phase 4a + Phase 6.1 + Pha
 - 2026-06-15 — **Phase 10.1 F010** (Inter-File Call Resolution): `CallGraphEdge`, `CallGraphVisitor`; extended `GlobalDeclarationRegistry.findMethods()`; `IndexWriter.FINDING_KEYS` entry for call_graph_edges; 10 visitor tests (RESOLVED/UNRESOLVED/AMBIGUOUS/overloads/JDK skip) + 3 registry tests + 2 IndexWriter tests — 274 total, all pass ✓
 - 2026-06-16 — **Phase 11a.1 F012** (HTTP Client Detection & Floating Link Resolution): `OutboundHttpVisitor`, `HttpClientDetector` SPI + 9 detectors (RestTemplate, WebClient, FeignClient, RestClient, HttpExchange, java.net.http, HttpURLConnection, Apache HttpClient, OkHttp), `FloatingLinkResolver` (post-pass matching), `FloatingLinkInfo`, `OutboundHttpCallInfo`; integrated into `ScanPipeline`/`ScanPipelineResult`/`IndexWriter`/`ScanCommand`; 34 new tests across 11 test classes — 315 total (excluding 16 pre-existing DbAccessVisitorTest failures on JDK 26), all new tests pass ✓
 - 2026-06-16 — **Phase 12.1 F014** (Extended SQLite Schema): 4 new tables (`execution_findings`, `topic_links`, `floating_links`, `metrics`); `ExecutionFindingStore`, `TopicLinkStore`, `FloatingLinkStore`, `MetricsStore`, `FindingType`, `Metric`; persistence wired into `ScanPipeline` (per-file findings, topic/floating links, metrics) and `ScanCommand` (template findings); `CleanCommand` cleans all 5 tables; 15 new store+ schema tests — 335 total, all pass ✓
+- 2026-06-17 — **Phase 4a F003 — EndpointVisitor OCP Refactoring + Servlet Endpoint Detection**: `EndpointDetector` SPI interface, `SpringEndpointDetector` (extracted Spring logic), `ServletEndpointDetector` (doGet/doPost/..., @WebServlet, HttpServlet subclass, javax + jakarta), `WebXmlAnalyzer` (DOM-based web.xml parser), `EndpointVisitor` refactored to thin delegator; integrated into `ScanCommand`; all 17 existing tests pass unchanged; no changes to `EndpointInfo`, `IndexWriter`, `FindingType`, or `ScanPipeline` ✓

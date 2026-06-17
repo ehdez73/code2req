@@ -4,8 +4,11 @@ import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
+import com.github.ehdez73.code2req.analyzer.endpoint.EndpointDetector;
+import com.github.ehdez73.code2req.analyzer.endpoint.detector.SpringEndpointDetector;
 import com.github.ehdez73.code2req.analyzer.eventlink.TopicLinkResolver;
 import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkResolver;
+import com.github.ehdez73.code2req.analyzer.xml.WebXmlAnalyzer;
 import com.github.ehdez73.code2req.config.ExcludeFilter;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
@@ -68,9 +71,10 @@ class ScanCommandTest {
         taskIdHasher = new TaskIdHasher();
 
         // Set up JavaAstAnalyzer with real visitors
+        var endpointDetectors = List.<EndpointDetector>of(new SpringEndpointDetector());
         var visitors = List.of(
             new com.github.ehdez73.code2req.analyzer.component.ComponentVisitor(),
-            new com.github.ehdez73.code2req.analyzer.endpoint.EndpointVisitor(),
+            new com.github.ehdez73.code2req.analyzer.endpoint.EndpointVisitor(endpointDetectors),
             new com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskVisitor(),
             new com.github.ehdez73.code2req.analyzer.eventlistener.EventListenerVisitor(),
             new com.github.ehdez73.code2req.analyzer.validator.ValidatorVisitor(),
@@ -95,11 +99,13 @@ class ScanCommandTest {
 
         var templateAnalyzer = new TemplateAnalyzer(List.of(new com.github.ehdez73.code2req.analyzer.template.JspTemplateParser(), new com.github.ehdez73.code2req.analyzer.template.ThymeleafTemplateParser()));
         var templateLinkResolver = new TemplateLinkResolver();
+        var webXmlAnalyzer = new WebXmlAnalyzer();
 
         command = new ScanCommand(
             manifestLoader, manifestValidator, excludeFilter, pipeline,
             taskStore, taskIdHasher, indexWriter, orphanRecovery,
-            templateAnalyzer, templateLinkResolver, executionFindingStore);
+            templateAnalyzer, templateLinkResolver, executionFindingStore,
+            webXmlAnalyzer);
     }
 
     @Test
