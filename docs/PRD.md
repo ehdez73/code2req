@@ -2,7 +2,7 @@
 
 ## AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)
 
-> **Version 4.0** — Fully revised, unified in English, and optimized for engineering execution. This version introduces a **Two-Pass Deterministic Linker** architecture for inter-file structural tracing (call graph, database access, outbound HTTP, event flows) without LLM dependencies. Phase 2 is scoped to semantic enrichment only. Incorporates high-performance local Spring JDBC state storage, a **Dual-Engine Hybrid Indexing Pipeline** (Maven + JavaParser AST), an annotation-driven heuristic fallback strategy, a **Declarative Asynchronous Execution Model managed natively by Spring (`@Async`)**, streamed Map-Reduce processing to eliminate memory constraints, pure-Java parsing boundaries, and advanced CLI visual telemetry.
+> **Version 5.0** — Fully revised, unified in English, and optimized for engineering execution. This version introduces a **Two-Pass Deterministic Linker** architecture for inter-file structural tracing (call graph, database access, outbound HTTP, event flows) without LLM dependencies. Phase 2 is scoped to semantic enrichment via Spring `@Async` executors, while Phase 3 employs an **Embabel agentic framework** to extract functional requirements from the enriched corpus, with dynamic re-planning (GOAP) to resolve ambiguity through targeted code exploration. Incorporates high-performance local Spring JDBC state storage, a **Dual-Engine Hybrid Indexing Pipeline** (Maven + JavaParser AST), an annotation-driven heuristic fallback strategy, pure-Java parsing boundaries, and advanced CLI visual telemetry.
 
 ---
 
@@ -27,12 +27,11 @@ Crucially, the tool rejects direct test framework generation. Instead, it export
 
 ## 2. Core Architecture & Product Paradigms
 
-The CLI rejects the unpredictable, conversational agent-loop pattern. It adopts a sequential, stateful, compiler-like engine divided into three strict phases.
+The CLI rejects the unpredictable, conversational agent-loop pattern. It adopts a phased engine that transitions from deterministic compilation (Phase 1) through stateless per-file LLM enrichment (Phase 2) to an agentic, goal-oriented synthesis phase (Phase 3) powered by Embabel.
 
-```
-[Phase 1: Deterministic Indexing] ──> [Phase 2: Stateful Dynamic Execution] ──> [Phase 3: Cascaded Chunked Synthesis]
-
-```
+\`\`\`
+[Phase 1: Deterministic Indexing] ──> [Phase 2: Semantic Enrichment] ──> [Phase 3: Agentic Functional Requirement Extraction (Embabel)]
+\`\`\`
 
 ### 2.1 Phase 1: Deterministic Multi-Language Indexing
 
@@ -402,15 +401,43 @@ The structural trace produced by Phase 1 resolves all deterministic call paths (
 
 ---
 
-### 2.3 Phase 3: Cascaded Chunked Semantic Synthesis (Map-Reduce)
+### 2.3 Phase 3: Agentic Functional Requirement Extraction (Embabel)
 
-To process thousands of individual file analyses without overflowing model context limits or causing JVM `OutOfMemoryError` conditions on large workspaces, synthesis occurs hierarchically through streamed **Embabel** pipelines:
+Phase 3 takes the complete set of enriched `ExecutionFinding` records (produced by Phase 2) alongside the structural call graph, topic links, and floating links (produced by Phase 1), and employs an **Embabel goal-oriented agent** to extract holistic functional requirements. Unlike a fixed pipeline, this phase uses dynamic planning to resolve ambiguity by investigating the codebase on demand.
 
-1. Individual file JSON entities are queried sequentially from SQLite using standard **SQL Streaming Cursors** (`ResultSet` streaming).
-2. Entities are loaded, processed, and synthesized in memory inside fixed module blocks (**Chunked Processing**), generating clean **Module Summaries**.
-3. Distributed network routes, database pointers, and message topics are cross-referenced and resolved.
-4. A **Semantic Validation Agent** audits a randomized sample of findings against raw source files to catch and reject semantic deviations or technical jargon.
-5. The engine outputs the human-centric Markdown Specification and the machine-readable **Semantic Manifest JSON**.
+**The Embabel Agent:**
+
+1. **Goal:** Extract complete, coherent functional requirements (use cases, business rules, edge cases) from the combined structural + enriched corpus. The agent terminates when all goals are achieved or unresolvable gaps are flagged for human review.
+
+2. **Initial Knowledge (`CodebaseKnowledge` domain model):** Before the agent runs, a pure-Java orchestrator aggregates two sources into an in-memory domain model:
+   - **Phase 1 structural data:** call graph edges, topic links, floating links, endpoint registries, database access patterns.
+   - **Phase 2 enriched data:** per-file `ExecutionFinding` records (business purpose, validations, edge cases, test insights).
+   
+   This aggregate is passed to the Embabel agent as its initial working memory — the agent never queries SQLite directly.
+
+3. **Actions (pluggable, GOAP-scheduled):**
+   - `AnalyzeFindings` — Group enriched records by functional flow boundaries (controller → service → repository chains). Identify candidate flows with completeness scores.
+   - `SearchCodebase` — When a candidate flow has ambiguity gaps, investigate the codebase for missing context. Queries the in-memory `CodebaseKnowledge` first (call graph, endpoint maps), falls back to raw source file reads only when needed.
+   - `CrossReferenceLinks` — Match floating HTTP calls and topic publications to known endpoints. Resolve cross-manifest topic pairs.
+   - `SynthesizeFunctionalSpec` — Aggregate all resolved knowledge into the final functional specification.
+   
+   Adding a new investigation capability requires only a new `@Action` class — zero changes to the goal model or existing actions.
+
+4. **Dynamic Re-Planning (GOAP):** After each action, the Embabel planner reassesses goal completion. If ambiguity remains, it replans the next action sequence — this is an OODA loop, not a fixed pipeline. The planner uses a non-LLM GOAP algorithm for planning; LLM calls are reserved for individual actions that require semantic analysis.
+
+5. **Guardrails (configurable via manifest):**
+   - `max-investigation-steps-per-flow` (default: 5) — Caps the number of investigation actions per functional flow. Prevents runaway exploration on deeply ambiguous code.
+   - `max-tokens-per-run` (default: 500000) — Hard token budget for Phase 3 LLM calls.
+   - `ambiguity-confidence-threshold` (default: 0.7) — Below this threshold, the flow is marked `AWAITING_HUMAN_REVIEW` instead of continuing investigation.
+
+6. **Termination:** When all goals are satisfied or unresolvable gaps are quarantined, the agent finalizes. A pure-Java writer then produces the output artifacts (Markdown + JSON) — agent concerns are strictly limited to decision-making.
+
+**Design Principle — Separation of Concerns:**
+- **Pure Java services** (non-agentic) handle: loading data from SQLite, assembling `CodebaseKnowledge`, writing output files.
+- **Embabel agent** handles only: deciding what to investigate next, calling actions, tracking goal completion.
+- This keeps the agent focused, testable, and cheap (GOAP planning uses no tokens).
+
+**Why not map-reduce?** Map-reduce assumes the knowledge to synthesize is already present in the input records. In practice, functional requirement extraction requires *discovering missing knowledge* — tracing a service method back to its controller when no direct call graph edge exists, or inferring the purpose of an orphaned repository method. GOAP's dynamic planning is the correct tool for this non-linear discovery process.
 
 ---
 
@@ -506,20 +533,35 @@ Legacy architectures often hide critical business logic inside procedural databa
 
 
 
-### 3.8 Embabel Semantic Consolidation & Resolution Pipeline
+### 3.8 Embabel Agentic Functional Requirement Extraction
 
-Phase 3 orchestrates individual data pieces into a unified system map using a structured Map-Reduce pattern powered by Embabel.
+Phase 3 employs Embabel's **Goal-Oriented Action Planning (GOAP)** to dynamically construct an investigation plan for extracting functional requirements from the enriched codebase corpus. This is fundamentally different from a fixed pipeline: the agent decides *what to do next* based on current knowledge and remaining ambiguity.
 
-**Note:** Topic link resolution (broker + topic matching) and floating link registration (HTTP client detection) are now performed deterministically in Phase 1. Embabel's role in Phase 3 is limited to:
+**Agent Structure:**
 
-1. **Semantic Reduce Phase:** Embabel groups enriched `ExecutionFinding` JSON records from Phase 2 by logical architectural boundaries. A targeted reasoning loop uses an efficient model to collapse duplicate validation signatures and overlapping data maps, generating clean, modular summaries.
-2. **Algorithmic Link Consolidation:**
-* *Topic Links:* Phase 1 results are confirmed and any cross-manifest topic pairs that could not be resolved within a single scan are now matched.
-* *Floating Links:* Embabel assesses open HTTP client contracts (still `PENDING` after Phase 1) against known endpoints. If the structural parameters, HTTP verbs, and DTO layouts match with a calculated semantic confidence of $\ge 85\%$, the connection is saved to the store as a `RESOLVED_FLOATING_LINK`.
+- **`@Agent(description = "Extract functional requirements from enriched codebase analysis")`** — The top-level agent for Phase 3.
+- **Domain Model:** `CodebaseKnowledge` (aggregate), `FunctionalFlow`, `BusinessRule`, `EndpointSpec`, `CodePattern`, `AmbiguityGap` — strongly-typed objects that flow between actions.
+- **Goals:**
+  - `FunctionalFlowCoverage` — All candidate functional flows have complete descriptions (trigger, steps, outcomes).
+  - `BusinessRuleCompleteness` — All extracted business rules include preconditions, postconditions, and error behaviors.
+  - `TraceabilityVerified` — Every functional requirement maps to a source code location.
+  - `LinkConsistency` — Floating HTTP calls and topic publications are matched to endpoints where possible; unresolvable links are documented.
+- **Actions:**
+  - `AnalyzeFindings` — Load and group `ExecutionFinding` records by functional flow boundaries using the call graph from `CodebaseKnowledge`.
+  - `ResolveAmbiguity` — When a candidate flow has knowledge gaps, search `CodebaseKnowledge` for missing context; if unresolved, read raw source files.
+  - `CrossReferenceFloatingLinks` — Match unresolved HTTP client calls and topic publications against known endpoints in `CodebaseKnowledge`.
+  - `SynthesizeFunctionalSpec` — Aggregate all resolved knowledge into the final functional specification.
+  - `QuarantineUnresolvable` — Flag flows that cannot be completed after exhausting investigation budget; set to `AWAITING_HUMAN_REVIEW`.
+- **Conditions:** Each action has GOAP preconditions (e.g., "AnalyzeFindings requires CodebaseKnowledge loaded") and postconditions (e.g., "AnalyzeFindings produces candidate flows"). The planner chains actions automatically.
 
+**Quality Audit (post-agent):**
 
-3. **Quality Audit Corrective Path:** If the randomized quality audit sampling managed by the Semantic Validation Agent fails to achieve the minimum $\ge 92\%$ pass rate, the entire synthesis batch for that module is automatically quarantined. The pipeline halts final file writing, increases the validation sample rate to 100% for that module, and routes the tasks through a multi-model consensus validation loop to isolate and correct the deviating outputs.
-4. **Decoupled Asset Generation:** The pipeline outputs two matching assets simultaneously: a clean, readable Markdown Specification document and a rich, machine-readable `semantic_manifest.json` file embedded with AST tracing coordinates and business mappings.
+After the agent completes all goals, a pure-Java validation pass audits output quality:
+1. Randomly sample 20% of extracted requirements against raw source files (configurable via `semantic-validation-sample-rate`).
+2. If pass rate < 92%, flag the batch for human review and increase sample rate to 100% for the next run.
+3. Output a quality assurance report alongside the functional specification.
+
+**Decoupled Asset Generation:** After the agent finishes and the audit passes, the system outputs two matching assets: a clean, readable Markdown specification document organized by functional flows, and a machine-readable `semantic_manifest.json` file embedded with AST tracing coordinates and business mappings.
 
 ---
 
@@ -779,7 +821,7 @@ To verify system orchestrations and engine state transitions within CI/CD pipeli
 
 ### 6.1 Human-Centric Specification Template (Functional Flow Document)
 
-The final Markdown artifact written by Phase 3 combines the full-stack system discoveries into a readable, business-centric document following this format:
+The final Markdown artifact written by Phase 3 combines the extracted functional requirements into a structured, business-readable specification. Each functional flow is derived from the enriched codebase analysis and includes full traceability to source code locations. Document format:
 
 ```markdown
 # Functional Flow Specification: [Flow Name]
@@ -899,6 +941,7 @@ A CLI run is considered successful when all of the following conditions are met.
 | **Database Access Point Detection** | $\ge 90\%$ | Verification that all `@Procedure` annotations and JdbcTemplate calls are captured. |
 | **Outbound HTTP Client Detection** | $\ge 90\%$ | Verification that all `RestTemplate`/`WebClient`/`FeignClient` usages are registered as `floating_links`. |
 | **Topic Link Resolution** | $\ge 95\%$ | Cross-reference of matching topic/queue/destination pairs between producers and consumers. |
+| **Functional Flow Extraction Rate** | $\ge 85\%$ | Ratio of fully-extracted functional flows to total candidate flows inferred by the Embabel agent. |
 | **Phase 2 LLM Spend per Scan** | $\le 20\%$ of files | Only files exceeding `llm-unresolved-threshold` or flagged by semantic criteria qualify for LLM enrichment. |
 
 ### 7.2 Semantic & Structural Quality
@@ -1063,7 +1106,7 @@ A CLI run is considered successful when all of the following conditions are met.
             <version>1.5.2</version>
         </dependency>
 
-        <!-- Embabel Semantic Consolidation Pipeline (Phase 3 Map-Reduce) -->
+        <!-- Embabel Agentic Framework (Phase 3 Functional Requirement Extraction) -->
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-starter</artifactId>

@@ -1,4 +1,4 @@
-# E003/E004 — Semantic Enrichment & Synthesis (Phase 2 + Phase 3)
+# E003/E004 — Semantic Enrichment & Agentic Functional Requirement Extraction (Phase 2 + Phase 3)
 
 ## Quick Start
 - Build: `mvn clean compile`
@@ -23,14 +23,16 @@
 
 ## Key Decisions
 
-1. **Phase 2 is Epic E003** (Semantic Enrichment), **Phase 3 is Epic E004** (Semantic Synthesis) — both numbered sequentially after E001/E002 to keep the SDLC context clean.
-2. **Embabel will be uncommented** for Phase 3 map-reduce synthesis.
-3. **`@EnableAsync`** must be added to `Application.java` — currently absent.
-4. **`TaskStatus` needs `AWAITING_HUMAN_REVIEW`** — required by PRD §5.2 (max hop depth) and §3.5 (branch isolation).
-5. **`plan` command** is purely a DAG read — queries SQLite for qualified tasks, displays what would run. Zero LLM calls.
-6. **`run` command** orchestrates Phase 2 (LLM enrichment) then Phase 3 (synthesis) with a synchronization barrier in between.
-7. **`status` command** already exists — extend to show Phase 2 counters (tokens consumed, estimated cost, per-task enrichment status).
-8. **Spring AI `ChatClient.Builder`** is auto-configured when OpenAI/Anthropic credentials are present — no manual bean creation needed.
+1. **Phase 2 is Epic E003** (Semantic Enrichment), **Phase 3 is Epic E004** (Agentic Functional Requirement Extraction) — both numbered sequentially after E001/E002 to keep the SDLC context clean.
+2. **Embabel** is used as an **agentic framework** (GOAP goal-oriented action planning), not as a map-reduce pipeline. Phase 3's Embabel agent decides *what to investigate next* based on ambiguity. See PRD §2.3, §3.8.
+3. **Phase 3 agent is scoped to decision-making only** — pure Java services handle data loading (`CodebaseKnowledge`), SQLite I/O, and output file writing.
+4. **`@EnableAsync`** must be added to `Application.java` — currently absent.
+5. **`TaskStatus` needs `AWAITING_HUMAN_REVIEW`** — required by PRD §5.2 (max hop depth), §3.5 (branch isolation), and §2.3 (unresolvable ambiguity gaps).
+6. **`plan` command** is purely a DAG read — queries SQLite for qualified tasks, displays what would run. Zero LLM calls.
+7. **`run` command** orchestrates Phase 2 (Spring AI LLM enrichment) then Phase 3 (Embabel agent) with a synchronization barrier in between.
+8. **`status` command** already exists — extend to show Phase 2 counters (tokens consumed, estimated cost, per-task enrichment status) and Phase 3 counters (flow extraction rate, ambiguity gaps).
+9. **Spring AI `ChatClient.Builder`** is auto-configured when OpenAI/Anthropic credentials are present — no manual bean creation needed.
+10. **Phase 3 guardrails** (`max-investigation-steps-per-flow`, `max-tokens-per-run`, `ambiguity-confidence-threshold`) are added to `ExecutionConfig` and `project-manifest.yaml`.
 
 ---
 
@@ -133,63 +135,89 @@ Match production files with paired test files (e.g., `OrderService.java` ↔ `Or
 
 ---
 
-### Epic E004 — Semantic Synthesis (PRD §2.3, §3.8, §6)
+### Epic E004 — Agentic Functional Requirement Extraction (PRD §2.3, §3.8, §6)
 
-#### F021: Embabel Integration (US049)
+#### F021: Embabel Agent Framework Setup (US049)
 
-Uncomment and configure Embabel in pom.xml. Embabel is the map-reduce pipeline for Phase 3 synthesis.
-
-Pre-requisite check: Embabel snapshot repo accessibility. If repo is unreachable, fall back to a lightweight Java-only alternative (streaming grouping + Markdown generation).
+Uncomment and configure Embabel in pom.xml. Embabel provides the GOAP (Goal-Oriented Action Planning) engine for Phase 3's agentic extraction.
 
 - [ ] Gherkin: `docs/sdlc/features/E004-F021-embabel-setup.feature`
 - [ ] Depends on: Phase 2 completion, Embabel repo availability
-- [ ] Modified: `pom.xml` (uncomment embabel-agent-starter), `application.properties` (Embabel config if needed)
+- [ ] Modified: `pom.xml` (uncomment embabel-agent-starter), `application.properties` (Embabel config if needed), `model/ExecutionConfig.java` (add guardrail fields)
 - [ ] Verify: `mvn compile` succeeds with Embabel on classpath
 - [ ] Manual: run with `--dry-run` — confirm Embabel initialises without error
 
-#### F022: Map-Reduce Synthesis Pipeline (US050, PRD §2.3)
+#### F022: CodebaseKnowledge Builder + Phase 3 Orchestrator (US050, PRD §2.3)
 
-Process enriched `ExecutionFinding` records from Phase 2 through Embabel's map-reduce:
-- Stream enriched JSON from SQLite using streaming cursors (ResultSet streaming)
-- Map phase: group by module boundaries
-- Reduce phase: collapse duplicate validations, merge overlapping data maps
-- Generate clean Module Summaries
+Pure-Java services that prepare data for the Embabel agent and handle output after it completes. The agent itself is focused solely on decision-making — data plumbing is separate.
 
-Algorithmic link consolidation (confirmed in Phase 3):
-- Topic links: confirm Phase 1 matches, cross-manifest pairs resolved
-- Floating links: open HTTP contracts assessed against known endpoints (confidence ≥ 85% → `RESOLVED_FLOATING_LINK`)
+**Phase3Orchestrator (pure Java):**
+1. Queries SQLite for ALL Phase 1 findings (call graph edges, topic links, floating links, endpoint maps) and Phase 2 enriched `ExecutionFinding` records.
+2. Assembles an in-memory `CodebaseKnowledge` domain model — a rich, queryable object graph grouping all structural + semantic knowledge.
+3. Passes `CodebaseKnowledge` as initial working memory to the Embabel agent.
+4. After agent completes, invokes pure-Java writers for output artifacts.
 
-- [ ] Gherkin: `docs/sdlc/features/E004-F022-map-reduce-synthesis.feature`
-- [ ] Depends on: F021 (Embabel), Phase 2 enriched data
-- [ ] Classes: `Phase3Orchestrator`, `SynthesisMapper`, `SynthesisReducer`, `ModuleSummary`
-- [ ] Verify: `mvn test` — module summaries produced from sample enriched data
-- [ ] Manual: `run --dry-run --manifest ...` — verify synthesis phase completes with summaries
+**CodebaseKnowledge domain model:**
+- `StructuralGraph` — call graph edges, component stereotypes, endpoint registries, database access patterns.
+- `SemanticEnrichment` — all Phase 2 `ExecutionFinding` records keyed by file path.
+- `LinkRegistry` — topic links (producer↔consumer), floating links (HTTP calls), template links.
+- Query methods: `getFlowCandidates()`, `findUnresolvedLinks()`, `getComponentsByType()`, `getCallersOf(target)`, `getCalleesOf(source)`.
 
-#### F023: Semantic Manifest + Markdown Output (US051, PRD §6)
+**No fallback needed** — Embabel is the agent framework (decision-making), not a data-processing pipeline. If Embabel repo is unavailable, Phase 3 cannot run.
 
-Phase 3 produces two matching artifacts:
-1. **Human-centric Markdown Specification** — per functional flow, formatted as defined in PRD §6.1
-2. **Machine-readable `semantic_manifest.json`** — structured JSON with AST tracing coordinates and business mappings
+- [ ] Gherkin: `docs/sdlc/features/E004-F022-codebase-knowledge.feature`
+- [ ] Depends on: F021 (Embabel integration), Phase 2 enriched data in SQLite
+- [ ] Classes: `Phase3Orchestrator`, `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry`
+- [ ] Verify: `mvn test` — CodebaseKnowledge correctly aggregates Phase 1 + Phase 2 data
+- [ ] Manual: `run --dry-run --manifest ...` — verify orchestrator loads data and invokes agent
 
-- [ ] Gherkin: `docs/sdlc/features/E004-F023-output-artifacts.feature`
-- [ ] Depends on: F022 (synthesis pipeline)
-- [ ] Classes: `MarkdownSpecWriter`, `SemanticManifestWriter`, `FunctionalFlow`, `FlowBuilder`
-- [ ] Output format: Markdown per PRD §6.1 template; JSON with full traceability
-- [ ] Output path: `spec-output/` (consistent with Phase 1's `code-graph-index.json`)
-- [ ] Verify: `mvn test` — Markdown matches expected template, JSON validates against schema
+#### F023: Embabel Agent — Goals, Actions, Output (US051, PRD §2.3)
+
+The Embabel agent that extracts functional requirements. This is the core of Phase 3.
+
+**Agent specification:**
+- `@Agent(description = "Extract functional requirements from enriched codebase analysis")`
+- **Mode:** Focused — invoked explicitly by `Phase3Orchestrator` with `CodebaseKnowledge` as input.
+- **Goals:**
+  - `FunctionalFlowCoverage` — All candidate flows have complete descriptions.
+  - `BusinessRuleCompleteness` — All business rules include pre/postconditions and error behaviors.
+  - `TraceabilityVerified` — Every requirement maps to a source location.
+  - `LinkConsistency` — Floating links and topic publications are matched or documented as unresolvable.
+- **Actions:**
+  - `AnalyzeFindings` — Group `ExecutionFinding` records by flow boundaries using call graph from `CodebaseKnowledge`. Produce candidate `FunctionalFlow` objects.
+  - `ResolveAmbiguity` — When a candidate flow has knowledge gaps, search `CodebaseKnowledge` query methods; fall back to raw source file reads if needed.
+  - `CrossReferenceFloatingLinks` — Match unresolved HTTP calls and topic publications against known endpoints.
+  - `SynthesizeFunctionalSpec` — Aggregate resolved knowledge into the final spec.
+  - `QuarantineUnresolvable` — Flag flows exceeding investigation budget; set to `AWAITING_HUMAN_REVIEW`.
+- **Guardrails** (from `ExecutionConfig`):
+  - `max-investigation-steps-per-flow` (default: 5) — prevents runaway exploration.
+  - `max-tokens-per-run` (default: 500000) — hard LLM token budget.
+  - `ambiguity-confidence-threshold` (default: 0.7) — below this, quarantine instead of continuing.
+
+**Output classes (pure Java, called after agent completes):**
+- `FunctionalFlow` — one per extracted flow: trigger, steps, outcomes, business rules, traceability.
+- `MarkdownSpecWriter` — writes `spec-output/*.md` per PRD §6.1 template.
+- `SemanticManifestWriter` — writes `spec-output/semantic_manifest.json` with full traceability.
+
+- [ ] Gherkin: `docs/sdlc/features/E004-F023-embabel-agent.feature`
+- [ ] Depends on: F022 (CodebaseKnowledge), Embabel framework
+- [ ] Classes (agent): `FunctionalRequirementAgent`, `AnalyzeFindingsAction`, `ResolveAmbiguityAction`, `CrossReferenceLinksAction`, `SynthesizeSpecAction`, `QuarantineAction`
+- [ ] Classes (domain): `FunctionalFlow`, `BusinessRule`, `EndpointSpec`, `CodePattern`, `AmbiguityGap`, `FlowStep`, `TraceabilityEntry`
+- [ ] Classes (output): `MarkdownSpecWriter`, `SemanticManifestWriter`
+- [ ] Verify: `mvn test` — agent produces valid FunctionalFlow objects from sample CodebaseKnowledge
 - [ ] Manual: `run --dry-run --manifest ...` — inspect `spec-output/` for both artifacts
 
 #### F024: Quality Audit (US052, PRD §3.8)
 
-Semantic Validation Agent performs randomized sampling of enriched findings against raw source files:
+Post-agent validation pass (pure Java, not part of the Embabel agent):
 - Sample rate: `semantic-validation-sample-rate` from manifest (default: 20%)
 - Pass threshold: ≥ 92% pass rate
-- On failure: quarantine module, increase sample rate to 100%, trigger multi-model consensus loop
-- Output: audit report in Markdown
+- On failure: flag batch for human review, increase sample rate to 100% for next run
+- Output: audit report in Markdown (spec-output/audit-report.md)
 
 - [ ] Gherkin: `docs/sdlc/features/E004-F024-quality-audit.feature`
 - [ ] Depends on: F023 (output artifacts exist to audit)
-- [ ] Classes: `SemanticValidationAgent`, `AuditSample`, `AuditReport`, `ConsensusValidator`
+- [ ] Classes: `Phase3QualityAudit`, `AuditSample`, `AuditReport`
 - [ ] Verify: `mvn test` — audit passes on deterministic dry-run output (100% pass rate)
 - [ ] Manual: run with `--dry-run` — verify audit report generated in `spec-output/`
 
@@ -207,41 +235,42 @@ Semantic Validation Agent performs randomized sampling of enriched findings agai
 | US046 | F019 | must | E003 — `plan` command |
 | US047 | F019 | must | E003 — `run` command |
 | US048 | F020 | should | E003 — Test Suite Mining |
-| US049 | F021 | must | E004 — Embabel Integration |
-| US050 | F022 | must | E004 — Map-Reduce Pipeline |
-| US051 | F023 | must | E004 — Output Artifacts |
+| US049 | F021 | must | E004 — Embabel Agent Framework Setup |
+| US050 | F022 | must | E004 — CodebaseKnowledge + Orchestrator |
+| US051 | F023 | must | E004 — Embabel Agent (Goals, Actions, Output) |
 | US052 | F024 | should | E004 — Quality Audit |
 
 ## Phase Dependency Graph
 
 ```
-E003 — Phase 2 (Semantic Enrichment)             E004 — Phase 3 (Synthesis)
-┌──────────────────────┐                         ┌──────────────────────────┐
-│ F016: Planner        │                         │ F021: Embabel Integration│
-│ (qualification rules)│                         │ (uncomment + configure)  │
-└──────────┬───────────┘                         └────────────┬─────────────┘
-           │                                                   │
-           ▼                                                   │
-┌──────────────────────┐                         ┌────────────▼─────────────┐
-│ F017: Executor       │────── Phase Barrier ────│ F022: Map-Reduce Pipeline│
-│ (@Async + Spring AI) │    CompletableFuture    │ (stream → group → reduce)│
-└──────────┬───────────┘        .allOf(...)       └────────────┬─────────────┘
+E003 — Phase 2 (Semantic Enrichment)             E004 — Phase 3 (Agentic Functional Requirement Extraction)
+┌──────────────────────┐                         ┌───────────────────────────────────┐
+│ F016: Planner        │                         │ F021: Embabel Agent Framework     │
+│ (qualification rules)│                         │ (uncomment + configure in POM)    │
+└──────────┬───────────┘                         └────────────┬──────────────────────┘
            │                                                   │
            ▼                                                   ▼
-┌──────────────────────┐                         ┌──────────────────────────┐
-│ F018: Orchestrator   │                         │ F023: Output Artifacts   │
-│ (DAG + re-planning)  │                         │ (Markdown + JSON)        │
-└──────────┬───────────┘                         └────────────┬─────────────┘
+┌──────────────────────┐                         ┌───────────────────────────────────┐
+│ F017: Executor       │────── Phase Barrier ────│ F022: CodebaseKnowledge Builder   │
+│ (@Async + Spring AI) │    CompletableFuture    │ (pure Java: aggregate Phase 1+2)  │
+└──────────┬───────────┘        .allOf(...)       └────────────┬──────────────────────┘
            │                                                   │
            ▼                                                   ▼
-┌──────────────────────┐                         ┌──────────────────────────┐
-│ F019: CLI Commands   │                         │ F024: Quality Audit      │
-│ (plan / run /status) │                         │ (sampling + consensus)   │
-└──────────────────────┘                         └──────────────────────────┘
+┌──────────────────────┐                         ┌───────────────────────────────────┐
+│ F018: Orchestrator   │                         │ F023: Embabel Agent               │
+│ (DAG + re-planning)  │                         │ (GOAP: goals + actions + output)  │
+└──────────┬───────────┘                         └────────────┬──────────────────────┘
+           │                                                   │
+           ▼                                                   ▼
+┌──────────────────────┐                         ┌───────────────────────────────────┐
+│ F019: CLI Commands   │                         │ F024: Quality Audit (post-agent)  │
+│ (plan / run /status) │                         │ (20% sample → ≥92% pass rate)     │
+└──────────────────────┘                         └───────────────────────────────────┘
 
 F020: Test Suite Mining ── depends on F017 (executor framework)
 
-Phase 13 (E002 — Language Extension Framework) ── POSTPONED / SCOPE REDUCED
+Separation of concerns: Data I/O and output writing are PURE JAVA, not agentic.
+The Embabel agent handles ONLY decision-making (what to investigate, goal tracking).
 ```
 
 ## Modified / New Files Summary
@@ -251,10 +280,11 @@ Phase 13 (E002 — Language Extension Framework) ── POSTPONED / SCOPE REDUCE
 |------|--------|
 | `Application.java` | Add `@EnableAsync` |
 | `model/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
-| `shell/StatusCommand.java` | Add Phase 2 metrics columns (tokens, cost, enriched count) |
+| `shell/StatusCommand.java` | Add Phase 2 metrics (tokens, cost, enriched count) + Phase 3 metrics (flow extraction rate, ambiguity gaps) |
 | `pom.xml` | Uncomment `embabel-agent-starter` dependency |
 | `store/FindingType.java` | Add `SEMANTIC_ENRICHMENT` type |
-| `model/ExecutionConfig.java` | Already has all required fields — no change needed |
+| `model/ExecutionConfig.java` | Add `maxInvestigationStepsPerFlow`, `maxTokensPerRun`, `ambiguityConfidenceThreshold` |
+| `project-manifest.yaml` | Add new guardrail fields under `execution:` |
 
 ### New files:
 | Package | Files |
@@ -263,9 +293,11 @@ Phase 13 (E002 — Language Extension Framework) ── POSTPONED / SCOPE REDUCE
 | `executor/` | `SemanticExecutor`, `ExecutionFindingValidator`, `ContextBudgetCalculator`, `SimulationStub` |
 | `orchestrator/` | `Phase2Orchestrator`, `EnrichmentDag`, `BranchState` |
 | `executor/testmining/` | `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver` |
-| `synthesis/` | `Phase3Orchestrator`, `SynthesisMapper`, `SynthesisReducer`, `ModuleSummary` |
-| `synthesis/output/` | `MarkdownSpecWriter`, `SemanticManifestWriter`, `FunctionalFlow`, `FlowBuilder` |
-| `synthesis/audit/` | `SemanticValidationAgent`, `AuditSample`, `AuditReport`, `ConsensusValidator` |
+| `synthesis/` | `Phase3Orchestrator`, `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry` |
+| `synthesis/agent/` | `FunctionalRequirementAgent`, `AnalyzeFindingsAction`, `ResolveAmbiguityAction`, `CrossReferenceLinksAction`, `SynthesizeSpecAction`, `QuarantineAction` |
+| `synthesis/domain/` | `FunctionalFlow`, `BusinessRule`, `EndpointSpec`, `CodePattern`, `AmbiguityGap`, `FlowStep`, `TraceabilityEntry` |
+| `synthesis/output/` | `MarkdownSpecWriter`, `SemanticManifestWriter` |
+| `synthesis/audit/` | `Phase3QualityAudit`, `AuditSample`, `AuditReport` |
 | `shell/` | `PlanCommand`, `RunCommand` |
 
 ## Verification Guide
@@ -275,4 +307,6 @@ Phase 13 (E002 — Language Extension Framework) ── POSTPONED / SCOPE REDUCE
 - Manual full: `run --manifest project-manifest.yaml` — needs `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` env set
 - JSON schema validation: enriched `ExecutionFinding` output validates against PRD §4 schema
 - Phase 2 only: `run --manifest ...` then `status` — confirm per-task enrichment status + token counters
-- Output inspection: `spec-output/` contains both `*.md` and `semantic_manifest.json`
+- Phase 2 + Phase 3: `run --manifest ... --dry-run` — verify all phases complete end-to-end without network calls
+- Output inspection: `spec-output/` contains both `*.md` (functional flows) and `semantic_manifest.json` (traceability graph)
+- Phase 3 quarantine: verify flows marked `AWAITING_HUMAN_REVIEW` appear in spec Section 5

@@ -12,7 +12,7 @@ mvn spring-boot:run        # run interactive shell
 
 - **Phase 1** (active focus): deterministic indexing — JavaParser AST → `code-graph-index.json` → SQLite task store. Zero network or LLM calls.
 - **Phase 2** (future): LLM-powered per-file analysis via Spring `@Async("orchestratorTaskExecutor")`.
-- **Phase 3** (future): Embabel Map-Reduce semantic synthesis (dependency commented out in `pom.xml` — do not unilaterally uncomment).
+- **Phase 3** (future): Embabel agentic functional requirement extraction (GOAP planning).
 
 ## Key Constraints
 
