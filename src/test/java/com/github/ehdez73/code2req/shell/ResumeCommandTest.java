@@ -1,12 +1,12 @@
 package com.github.ehdez73.code2req.shell;
 
 import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
-import com.github.ehdez73.code2req.analyzer.component.BeanMethodVisitor;
-import com.github.ehdez73.code2req.analyzer.component.ComponentVisitor;
+import com.github.ehdez73.code2req.analyzer.bean.java.BeanMethodVisitor;
+import com.github.ehdez73.code2req.analyzer.bean.ComponentVisitor;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
-import com.github.ehdez73.code2req.analyzer.endpoint.EndpointDetector;
-import com.github.ehdez73.code2req.analyzer.endpoint.EndpointVisitor;
-import com.github.ehdez73.code2req.analyzer.endpoint.detector.SpringEndpointDetector;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointDetector;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointVisitor;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.detector.SpringEndpointDetector;
 import com.github.ehdez73.code2req.analyzer.event.link.TopicLinkResolver;
 import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkResolver;
 import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskVisitor;

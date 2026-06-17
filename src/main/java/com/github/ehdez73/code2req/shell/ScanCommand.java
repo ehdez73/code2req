@@ -1,12 +1,12 @@
 package com.github.ehdez73.code2req.shell;
 
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
-import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
-import com.github.ehdez73.code2req.analyzer.template.TemplateAnalyzer;
-import com.github.ehdez73.code2req.analyzer.template.TemplateFormInfo;
-import com.github.ehdez73.code2req.analyzer.template.TemplateLinkInfo;
-import com.github.ehdez73.code2req.analyzer.template.TemplateLinkResolver;
-import com.github.ehdez73.code2req.analyzer.xml.WebXmlAnalyzer;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointInfo;
+import com.github.ehdez73.code2req.analyzer.web.template.TemplateAnalyzer;
+import com.github.ehdez73.code2req.analyzer.web.template.TemplateFormInfo;
+import com.github.ehdez73.code2req.analyzer.web.template.TemplateLinkInfo;
+import com.github.ehdez73.code2req.analyzer.web.template.TemplateLinkResolver;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.WebXmlAnalyzer;
 import com.github.ehdez73.code2req.config.ExcludeFilter;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
@@ -116,7 +116,7 @@ public class ScanCommand {
             report.append(String.format("  %d template form(s) and link(s) found%n", templateForms.size()));
 
             var allEndpoints = pipelineResult.results().stream()
-                .flatMap(r -> r.findings(com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo.class).stream())
+                .flatMap(r -> r.findings(com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointInfo.class).stream())
                 .toList();
             templateLinks = templateLinkResolver.resolve(templateForms, allEndpoints);
             report.append(String.format("  %d template-to-endpoint link(s) matched%n", templateLinks.size()));

@@ -1,7 +1,7 @@
 package com.github.ehdez73.code2req.analyzer.httpclient;
 
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
-import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointInfo;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;

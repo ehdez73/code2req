@@ -2,7 +2,7 @@ package com.github.ehdez73.code2req.analyzer.httpclient;
 
 import com.github.ehdez73.code2req.analyzer.AnalysisFinding;
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
-import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointInfo;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

@@ -1,6 +1,6 @@
 package com.github.ehdez73.code2req.analyzer;
 
-import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
+import com.github.ehdez73.code2req.analyzer.bean.ComponentInfo;
 
 import java.util.ArrayList;
 import java.util.List;

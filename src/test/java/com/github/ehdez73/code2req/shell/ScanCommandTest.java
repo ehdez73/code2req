@@ -2,13 +2,13 @@ package com.github.ehdez73.code2req.shell;
 
 import com.github.ehdez73.code2req.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
-import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
+import com.github.ehdez73.code2req.analyzer.bean.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
-import com.github.ehdez73.code2req.analyzer.endpoint.EndpointDetector;
-import com.github.ehdez73.code2req.analyzer.endpoint.detector.SpringEndpointDetector;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointDetector;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.detector.SpringEndpointDetector;
 import com.github.ehdez73.code2req.analyzer.event.link.TopicLinkResolver;
 import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkResolver;
-import com.github.ehdez73.code2req.analyzer.xml.WebXmlAnalyzer;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.WebXmlAnalyzer;
 import com.github.ehdez73.code2req.config.ExcludeFilter;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
@@ -16,8 +16,8 @@ import com.github.ehdez73.code2req.config.SecretRedactor;
 import com.github.ehdez73.code2req.output.IndexWriter;
 import com.github.ehdez73.code2req.output.OrphanRecovery;
 import com.github.ehdez73.code2req.pipeline.ScanPipeline;
-import com.github.ehdez73.code2req.analyzer.template.TemplateAnalyzer;
-import com.github.ehdez73.code2req.analyzer.template.TemplateLinkResolver;
+import com.github.ehdez73.code2req.analyzer.web.template.TemplateAnalyzer;
+import com.github.ehdez73.code2req.analyzer.web.template.TemplateLinkResolver;
 import com.github.ehdez73.code2req.shell.ScanCommand;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
@@ -73,13 +73,13 @@ class ScanCommandTest {
         // Set up JavaAstAnalyzer with real visitors
         var endpointDetectors = List.<EndpointDetector>of(new SpringEndpointDetector());
         var visitors = List.of(
-            new com.github.ehdez73.code2req.analyzer.component.ComponentVisitor(),
-            new com.github.ehdez73.code2req.analyzer.endpoint.EndpointVisitor(endpointDetectors),
+            new com.github.ehdez73.code2req.analyzer.bean.ComponentVisitor(),
+            new com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointVisitor(endpointDetectors),
             new com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskVisitor(),
             new com.github.ehdez73.code2req.analyzer.event.listener.EventListenerVisitor(),
             new com.github.ehdez73.code2req.analyzer.validator.ValidatorVisitor(),
             new com.github.ehdez73.code2req.analyzer.event.broker.kafka.KafkaVisitor(),
-            new com.github.ehdez73.code2req.analyzer.component.BeanMethodVisitor(),
+            new com.github.ehdez73.code2req.analyzer.bean.java.BeanMethodVisitor(),
             new com.github.ehdez73.code2req.analyzer.event.broker.rabbitmq.RabbitMqVisitor(),
             new com.github.ehdez73.code2req.analyzer.event.broker.activemq.ActiveMqVisitor()
         );
@@ -97,7 +97,7 @@ class ScanCommandTest {
             topicLinkResolver, new FloatingLinkResolver(),
             executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore);
 
-        var templateAnalyzer = new TemplateAnalyzer(List.of(new com.github.ehdez73.code2req.analyzer.template.JspTemplateParser(), new com.github.ehdez73.code2req.analyzer.template.ThymeleafTemplateParser()));
+        var templateAnalyzer = new TemplateAnalyzer(List.of(new com.github.ehdez73.code2req.analyzer.web.template.JspTemplateParser(), new com.github.ehdez73.code2req.analyzer.web.template.ThymeleafTemplateParser()));
         var templateLinkResolver = new TemplateLinkResolver();
         var webXmlAnalyzer = new WebXmlAnalyzer();
 

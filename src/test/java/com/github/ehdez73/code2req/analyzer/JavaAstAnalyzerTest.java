@@ -1,11 +1,11 @@
 package com.github.ehdez73.code2req.analyzer;
 
-import com.github.ehdez73.code2req.analyzer.component.ComponentInfo;
-import com.github.ehdez73.code2req.analyzer.component.ComponentVisitor;
-import com.github.ehdez73.code2req.analyzer.endpoint.EndpointDetector;
-import com.github.ehdez73.code2req.analyzer.endpoint.EndpointInfo;
-import com.github.ehdez73.code2req.analyzer.endpoint.EndpointVisitor;
-import com.github.ehdez73.code2req.analyzer.endpoint.detector.SpringEndpointDetector;
+import com.github.ehdez73.code2req.analyzer.bean.ComponentInfo;
+import com.github.ehdez73.code2req.analyzer.bean.ComponentVisitor;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointDetector;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointInfo;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointVisitor;
+import com.github.ehdez73.code2req.analyzer.web.endpoint.detector.SpringEndpointDetector;
 import com.github.ehdez73.code2req.analyzer.event.listener.EventListenerInfo;
 import com.github.ehdez73.code2req.analyzer.event.listener.EventListenerVisitor;
 import com.github.ehdez73.code2req.analyzer.event.listener.EventPublisherInfo;

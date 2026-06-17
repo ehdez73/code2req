@@ -2,7 +2,7 @@ package com.github.ehdez73.code2req.pipeline;
 
 import com.github.ehdez73.code2req.analyzer.AstAnalysisVisitor;
 import com.github.ehdez73.code2req.analyzer.JavaAstAnalyzer;
-import com.github.ehdez73.code2req.analyzer.component.ComponentVisitor;
+import com.github.ehdez73.code2req.analyzer.bean.ComponentVisitor;
 import com.github.ehdez73.code2req.analyzer.declaration.Pass1DeclarationCollector;
 import com.github.ehdez73.code2req.analyzer.event.link.TopicLinkResolver;
 import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkResolver;
