@@ -25,6 +25,9 @@ public final class FindingType {
     public static final String TEMPLATE_LINK = "TEMPLATE_LINK";
     public static final String TEMPLATE_ENDPOINT_LINK = "TEMPLATE_ENDPOINT_LINK";
 
+    // Phase 2 Executor — semantic enrichment finding type
+    public static final String SEMANTIC_ENRICHMENT = "SEMANTIC_ENRICHMENT";
+
     // Phase 2 Planner — granular finding types for qualification
     public static final String SPRING_DATA_INTERFACE = "SPRING_DATA_INTERFACE";
     public static final String DATABASE_PROCEDURE_CALL = "DATABASE_PROCEDURE_CALL";

@@ -1,0 +1,178 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ExecutionFinding",
+  "type": "object",
+  "required": [
+    "metadata",
+    "business_abstraction",
+    "business_rules_and_guardrails",
+    "test_insights",
+    "architectural_connections",
+    "discovered_dependencies"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["task_id", "target_name", "file_path", "tech_profile", "module_tag", "timestamp"],
+      "properties": {
+        "task_id":      { "type": "string" },
+        "target_name":  { "type": "string" },
+        "file_path":    { "type": "string" },
+        "tech_profile": { "type": "string" },
+        "module_tag":   { "type": "string" },
+        "timestamp":    { "type": "string" }
+      }
+    },
+    "business_abstraction": {
+      "type": "object",
+      "required": ["purpose", "happy_paths"],
+      "properties": {
+        "purpose": { "type": "string" },
+        "happy_paths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["flow_name", "description"],
+            "properties": {
+              "flow_name":   { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "business_rules_and_guardrails": {
+      "type": "object",
+      "required": ["validations", "edge_cases"],
+      "properties": {
+        "validations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["field_or_context", "rule", "error_behavior"],
+            "properties": {
+              "field_or_context": { "type": "string" },
+              "rule":             { "type": "string" },
+              "error_behavior":   { "type": "string" }
+            }
+          }
+        },
+        "edge_cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["scenario", "business_consequence"],
+            "properties": {
+              "scenario":             { "type": "string" },
+              "business_consequence": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "test_insights": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["test_file_path", "scenario_verified", "hidden_rule_uncovered"],
+        "properties": {
+          "test_file_path":        { "type": "string" },
+          "scenario_verified":     { "type": "string" },
+          "hidden_rule_uncovered": { "type": "string" }
+        }
+      }
+    },
+    "architectural_connections": {
+      "type": "object",
+      "required": ["inbound", "outbound"],
+      "properties": {
+        "inbound": {
+          "type": "object",
+          "required": ["http_endpoints", "event_subscriptions", "scheduled_triggers"],
+          "properties": {
+            "http_endpoints": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["method", "path_pattern", "description"],
+                "properties": {
+                  "method":       { "type": "string" },
+                  "path_pattern": { "type": "string" },
+                  "description":  { "type": "string" }
+                }
+              }
+            },
+            "event_subscriptions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["broker", "topic_or_queue", "payload_structure"],
+                "properties": {
+                  "broker":            { "type": "string" },
+                  "topic_or_queue":    { "type": "string" },
+                  "payload_structure": { "type": "string" }
+                }
+              }
+            },
+            "scheduled_triggers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["schedule_expression", "description"],
+                "properties": {
+                  "schedule_expression": { "type": "string" },
+                  "description":         { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "outbound": {
+          "type": "object",
+          "required": ["http_calls", "event_publications"],
+          "properties": {
+            "http_calls": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["method", "url_or_path", "encapsulated_in", "is_external", "external_contract_hint"],
+                "properties": {
+                  "method":                  { "type": "string" },
+                  "url_or_path":             { "type": "string" },
+                  "encapsulated_in":         { "type": "string" },
+                  "is_external":             { "type": "boolean" },
+                  "external_contract_hint":  { "type": "string" }
+                }
+              }
+            },
+            "event_publications": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["broker", "topic_or_queue", "routing_key", "business_trigger"],
+                "properties": {
+                  "broker":          { "type": "string" },
+                  "topic_or_queue":  { "type": "string" },
+                  "routing_key":      { "type": "string" },
+                  "business_trigger": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "discovered_dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file_path", "reason", "discovery_depth"],
+        "properties": {
+          "file_path":       { "type": "string" },
+          "reason":          { "type": "string" },
+          "discovery_depth": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

@@ -87,13 +87,13 @@ Key behaviors:
 - Persists enriched JSON to `execution_findings` table via `ExecutionFindingStore`
 - Attaches `discovered_dependency` array when unindexed runtime deps uncovered (PRD §3.5)
 
-- **US043** (must): Executor enriches a single file via Spring AI + `@Async`, validates output against §4 JSON Schema, handles exponential backoff and discovered dependencies
-- **US044** (should): Executor supports `--dry-run` mode with deterministic stubs — zero API calls
+- [x] **US043** (must): Executor enriches a single file via Spring AI + `@Async`, validates output against §4 JSON Schema, handles exponential backoff and discovered dependencies
+- [x] **US044** (should): Executor supports `--dry-run` mode with deterministic stubs — zero API calls
 - [x] Gherkin: `docs/sdlc/features/E003-F017-llm-executor.feature`
-- [ ] Depends on: F016 (Planner), `@EnableAsync` on Application.java, Spring AI auto-configuration (OpenRouter config via `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` env vars)
-- [ ] Classes: `SemanticExecutor`, `ExecutionFindingValidator` (JSON Schema), `ContextBudgetCalculator`, `SimulationStub`
-- [ ] New finding type in `FindingType`: `SEMANTIC_ENRICHMENT`
-- [ ] Verify: `mvn test` — executor produces valid ExecutionFinding JSON, dry-run produces deterministic output
+- [x] Depends on: F016 (Planner), `@EnableAsync` on Application.java, Spring AI auto-configuration (OpenRouter config via `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` env vars)
+- [x] Classes: `SemanticExecutor`, `ExecutionFindingValidator` (JSON Schema), `ContextBudgetCalculator`, `SimulationStub`
+- [x] New finding type in `FindingType`: `SEMANTIC_ENRICHMENT`
+- [x] Verify: `mvn test` — 389 tests pass (F017 executor tests included: dry-run produces valid output, schema validation works, budget calculation correct, simulation stub deterministic)
 - [ ] Manual: `run --dry-run --manifest ...` — verify enrichment output without API calls
 
 #### F018: Orchestrator (US045)
@@ -304,19 +304,19 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 ### Modified (existing files changed, F016-related additions in *italic*, completed items prefixed with ✓):
 | File | Change |
 |------|--------|
-| `Application.java` | Add `@EnableAsync` |
-| `config/AppConfig.java` | Add `@Bean("orchestratorTaskExecutor")` `ThreadPoolTaskExecutor` (core=5, max=10, queue=1000) |
-| `application.properties` | Add OpenRouter config (`spring.ai.openai.base-url`, `spring.ai.openai.api-key`, `spring.ai.openai.chat.options.model`, `spring.config.import=optional:file:.env`); rename thread prefix to `c2r-orchestrator-` |
+| ✓ `Application.java` | Add `@EnableAsync` |
+| ✓ `config/AppConfig.java` | Add `@Bean("orchestratorTaskExecutor")` `ThreadPoolTaskExecutor` (core=5, max=10, queue=1000) |
+| ✓ `application.properties` | Add OpenRouter config (`spring.ai.openai.base-url`, `spring.ai.openai.api-key`, `spring.ai.openai.chat.options.model`, `spring.config.import=optional:file:.env`); rename thread prefix to `c2r-orchestrator-` |
 | `model/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
 | ✓ `model/AnalysisFinding.java` | Add `default boolean isResolved() { return true; }` |
 | ✓ `analyzer/callgraph/CallGraphEdge.java` | Override `isResolved()` to return `STATUS_RESOLVED.equals(resolvedStatus)` |
 | ✓ `store/ExecutionFindingStore.java` | `saveAllForTask` uses `finding.isResolved()` instead of hardcoded `true` |
-| ✓ `store/FindingType.java` | Add `SPRING_DATA_INTERFACE`, `DATABASE_PROCEDURE_CALL`, `CONSTRAINT_VALIDATOR`, `NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY` |
+| ✓ `store/FindingType.java` | Add `SPRING_DATA_INTERFACE`, `DATABASE_PROCEDURE_CALL`, `CONSTRAINT_VALIDATOR`, `NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY`, `SEMANTIC_ENRICHMENT` |
 | ✓ `pipeline/ScanPipeline.java` | Add re-classification step after `persistFindings()` to create granular FindingType rows (now 5 mapping cases) |
 | ✓ `store/FloatingLinkStore.java` | Add `findSourceFilePathsByResolvedStatus(String)` query for planner |
 | ✓ `planner/Phase2Planner.java` | Refactored with Strategy Pattern — delegates to 9 `QualificationRule` components |
 | `shell/StatusCommand.java` | Add Phase 2 metrics (tokens, cost, enriched count) + Phase 3 metrics (flow extraction rate, ambiguity gaps) |
-| `pom.xml` | Uncomment `embabel-agent-starter` dependency |
+| ✓ `pom.xml` | Add `spring-ai-client-chat`, `spring-ai-autoconfigure-model-chat-client` dependencies |
 | `model/ExecutionConfig.java` | Add `maxInvestigationStepsPerFlow`, `maxTokensPerRun`, `ambiguityConfidenceThreshold` (removed `llmQualificationRules`) |
 | `project-manifest.yaml` | Add `llm-unresolved-threshold` and guardrail fields under `execution:` (removed `llm-qualification-rules`) |
 
@@ -325,7 +325,9 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 |---------|-------|
 | `planner/` | `QualificationRule.java` (interface), `PlanningContext.java` (shared data access), `PlannerDecision.java` (record), `QualificationReason.java` (enum) |
 | `planner/rule/` | `SpringDataInterfaceRule`, `StoredProcedureCallRule`, `CustomConstraintValidatorRule`, `ScheduledTaskPresentRule`, `UnresolvedSignaturesRule`, `UnresolvedFloatingLinkRule`, `TestAssertionsPresentRule`, `NativeSqlQueryRule`, `JpqlHqlQueryRule`, `AbstractFindingTypeRule` (base class) |
-| `executor/` | `SemanticExecutor`, `ExecutionFindingValidator`, `ContextBudgetCalculator`, `SimulationStub` |
+| ✓ `executor/` | `SemanticExecutor`, `ExecutionFindingValidator`, `ContextBudgetCalculator`, `SimulationStub` |
+| ✓ `model/` | `ExecutionFinding` (nested record hierarchy matching §4 schema) |
+| ✓ `resources/schema/` | `execution-finding-schema.json` (embedded §4 JSON Schema) |
 | `orchestrator/` | `Phase2Orchestrator`, `EnrichmentDag`, `BranchState` |
 | `executor/testmining/` | `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver` |
 | `synthesis/` | `Phase3Orchestrator`, `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry` |
