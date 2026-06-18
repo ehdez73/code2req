@@ -9,6 +9,7 @@ import com.github.ehdez73.code2req.analyzer.db.DbAccessDetector;
 import com.github.ehdez73.code2req.analyzer.db.DbAccessHelper;
 import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.analyzer.db.DbAccessType;
+import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
@@ -41,13 +42,19 @@ public class SpringDataJpaDetector implements DbAccessDetector {
             .filter(t -> !t.isEmpty())
             .findFirst().orElse("");
 
+        boolean isSpringDataJdbc = clazz.findAncestor(CompilationUnit.class)
+            .map(cu -> cu.getImports().stream()
+                .anyMatch(imp -> imp.getNameAsString()
+                    .equals("org.springframework.data.jdbc.repository.query.Query")))
+            .orElse(false);
+
         for (MethodDeclaration method : clazz.getMethods()) {
             String methodName = method.getNameAsString();
 
             Optional<AnnotationExpr> queryAnn = method.getAnnotationByName("Query");
             if (queryAnn.isPresent()) {
                 String sql = extractQueryValue(queryAnn.get());
-                boolean nativeQuery = isNativeQuery(queryAnn.get());
+                boolean nativeQuery = isNativeQuery(queryAnn.get()) || isSpringDataJdbc;
                 result.add(new DbAccessInfo(
                     nativeQuery ? DbAccessType.NATIVE_SQL.name() : DbAccessType.JPQL_HQL.name(),
                     sql, "", "",

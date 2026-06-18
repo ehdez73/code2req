@@ -2,7 +2,7 @@
 
 ## AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)
 
-> **Version 5.2** — Updated Phase 2 Planner qualification rules. Adds: native SQL and JPQL/HQL query detection as LLM enrichment criteria (PRD §2.2); granular `FindingType` constants (`NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY`) for custom SQL/HQL queries in Spring Data `@Query` annotations, `@NamedQuery`/`@NamedNativeQuery` entity annotations, `EntityManager`/`Session` programmatic queries, and raw JDBC (`Connection`, `Statement`) native SQL calls.
+> **Version 5.3** — Updated Phase 2 Planner qualification rules. Adds: native SQL and JPQL/HQL query detection as LLM enrichment criteria (PRD §2.2); granular `FindingType` constants (`NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY`) for custom SQL/HQL queries in Spring Data `@Query` annotations, `@NamedQuery`/`@NamedNativeQuery` entity annotations, `EntityManager`/`Session` programmatic queries, and raw JDBC (`Connection`, `Statement`) native SQL calls. Extended `JdbcTemplateDetector` scope to match `npjt` (`NamedParameterJdbcTemplate`). Added import-aware `@Query` routing in `SpringDataJpaDetector` — detects `org.springframework.data.jdbc.repository.query.Query` import to force `NATIVE_SQL` classification for Spring Data JDBC (which has no JPQL).
 
 ---
 

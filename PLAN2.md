@@ -68,7 +68,7 @@ Reads the SQLite task store after Phase 1 and determines which tasks qualify for
 - [x] Depends on: Phase 1 complete (SQLite populated with task rows and execution_findings)
 - [x] Classes: `Phase2Planner` (orchestrator), `QualificationRule` (interface), `PlanningContext` (shared data access), `PlannerDecision` (record), `QualificationReason` (enum), and 9 rule `@Component` classes in `planner/rule/` (`SpringDataInterfaceRule`, `StoredProcedureCallRule`, `CustomConstraintValidatorRule`, `ScheduledTaskPresentRule`, `UnresolvedSignaturesRule`, `UnresolvedFloatingLinkRule`, `TestAssertionsPresentRule`, `NativeSqlQueryRule`, `JpqlHqlQueryRule`)
 - [x] Modified: `AnalysisFinding` (add `isResolved()`), `CallGraphEdge` (override `isResolved()`), `ExecutionFindingStore` (use per-finding status), `FindingType` (5 new constants), `ScanPipeline` (re-classification step with 2 new cases), `FloatingLinkStore` (query by status), `Phase2Planner` (strategy refactor)
-- [x] Verify: `mvn test` — 364 tests pass, planner correctly qualifies/doesn't qualify
+- [x] Verify: `mvn test` — 366 tests pass, planner correctly qualifies/doesn't qualify
 - [ ] Manual: `plan` CLI command is tracked in F019
 
 #### F017: LLM Executor Framework (US043, US044)

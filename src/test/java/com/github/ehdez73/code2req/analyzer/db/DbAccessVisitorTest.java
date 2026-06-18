@@ -780,4 +780,43 @@ class DbAccessVisitorTest {
         assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
         assertEquals("SELECT name FROM orders", info.sql());
     }
+
+    @Test
+    void namedParameterJdbcTemplateNpjt_detected() {
+        AnalysisResult result = analyze("OrderDao.java", """
+            import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+            import org.springframework.stereotype.Repository;
+            @Repository
+            public class OrderDao {
+                private final NamedParameterJdbcTemplate npjt;
+                public OrderDao(NamedParameterJdbcTemplate npjt) { this.npjt = npjt; }
+                public void findOrders() {
+                    npjt.query("SELECT * FROM orders WHERE status = :status", params, rowMapper);
+                }
+            }
+            """);
+
+        assertEquals(1, result.findings(DbAccessInfo.class).size());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.JDBC_TEMPLATE_QUERY.name(), info.type());
+        assertEquals("SELECT * FROM orders WHERE status = :status", info.sql());
+        assertEquals("orders", info.tableHint());
+    }
+
+    @Test
+    void springDataJdbcQueryAnnotation_isNativeSql() {
+        AnalysisResult result = analyze("OrderRepository.java", """
+            import org.springframework.data.repository.CrudRepository;
+            import org.springframework.data.jdbc.repository.query.Query;
+            public interface OrderRepository extends CrudRepository<Order, Long> {
+                @Query("SELECT * FROM orders WHERE status = :status")
+                Order findCustom(String status);
+            }
+            """);
+
+        assertEquals(1, result.findings(DbAccessInfo.class).size());
+        DbAccessInfo info = result.findings(DbAccessInfo.class).getFirst();
+        assertEquals(DbAccessType.NATIVE_SQL.name(), info.type());
+        assertEquals("SELECT * FROM orders WHERE status = :status", info.sql());
+    }
 }

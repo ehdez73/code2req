@@ -14,6 +14,9 @@ import com.github.javaparser.ast.expr.MethodCallExpr;
 @Component
 public class JdbcTemplateDetector implements DbAccessDetector {
 
+    private static final List<String> JDBC_SCOPES = List.of(
+        "jdbctemplate", "npjt");
+
     private static final List<String> QUERY_METHODS = List.of(
         "query", "queryForObject", "queryForList", "queryForMap", "queryForRowSet");
     private static final List<String> UPDATE_METHODS = List.of(
@@ -28,7 +31,7 @@ public class JdbcTemplateDetector implements DbAccessDetector {
                 String callName = mce.getNameAsString();
                 String scope = mce.getScope()
                     .map(Object::toString).orElse("").toLowerCase();
-                if (!scope.contains("jdbctemplate")) return;
+                if (JDBC_SCOPES.stream().noneMatch(scope::contains)) return;
 
                 if (QUERY_METHODS.contains(callName)) {
                     String sql = DbAccessHelper.extractFirstStringArg(mce);
