@@ -2,7 +2,7 @@
 
 ## AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)
 
-> **Version 5.3** — Updated Phase 2 Planner qualification rules. Adds: native SQL and JPQL/HQL query detection as LLM enrichment criteria (PRD §2.2); granular `FindingType` constants (`NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY`) for custom SQL/HQL queries in Spring Data `@Query` annotations, `@NamedQuery`/`@NamedNativeQuery` entity annotations, `EntityManager`/`Session` programmatic queries, and raw JDBC (`Connection`, `Statement`) native SQL calls. Extended `JdbcTemplateDetector` scope to match `npjt` (`NamedParameterJdbcTemplate`). Added import-aware `@Query` routing in `SpringDataJpaDetector` — detects `org.springframework.data.jdbc.repository.query.Query` import to force `NATIVE_SQL` classification for Spring Data JDBC (which has no JPQL).
+> **Version 5.4** — Phase 2 LLM Executor (F017) uses **OpenRouter** as the AI provider via Spring AI's OpenAI-compatible client. Configurable model via `OPENROUTER_MODEL` env var (default: `deepseek/deepseek-v4-flash:free`). `.env` file loaded automatically via `spring.config.import=optional:file:.env`.
 
 ---
 
@@ -12,7 +12,7 @@
 
 **Spec-Driven Development (SDD)** is the architectural practice of treating a highly structured, technology-agnostic business specification—not source code—as the primary, authoritative artifact of a software project. It is the single source of truth from which automated tests, clean implementation, and functional documentation are derived.
 
-This document specifies the requirements for a Command Line Interface (CLI) application built on the JVM ecosystem using **Spring AI** and **Embabel**. It is designed to perform deep, automated reverse engineering on legacy enterprise codebases. The tool extracts embedded business rules, domain validations, and ecosystem invariants, consolidating them into highly structured Markdown documents organized by **"Use Cases / Functional Flows"**.
+This document specifies the requirements for a Command Line Interface (CLI) application built on the JVM ecosystem using **Spring AI (via OpenRouter)** and **Embabel**. It is designed to perform deep, automated reverse engineering on legacy enterprise codebases. The tool extracts embedded business rules, domain validations, and ecosystem invariants, consolidating them into highly structured Markdown documents organized by **"Use Cases / Functional Flows"**.
 
 Crucially, the tool rejects direct test framework generation. Instead, it exports a markdown specification alongside a machine-readable **Semantic Manifest JSON**. This output serves as the decoupled, hyper-traceable source of truth for downstream automated processes, such as a specialized AI Skill responsible for compiling BDD **Gherkin feature files (`.feature`)** or re-architecting applications.
 
@@ -406,9 +406,12 @@ The structural trace produced by Phase 1 resolves all deterministic call paths (
   * Business logic interpretation of stored procedures.
   * Edge cases extracted from test file assertions.
 
+  **LLM Provider:** Executors route through **OpenRouter** (`https://openrouter.ai/api/v1`) using Spring AI's OpenAI-compatible client. The model is configured via the `OPENROUTER_MODEL` environment variable (default: `deepseek/deepseek-v4-flash:free`). API credentials are provided via `OPENROUTER_API_KEY`.
+
 * **The Orchestrator:** Processes the enrichment DAG, submits tasks asynchronously to the Spring pool, and tracks progress via `CompletableFuture<ExecutionFinding>` responses. The enriched `ExecutionFinding` JSON (§4) is merged with the Phase 1 structural data in the SQLite store.
 
 * **Phase Synchronization Barrier:** Phase 3 (synthesis) is blocked until ALL Phase 2 enrichment tasks complete, using `CompletableFuture.allOf(...)`. Phase 2 is skipped entirely if `--llm-threshold` is set to 0 or no files qualify.
+  **Authentication:** LLM requests are authenticated via `OPENROUTER_API_KEY` environment variable (loaded from `.env` via `spring.config.import=optional:file:.env`).
 
 ---
 
@@ -828,7 +831,7 @@ The `--dry-run` flag on the `run` command enables simulation mode (see §5.8).
 
 ### 5.8 Testing Isolation & Simulation Mode
 
-To verify system orchestrations and engine state transitions within CI/CD pipelines without generating external provider token fees, the application must support a strict simulation mode via an execution flag (`--dry-run`). When active, Spring AI calls are intercepted by local stubs that validate prompt schema layout accuracy and return deterministic static JSON fragments matching Section 4 contracts.
+To verify system orchestrations and engine state transitions within CI/CD pipelines without generating external provider token fees, the application must support a strict simulation mode via an execution flag (`--dry-run`). When active, Spring AI calls are intercepted by local stubs (`SimulationStub`) that validate prompt schema layout accuracy and return deterministic static JSON fragments matching Section 4 contracts. No `OPENROUTER_API_KEY` is required in dry-run mode.
 
 ---
 
@@ -1098,10 +1101,6 @@ A CLI run is considered successful when all of the following conditions are met.
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-anthropic</artifactId>
-        </dependency>
         <!-- YAML Manifest Parsing -->
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
@@ -1185,5 +1184,13 @@ spring.task.execution.thread-name-prefix=c2r-executor-
 spring.task.execution.shutdown.await-termination=true
 spring.task.execution.shutdown.await-termination-period=30s
 
+# ===================================================================
+# OpenRouter LLM Provider (via Spring AI OpenAI-compatible client)
+# ===================================================================
+spring.config.import=optional:file:.env
+
+spring.ai.openai.base-url=https://openrouter.ai/api/v1
+spring.ai.openai.api-key=${OPENROUTER_API_KEY}
+spring.ai.openai.chat.options.model=${OPENROUTER_MODEL:deepseek/deepseek-v4-flash:free}
 
 ```

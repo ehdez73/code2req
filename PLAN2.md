@@ -3,11 +3,11 @@
 ## Quick Start
 - Build: `mvn clean compile`
 - Test: `mvn test`
-- Run: `mvn spring-boot:run` then:
+- Run: `export OPENROUTER_API_KEY=sk-or-v1-...` then `mvn spring-boot:run` (or create `.env` file — loaded automatically)
   - `plan --manifest project-manifest.yaml` — dry DAG view (no LLM)
-  - `run --manifest project-manifest.yaml` — Phase 2 + Phase 3
+  - `run --manifest project-manifest.yaml` — Phase 2 + Phase 3 (via OpenRouter, model from `OPENROUTER_MODEL` env var)
   - `run --manifest ... --llm-threshold 0` — run without LLM enrichment
-  - `run --manifest ... --dry-run` — simulation mode (no API calls)
+  - `run --manifest ... --dry-run` — simulation mode (no API calls, no key required)
 
 ## Prerequisites (Already Done in Phase 1)
 - SQLite store with `tasks`, `execution_findings`, `topic_links`, `floating_links`, `metrics` tables
@@ -16,7 +16,7 @@
 - `MetricsStore` (save, getLatestForPhase)
 - `TaskIdHasher` (deterministic SHA-256 — needed for discovered_dependency tasks)
 - JSON Schema validation dependency (`networknt/json-schema-validator` in pom.xml)
-- Spring AI OpenAI + Anthropic dependencies in pom.xml
+- Spring AI OpenAI dependency in pom.xml (used as OpenAI-compatible client for OpenRouter)
 - Spring AOP + `@Async` pool configured in `application.properties`
 - Spring Shell CLI infrastructure (`scan`, `resume`, `validate`, `status`, `clean`)
 - `ProjectManifest` with `ExecutionConfig` (max-concurrent-llm-calls, max-discovery-depth, semantic-validation-sample-rate)
@@ -31,8 +31,9 @@
 6. **`plan` command** is purely a DAG read — queries SQLite for qualified tasks, displays what would run. Zero LLM calls.
 7. **`run` command** orchestrates Phase 2 (Spring AI LLM enrichment) then Phase 3 (Embabel agent) with a synchronization barrier in between.
 8. **`status` command** already exists — extend to show Phase 2 counters (tokens consumed, estimated cost, per-task enrichment status) and Phase 3 counters (flow extraction rate, ambiguity gaps).
-9. **Spring AI `ChatClient.Builder`** is auto-configured when OpenAI/Anthropic credentials are present — no manual bean creation needed.
-10. **Phase 3 guardrails** (`max-investigation-steps-per-flow`, `max-tokens-per-run`, `ambiguity-confidence-threshold`) are added to `ExecutionConfig` and `project-manifest.yaml`.
+9. **Spring AI `ChatClient.Builder`** is auto-configured via `spring-ai-openai` when OpenAI-compatible credentials are present — no manual bean creation needed. The OpenAI client is configured to point at OpenRouter (`spring.ai.openai.base-url=https://openrouter.ai/api/v1`).
+10. **OpenRouter** is the sole LLM provider for Phase 2. Configured via `OPENROUTER_API_KEY` env var; model selected via `OPENROUTER_MODEL` env var (default: `deepseek/deepseek-v4-flash:free`). `.env` file is loaded automatically via `spring.config.import=optional:file:.env`.
+11. **Phase 3 guardrails** (`max-investigation-steps-per-flow`, `max-tokens-per-run`, `ambiguity-confidence-threshold`) are added to `ExecutionConfig` and `project-manifest.yaml`.
 
 ---
 
@@ -75,21 +76,23 @@ Reads the SQLite task store after Phase 1 and determines which tasks qualify for
 
 Individual file enrichment workers. Each executor receives the pre-resolved structural context from Phase 1 plus raw source file content. LLM prompt instructs the model to NOT resolve structural dependencies (already done) and focus on business semantics.
 
+**LLM Provider:** Executors route through **OpenRouter** via Spring AI's OpenAI-compatible client. The base URL points to `https://openrouter.ai/api/v1`. Model is set via `OPENROUTER_MODEL` env var (default: `deepseek/deepseek-v4-flash:free`). API key is read from `OPENROUTER_API_KEY` env var, loaded from `.env` via `spring.config.import=optional:file:.env`.
+
 Key behaviors:
 - Spring `@Async("orchestratorTaskExecutor")` method returning `CompletableFuture<ExecutionFinding>`
 - Exponential backoff: initial 2s, multiplier 2.0, cap 60s, max 3 retries (PRD §5.4)
 - Context budgeting: if combined token weight > 80% of model context window, trigger pre-summarization step (PRD §3.6)
 - Output validated against JSON Schema §4 before transition to `SUCCESS`
-- `--dry-run` mode: Spring AI calls intercepted by local stubs returning deterministic static JSON
+- `--dry-run` mode: Spring AI calls intercepted by local `SimulationStub` returning deterministic static JSON (zero API calls, no key required)
 - Persists enriched JSON to `execution_findings` table via `ExecutionFindingStore`
 - Attaches `discovered_dependency` array when unindexed runtime deps uncovered (PRD §3.5)
 
 - **US043** (must): Executor enriches a single file via Spring AI + `@Async`, validates output against §4 JSON Schema, handles exponential backoff and discovered dependencies
 - **US044** (should): Executor supports `--dry-run` mode with deterministic stubs — zero API calls
 - [x] Gherkin: `docs/sdlc/features/E003-F017-llm-executor.feature`
-- [ ] Depends on: F016 (Planner), `@EnableAsync` on Application.java, Spring AI auto-configuration
+- [ ] Depends on: F016 (Planner), `@EnableAsync` on Application.java, Spring AI auto-configuration (OpenRouter config via `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` env vars)
 - [ ] Classes: `SemanticExecutor`, `ExecutionFindingValidator` (JSON Schema), `ContextBudgetCalculator`, `SimulationStub`
-- [ ] New finding types in `FindingType`: `SEMANTIC_ENRICHMENT` (or store the full `ExecutionFinding` JSON via `execution_findings`)
+- [ ] New finding type in `FindingType`: `SEMANTIC_ENRICHMENT`
 - [ ] Verify: `mvn test` — executor produces valid ExecutionFinding JSON, dry-run produces deterministic output
 - [ ] Manual: `run --dry-run --manifest ...` — verify enrichment output without API calls
 
@@ -302,6 +305,8 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | File | Change |
 |------|--------|
 | `Application.java` | Add `@EnableAsync` |
+| `config/AppConfig.java` | Add `@Bean("orchestratorTaskExecutor")` `ThreadPoolTaskExecutor` (core=5, max=10, queue=1000) |
+| `application.properties` | Add OpenRouter config (`spring.ai.openai.base-url`, `spring.ai.openai.api-key`, `spring.ai.openai.chat.options.model`, `spring.config.import=optional:file:.env`); rename thread prefix to `c2r-orchestrator-` |
 | `model/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
 | ✓ `model/AnalysisFinding.java` | Add `default boolean isResolved() { return true; }` |
 | ✓ `analyzer/callgraph/CallGraphEdge.java` | Override `isResolved()` to return `STATUS_RESOLVED.equals(resolvedStatus)` |
@@ -334,7 +339,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 
 - Unit: `mvn test`
 - Manual dry-run: `run --dry-run --manifest project-manifest.yaml` — no API calls made
-- Manual full: `run --manifest project-manifest.yaml` — needs `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` env set
+- Manual full: `run --manifest project-manifest.yaml` — needs `OPENROUTER_API_KEY` env set (model configurable via `OPENROUTER_MODEL`)
 - JSON schema validation: enriched `ExecutionFinding` output validates against PRD §4 schema
 - Phase 2 only: `run --manifest ...` then `status` — confirm per-task enrichment status + token counters
 - Phase 2 + Phase 3: `run --manifest ... --dry-run` — verify all phases complete end-to-end without network calls

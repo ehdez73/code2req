@@ -106,10 +106,6 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-anthropic</artifactId>
-        </dependency>
 
         <!-- YAML Manifest Parsing -->
         <dependency>
