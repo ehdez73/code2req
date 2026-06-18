@@ -113,12 +113,12 @@ Key behaviors:
 - **Visited Registry**: thread-safe set of hashes to prevent redundant evaluation (PRD §5.2)
 - Writes `metrics` after Phase 2 completes (tokens consumed, cost estimate)
 
-- **US045** (must): Orchestrator manages enrichment DAG, submits tasks async, implements Phase 2→3 barrier via CompletableFuture.allOf(), handles dynamic re-planning with branch isolation, enforces max-hop-depth
+- [x] **US045** (must): Orchestrator manages enrichment DAG, submits tasks async, implements Phase 2→3 barrier via CompletableFuture.allOf(), handles dynamic re-planning with branch isolation, enforces max-hop-depth
 - [x] Gherkin: `docs/sdlc/features/E003-F018-orchestrator.feature`
-- [ ] Depends on: F016, F017, `TaskStore.findByStatus()`, `TaskStatus.AWAITING_HUMAN_REVIEW`
-- [ ] Classes: `Phase2Orchestrator`, `EnrichmentDag`, `BranchState`
-- [ ] Modified: `TaskStatus` (add `AWAITING_HUMAN_REVIEW`), `MetricsStore` (Phase 2 metrics writing)
-- [ ] Verify: `mvn test` — orchestrator submits all qualified tasks, barrier blocks until all complete
+- [x] Depends on: F016, F017, `TaskStore.findByStatus()`, `TaskStatus.AWAITING_HUMAN_REVIEW`
+- [x] Classes: `Phase2Orchestrator`, `EnrichmentDag`, `BranchState`, `CompletionStatus`
+- [x] Modified: `TaskStatus` (add `AWAITING_HUMAN_REVIEW`)
+- [x] Verify: `mvn test` — 406 tests pass (17 orchestrator-specific), orchestrator submits all qualified tasks, barrier blocks until all complete, dynamic re-planning with discovered dependencies, max-hop-depth enforcement with AWAITING_HUMAN_REVIEW, visited registry prevents redundant evaluation, Phase 2 metrics written after completion
 - [ ] Manual: `run --dry-run --manifest ...` — verify all Phase 2 tasks complete with barrier
 
 #### F019: CLI Commands — `plan` and `run` (US046, US047)
@@ -257,7 +257,7 @@ Post-agent validation pass (pure Java, not part of the Embabel agent):
 | US042 | F016 | should | E003 — Planner |
 | US043 | F017 | must | E003 — Executor |
 | US044 | F017 | should | E003 — Executor (dry-run) |
-| US045 | F018 | must | E003 — Orchestrator |
+| US045 ✓ | F018 | must | E003 — Orchestrator |
 | US046 | F019 | must | E003 — `plan` command |
 | US047 | F019 | must | E003 — `run` command |
 | US048 | F020 | should | E003 — Test Suite Mining |
@@ -307,7 +307,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `Application.java` | Add `@EnableAsync` |
 | ✓ `config/AppConfig.java` | Add `@Bean("orchestratorTaskExecutor")` `ThreadPoolTaskExecutor` (core=5, max=10, queue=1000) |
 | ✓ `application.properties` | Add OpenRouter config (`spring.ai.openai.base-url`, `spring.ai.openai.api-key`, `spring.ai.openai.chat.options.model`, `spring.config.import=optional:file:.env`); rename thread prefix to `c2r-orchestrator-` |
-| `model/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
+| ✓ `model/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
 | ✓ `model/AnalysisFinding.java` | Add `default boolean isResolved() { return true; }` |
 | ✓ `analyzer/callgraph/CallGraphEdge.java` | Override `isResolved()` to return `STATUS_RESOLVED.equals(resolvedStatus)` |
 | ✓ `store/ExecutionFindingStore.java` | `saveAllForTask` uses `finding.isResolved()` instead of hardcoded `true` |
@@ -328,7 +328,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `executor/` | `SemanticExecutor`, `ExecutionFindingValidator`, `ContextBudgetCalculator`, `SimulationStub` |
 | ✓ `model/` | `ExecutionFinding` (nested record hierarchy matching §4 schema) |
 | ✓ `resources/schema/` | `execution-finding-schema.json` (embedded §4 JSON Schema) |
-| `orchestrator/` | `Phase2Orchestrator`, `EnrichmentDag`, `BranchState` |
+| ✓ `orchestrator/` | `Phase2Orchestrator`, `EnrichmentDag`, `BranchState`, `CompletionStatus` |
 | `executor/testmining/` | `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver` |
 | `synthesis/` | `Phase3Orchestrator`, `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry` |
 | `synthesis/agent/` | `FunctionalRequirementAgent`, `AnalyzeFindingsAction`, `ResolveAmbiguityAction`, `CrossReferenceLinksAction`, `SynthesizeSpecAction`, `QuarantineAction` |

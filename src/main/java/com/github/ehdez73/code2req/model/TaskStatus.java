@@ -4,5 +4,6 @@ public enum TaskStatus {
     PENDING,
     RUNNING,
     SUCCESS,
-    FAILED
+    FAILED,
+    AWAITING_HUMAN_REVIEW
 }

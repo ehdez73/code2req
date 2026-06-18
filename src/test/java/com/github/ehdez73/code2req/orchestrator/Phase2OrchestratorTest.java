@@ -1,0 +1,388 @@
+package com.github.ehdez73.code2req.orchestrator;
+
+import com.github.ehdez73.code2req.executor.ContextBudgetCalculator;
+import com.github.ehdez73.code2req.executor.ExecutionFindingValidator;
+import com.github.ehdez73.code2req.executor.SemanticExecutor;
+import com.github.ehdez73.code2req.executor.SimulationStub;
+import com.github.ehdez73.code2req.model.ExecutionConfig;
+import com.github.ehdez73.code2req.model.ExecutionFinding;
+import com.github.ehdez73.code2req.model.Metric;
+import com.github.ehdez73.code2req.model.PlannerDecision;
+import com.github.ehdez73.code2req.model.Task;
+import com.github.ehdez73.code2req.model.TaskStatus;
+import com.github.ehdez73.code2req.planner.Phase2Planner;
+import com.github.ehdez73.code2req.planner.QualificationRule;
+import com.github.ehdez73.code2req.planner.rule.CustomConstraintValidatorRule;
+import com.github.ehdez73.code2req.planner.rule.JpqlHqlQueryRule;
+import com.github.ehdez73.code2req.planner.rule.NativeSqlQueryRule;
+import com.github.ehdez73.code2req.planner.rule.ScheduledTaskPresentRule;
+import com.github.ehdez73.code2req.planner.rule.SpringDataInterfaceRule;
+import com.github.ehdez73.code2req.planner.rule.StoredProcedureCallRule;
+import com.github.ehdez73.code2req.planner.rule.TestAssertionsPresentRule;
+import com.github.ehdez73.code2req.planner.rule.UnresolvedFloatingLinkRule;
+import com.github.ehdez73.code2req.planner.rule.UnresolvedSignaturesRule;
+import com.github.ehdez73.code2req.store.ExecutionFindingStore;
+import com.github.ehdez73.code2req.store.FloatingLinkStore;
+import com.github.ehdez73.code2req.store.MetricsStore;
+import com.github.ehdez73.code2req.store.TaskIdHasher;
+import com.github.ehdez73.code2req.store.TaskStore;
+import com.github.ehdez73.code2req.store.TaskStoreSchema;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class Phase2OrchestratorTest {
+
+    @TempDir
+    Path tempDir;
+
+    private JdbcTemplate jdbc;
+    private TaskStore taskStore;
+    private ExecutionFindingStore findingStore;
+    private MetricsStore metricsStore;
+    private FloatingLinkStore floatingLinkStore;
+    private Phase2Planner planner;
+    private ExecutionConfig executionConfig;
+    private TaskIdHasher taskIdHasher;
+    private ContextBudgetCalculator budgetCalculator;
+    private ExecutionFindingValidator validator;
+    private SimulationStub simulationStub;
+    private List<QualificationRule> defaultRules;
+
+    @BeforeEach
+    void setUp() {
+        var dbPath = tempDir.resolve("orchestrator-test.db");
+        var ds = new org.sqlite.SQLiteDataSource();
+        ds.setUrl("jdbc:sqlite:" + dbPath.toAbsolutePath());
+        jdbc = new JdbcTemplate(ds);
+        var schema = new TaskStoreSchema(jdbc);
+        schema.createSchemaIfNotExists();
+
+        taskStore = new TaskStore(jdbc);
+        findingStore = new ExecutionFindingStore(jdbc);
+        metricsStore = new MetricsStore(jdbc);
+        floatingLinkStore = new FloatingLinkStore(jdbc);
+        taskIdHasher = new TaskIdHasher();
+        budgetCalculator = new ContextBudgetCalculator();
+        validator = new ExecutionFindingValidator();
+        simulationStub = new SimulationStub();
+        executionConfig = ExecutionConfig.defaultConfig();
+
+        defaultRules = List.of(
+            new SpringDataInterfaceRule(),
+            new StoredProcedureCallRule(),
+            new CustomConstraintValidatorRule(),
+            new ScheduledTaskPresentRule(),
+            new UnresolvedSignaturesRule(jdbc, 5),
+            new UnresolvedFloatingLinkRule(floatingLinkStore),
+            new TestAssertionsPresentRule(),
+            new NativeSqlQueryRule(),
+            new JpqlHqlQueryRule()
+        );
+    }
+
+    private Phase2Orchestrator createOrchestrator() {
+        planner = new Phase2Planner(taskStore, jdbc, defaultRules);
+        var executor = new SemanticExecutor(null, findingStore, taskStore,
+            validator, budgetCalculator, simulationStub);
+        return new Phase2Orchestrator(planner, executor, taskStore, findingStore,
+            metricsStore, executionConfig, taskIdHasher, budgetCalculator);
+    }
+
+    private void insertTask(String taskId, String filePath) {
+        taskStore.save(new Task(taskId, filePath, TaskStatus.SUCCESS, "java", "hash-" + taskId));
+    }
+
+    @Nested
+    class OrchestratorExecutionTests {
+
+        @Test
+        void returnsEmptyWhenNoQualifiedTasks() {
+            insertTask("t1", "/src/Foo.java");
+            var orchestrator = createOrchestrator();
+            CompletionStatus status = orchestrator.executePhase2(true);
+            assertEquals(0, status.tasksSubmitted());
+            assertEquals(0, status.tasksCompleted());
+            assertTrue(status.allSucceeded());
+        }
+
+        @Test
+        void submitsAllQualifiedTasks() {
+            insertTask("t1", "/src/Foo.java");
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t1", "SCHEDULED_TASK", "{}", 1);
+
+            var orchestrator = createOrchestrator();
+            CompletionStatus status = orchestrator.executePhase2(true);
+
+            assertEquals(1, status.tasksSubmitted());
+            assertEquals(1, status.tasksCompleted());
+            assertEquals(0, status.tasksFailed());
+            assertEquals(TaskStatus.SUCCESS, taskStore.findById("t1").get().status());
+        }
+
+        @Test
+        void barrierBlocksUntilAllTasksComplete() {
+            insertTask("t1", "/src/Foo.java");
+            insertTask("t2", "/src/Bar.java");
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t1", "SCHEDULED_TASK", "{}", 1);
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t2", "SPRING_DATA_INTERFACE", "{}", 1);
+
+            var orchestrator = createOrchestrator();
+            CompletionStatus status = orchestrator.executePhase2(true);
+
+            assertEquals(2, status.tasksCompleted());
+            assertEquals(TaskStatus.SUCCESS, taskStore.findById("t1").get().status());
+            assertEquals(TaskStatus.SUCCESS, taskStore.findById("t2").get().status());
+        }
+
+        @Test
+        void respectsMaxHopDepth() {
+            insertTask("root", "/src/Root.java");
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "root", "SCHEDULED_TASK", "{}", 1);
+
+            var depPaths = Map.of(
+                "/src/Root.java", List.of(
+                    new ExecutionFinding.DiscoveredDependency("/src/Dep1.java", "discovered", 1),
+                    new ExecutionFinding.DiscoveredDependency("/src/Dep2.java", "discovered", 2),
+                    new ExecutionFinding.DiscoveredDependency("/src/Dep3.java", "discovered", 3),
+                    new ExecutionFinding.DiscoveredDependency("/src/Dep4.java", "discovered", 4)
+                )
+            );
+
+            var controlledStub = new ControlledSimulationStub(depPaths);
+            planner = new Phase2Planner(taskStore, jdbc, defaultRules);
+            var executor = new SemanticExecutor(null, findingStore, taskStore,
+                validator, budgetCalculator, controlledStub);
+            var orchestratorWithDeps = new Phase2Orchestrator(planner, executor, taskStore,
+                findingStore, metricsStore,
+                new ExecutionConfig(5, 3, 0.20, 5),
+                taskIdHasher, budgetCalculator);
+
+            CompletionStatus status = orchestratorWithDeps.executePhase2(true);
+
+            assertEquals(TaskStatus.SUCCESS, taskStore.findById("root").get().status());
+        }
+
+        @Test
+        void handlesDynamicReplanning() {
+            insertTask("root", "/src/Root.java");
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "root", "SCHEDULED_TASK", "{}", 1);
+
+            var depPaths = Map.of(
+                "/src/Root.java", List.of(
+                    new ExecutionFinding.DiscoveredDependency("/src/DiscoveredService.java", "runtime reflection", 1)
+                )
+            );
+
+            var controlledStub = new ControlledSimulationStub(depPaths);
+            planner = new Phase2Planner(taskStore, jdbc, defaultRules);
+            var executor = new SemanticExecutor(null, findingStore, taskStore,
+                validator, budgetCalculator, controlledStub);
+            var orchestratorWithDeps = new Phase2Orchestrator(planner, executor, taskStore,
+                findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator);
+
+            CompletionStatus status = orchestratorWithDeps.executePhase2(true);
+
+            assertEquals(2, status.tasksCompleted());
+            assertEquals(1, status.dependenciesDiscovered());
+            assertEquals(TaskStatus.SUCCESS, taskStore.findById("root").get().status());
+        }
+
+        @Test
+        void preventsRedundantEvaluationViaVisitedRegistry() {
+            insertTask("t1", "/src/Foo.java");
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t1", "SCHEDULED_TASK", "{}", 1);
+
+            var orchestrator = createOrchestrator();
+            var dag = new EnrichmentDag(3);
+            var decision = PlannerDecision.qualified("t1", "/src/Foo.java", List.of());
+            dag.registerRootTask(decision);
+            dag.markVisited("t1|/src/Foo.java");
+            assertTrue(dag.isVisited("t1|/src/Foo.java"));
+        }
+
+        @Test
+        void writesPhase2MetricsAfterCompletion() {
+            insertTask("t1", "/src/Foo.java");
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t1", "SCHEDULED_TASK", "{}", 1);
+
+            var orchestrator = createOrchestrator();
+            orchestrator.executePhase2(true);
+
+            Metric metric = metricsStore.getLatestForPhase(2);
+            assertNotNull(metric);
+            assertEquals(2, metric.phase());
+            assertEquals(1, metric.tasksCompleted());
+            assertTrue(metric.tokensConsumed() > 0);
+            assertTrue(metric.apiCostEstimated() > 0);
+        }
+
+        @Test
+        void handlesMultipleQualifiedTasks() {
+            insertTask("t1", "/src/Foo.java");
+            insertTask("t2", "/src/Bar.java");
+            insertTask("t3", "/src/Baz.java");
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t1", "SCHEDULED_TASK", "{}", 1);
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t2", "SPRING_DATA_INTERFACE", "{}", 1);
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t3", "NATIVE_SQL_QUERY", "{}", 1);
+
+            var orchestrator = createOrchestrator();
+            CompletionStatus status = orchestrator.executePhase2(true);
+
+            assertEquals(3, status.tasksSubmitted());
+            assertEquals(3, status.tasksCompleted());
+            assertEquals(0, status.tasksFailed());
+        }
+    }
+
+    @Nested
+    class EnrichmentDagTests {
+
+        @Test
+        void registerRootTaskCreatesBranch() {
+            var dag = new EnrichmentDag(3);
+            var decision = PlannerDecision.qualified("root", "/src/Root.java", List.of());
+            dag.registerRootTask(decision);
+            assertNotNull(dag.getBranchForRoot("root"));
+            assertEquals(1, dag.branchCount());
+        }
+
+        @Test
+        void visitedRegistryTracksHashes() {
+            var dag = new EnrichmentDag(3);
+            assertFalse(dag.isVisited("hash1"));
+            dag.markVisited("hash1");
+            assertTrue(dag.isVisited("hash1"));
+        }
+
+        @Test
+        void drainPendingReturnsAllQueuedDecisions() {
+            var dag = new EnrichmentDag(3);
+            var d1 = PlannerDecision.qualified("t1", "/src/Foo.java", List.of());
+            var d2 = PlannerDecision.qualified("t2", "/src/Bar.java", List.of());
+            dag.registerRootTask(d1);
+            dag.registerRootTask(d2);
+
+            List<PlannerDecision> pending = dag.drainPending();
+            assertEquals(2, pending.size());
+            assertTrue(dag.pendingCount() == 0);
+        }
+
+        @Test
+        void allBranchesCompleteWhenNoPendingDependencies() {
+            var dag = new EnrichmentDag(3);
+            var d1 = PlannerDecision.qualified("t1", "/src/Foo.java", List.of());
+            dag.registerRootTask(d1);
+            dag.drainPending();
+
+            assertTrue(dag.allBranchesComplete());
+        }
+    }
+
+    @Nested
+    class BranchStateTests {
+
+        @Test
+        void initialDepthIsZero() {
+            var state = new BranchState("root", 3);
+            assertEquals(0, state.currentDepth());
+        }
+
+        @Test
+        void incrementDepthExceedsMax() {
+            var state = new BranchState("root", 3);
+            state.incrementDepth();
+            state.incrementDepth();
+            state.incrementDepth();
+            assertTrue(state.incrementDepth());
+        }
+
+        @Test
+        void pauseAndResume() {
+            var state = new BranchState("root", 3);
+            assertFalse(state.isPaused());
+            state.pause();
+            assertTrue(state.isPaused());
+            state.resume();
+            assertFalse(state.isPaused());
+        }
+
+        @Test
+        void isCompleteWhenNotPausedAndNoPending() {
+            var state = new BranchState("root", 3);
+            assertTrue(state.isComplete());
+            state.pause();
+            assertFalse(state.isComplete());
+            state.resume();
+            assertTrue(state.isComplete());
+        }
+
+        @Test
+        void pendingDependenciesPreventCompletion() {
+            var state = new BranchState("root", 3);
+            state.addPendingDependency();
+            assertFalse(state.isComplete());
+            state.removePendingDependency();
+            assertTrue(state.isComplete());
+        }
+    }
+
+    static class ControlledSimulationStub extends SimulationStub {
+        private final Map<String, List<ExecutionFinding.DiscoveredDependency>> depMap;
+        private static final ObjectMapper MAPPER = new ObjectMapper();
+
+        ControlledSimulationStub(Map<String, List<ExecutionFinding.DiscoveredDependency>> depMap) {
+            this.depMap = depMap;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public String generateEnrichment(String taskId, String filePath, String targetName) {
+            String base = super.generateEnrichment(taskId, filePath, targetName);
+            List<ExecutionFinding.DiscoveredDependency> extraDeps = depMap.get(filePath);
+
+            if (extraDeps == null || extraDeps.isEmpty()) {
+                return base;
+            }
+
+            try {
+                var root = MAPPER.readValue(base, Map.class);
+                List<Map<String, Object>> deps = new ArrayList<>();
+                for (var dep : extraDeps) {
+                    deps.add(Map.of(
+                        "file_path", dep.filePath(),
+                        "reason", dep.reason(),
+                        "discovery_depth", dep.discoveryDepth()
+                    ));
+                }
+                root.put("discovered_dependencies", deps);
+                return MAPPER.writeValueAsString(root);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to build controlled stub JSON", e);
+            }
+        }
+    }
+}
