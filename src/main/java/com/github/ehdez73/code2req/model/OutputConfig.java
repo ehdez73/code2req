@@ -1,13 +1,11 @@
 package com.github.ehdez73.code2req.model;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 
+@ConfigurationProperties(prefix = "code2req.output")
 public record OutputConfig(
-    @JsonProperty("spec-dir") String specDir,
-    @JsonProperty("index-file") String indexFile,
-    @JsonProperty("db-path") String dbPath
+    String specDir,
+    String indexFile,
+    String dbPath
 ) {
-    public static OutputConfig defaultConfig() {
-        return new OutputConfig("spec-output", "code-graph-index.json", ".code2req_cache.db");
-    }
 }

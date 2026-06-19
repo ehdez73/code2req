@@ -1,2 +1,0 @@
-org.springframework.boot.env.EnvironmentPostProcessor=\
-com.github.ehdez73.code2req.config.ManifestDbPathEnvironmentPostProcessor

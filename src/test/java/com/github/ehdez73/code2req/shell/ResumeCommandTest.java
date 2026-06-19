@@ -19,6 +19,7 @@ import com.github.ehdez73.code2req.config.ExcludeFilter;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
 import com.github.ehdez73.code2req.config.SecretRedactor;
+import com.github.ehdez73.code2req.model.OutputConfig;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.output.IndexWriter;
@@ -95,7 +96,7 @@ class ResumeCommandTest {
         );
         astAnalyzer = new JavaAstAnalyzer(visitors);
 
-        indexWriter = new IndexWriter();
+        indexWriter = new IndexWriter(new OutputConfig(tempDir.toString(), "code-graph-index.json", null));
         orphanRecovery = new OrphanRecovery(taskStore);
 
         var pass1Collector = new Pass1DeclarationCollector();
@@ -135,11 +136,7 @@ class ResumeCommandTest {
             targets:
               - name: test-app
                 path: %s
-            output:
-              spec-dir: %s
-              index-file: resume-index.json
-            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\"),
-                           tempDir.resolve("out").toString().replace("\\", "\\\\")));
+            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\")));
 
         String result = command.resume(manifest.toString());
 
@@ -169,11 +166,7 @@ class ResumeCommandTest {
             targets:
               - name: test-app
                 path: %s
-            output:
-              spec-dir: %s
-              index-file: all-done.json
-            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\"),
-                           tempDir.resolve("out2").toString().replace("\\", "\\\\")));
+            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\")));
 
         String result = command.resume(manifest.toString());
 
@@ -198,11 +191,7 @@ class ResumeCommandTest {
             targets:
               - name: test-app
                 path: %s
-            output:
-              spec-dir: %s
-              index-file: orphan-recovery.json
-            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\"),
-                           tempDir.resolve("out3").toString().replace("\\", "\\\\")));
+            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\")));
 
         String result = command.resume(manifest.toString());
 
@@ -226,11 +215,7 @@ class ResumeCommandTest {
             targets:
               - name: test-app
                 path: %s
-            output:
-              spec-dir: %s
-              index-file: fresh-index.json
-            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\"),
-                           tempDir.resolve("out4").toString().replace("\\", "\\\\")));
+            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\")));
 
         String result = command.resume(manifest.toString());
 

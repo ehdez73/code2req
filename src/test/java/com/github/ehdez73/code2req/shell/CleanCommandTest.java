@@ -1,6 +1,6 @@
 package com.github.ehdez73.code2req.shell;
 
-import com.github.ehdez73.code2req.config.ManifestLoader;
+import com.github.ehdez73.code2req.model.OutputConfig;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
@@ -31,6 +31,9 @@ class CleanCommandTest {
 
     @BeforeEach
     void setUp() throws IOException {
+        specDir = tempDir.resolve("spec-output");
+        indexPath = specDir.resolve("code-graph-index.json");
+
         var dbPath = tempDir.resolve("clean-test.db");
         var ds = new org.sqlite.SQLiteDataSource();
         ds.setUrl("jdbc:sqlite:" + dbPath.toAbsolutePath());
@@ -42,11 +45,8 @@ class CleanCommandTest {
         var topicLinkStore = new TopicLinkStore(jdbc);
         var floatingLinkStore = new FloatingLinkStore(jdbc);
         var metricsStore = new MetricsStore(jdbc);
-        var manifestLoader = new ManifestLoader();
-        command = new CleanCommand(taskStore, executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore, manifestLoader);
-
-        specDir = tempDir.resolve("spec-output");
-        indexPath = specDir.resolve("code-graph-index.json");
+        command = new CleanCommand(taskStore, executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore,
+            new OutputConfig(specDir.toString(), "code-graph-index.json", null));
     }
 
     @Test
@@ -78,7 +78,6 @@ class CleanCommandTest {
         Files.createDirectories(specDir);
         Files.writeString(indexPath, "{\"test\": true}");
 
-        String specDirStr = specDir.toAbsolutePath().toString().replace("\\", "/");
         Path manifestFile = tempDir.resolve("custom-manifest.yaml");
         String manifestYaml = String.format("""
             targets:
@@ -88,13 +87,7 @@ class CleanCommandTest {
                 tech_profile: java-spring-legacy
                 entry_points: []
                 exclude_patterns: []
-
-            output:
-              spec-dir: %s
-              index-file: code-graph-index.json
-              db-path: .test.db
-            """, tempDir.toAbsolutePath().toString().replace("\\", "/"), specDirStr);
-
+            """, tempDir.toAbsolutePath().toString().replace("\\", "/"));
         Files.writeString(manifestFile, manifestYaml);
 
         assertEquals(1, taskStore.count());

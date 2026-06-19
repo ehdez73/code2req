@@ -1,7 +1,6 @@
 package com.github.ehdez73.code2req.orchestrator;
 
 import com.github.ehdez73.code2req.executor.ContextBudgetCalculator;
-import com.github.ehdez73.code2req.executor.ExecutionFindingValidator;
 import com.github.ehdez73.code2req.executor.SemanticExecutor;
 import com.github.ehdez73.code2req.executor.SimulationStub;
 import com.github.ehdez73.code2req.model.ExecutionConfig;
@@ -58,7 +57,6 @@ class Phase2OrchestratorTest {
     private ExecutionConfig executionConfig;
     private TaskIdHasher taskIdHasher;
     private ContextBudgetCalculator budgetCalculator;
-    private ExecutionFindingValidator validator;
     private SimulationStub simulationStub;
     private List<QualificationRule> defaultRules;
 
@@ -77,9 +75,8 @@ class Phase2OrchestratorTest {
         floatingLinkStore = new FloatingLinkStore(jdbc);
         taskIdHasher = new TaskIdHasher();
         budgetCalculator = new ContextBudgetCalculator();
-        validator = new ExecutionFindingValidator();
         simulationStub = new SimulationStub();
-        executionConfig = ExecutionConfig.defaultConfig();
+        executionConfig = new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7);
 
         defaultRules = List.of(
             new SpringDataInterfaceRule(),
@@ -97,7 +94,7 @@ class Phase2OrchestratorTest {
     private Phase2Orchestrator createOrchestrator() {
         planner = new Phase2Planner(taskStore, jdbc, defaultRules);
         var executor = new SemanticExecutor(null, findingStore, taskStore,
-            validator, budgetCalculator, simulationStub);
+            budgetCalculator, simulationStub);
         return new Phase2Orchestrator(planner, executor, taskStore, findingStore,
             metricsStore, executionConfig, taskIdHasher, budgetCalculator);
     }
@@ -169,10 +166,10 @@ class Phase2OrchestratorTest {
             var controlledStub = new ControlledSimulationStub(depPaths);
             planner = new Phase2Planner(taskStore, jdbc, defaultRules);
             var executor = new SemanticExecutor(null, findingStore, taskStore,
-                validator, budgetCalculator, controlledStub);
+                budgetCalculator, controlledStub);
             var orchestratorWithDeps = new Phase2Orchestrator(planner, executor, taskStore,
                 findingStore, metricsStore,
-                new ExecutionConfig(5, 3, 0.20, 5),
+                new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7),
                 taskIdHasher, budgetCalculator);
 
             CompletionStatus status = orchestratorWithDeps.executePhase2(true);
@@ -195,7 +192,7 @@ class Phase2OrchestratorTest {
             var controlledStub = new ControlledSimulationStub(depPaths);
             planner = new Phase2Planner(taskStore, jdbc, defaultRules);
             var executor = new SemanticExecutor(null, findingStore, taskStore,
-                validator, budgetCalculator, controlledStub);
+                budgetCalculator, controlledStub);
             var orchestratorWithDeps = new Phase2Orchestrator(planner, executor, taskStore,
                 findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator);
 

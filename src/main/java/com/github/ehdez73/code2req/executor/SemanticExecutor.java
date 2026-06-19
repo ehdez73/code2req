@@ -1,6 +1,5 @@
 package com.github.ehdez73.code2req.executor;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.ehdez73.code2req.model.ExecutionFinding;
 import com.github.ehdez73.code2req.model.PlannerDecision;
@@ -12,6 +11,10 @@ import com.github.ehdez73.code2req.store.TaskStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -27,21 +30,20 @@ public class SemanticExecutor {
     private final ChatClient chatClient;
     private final ExecutionFindingStore findingStore;
     private final TaskStore taskStore;
-    private final ExecutionFindingValidator validator;
     private final ContextBudgetCalculator budgetCalculator;
     private final SimulationStub simulationStub;
 
     public SemanticExecutor(ObjectProvider<ChatClient.Builder> chatClientBuilderProvider,
                             ExecutionFindingStore findingStore,
                             TaskStore taskStore,
-                            ExecutionFindingValidator validator,
                             ContextBudgetCalculator budgetCalculator,
                             SimulationStub simulationStub) {
         ChatClient.Builder builder = chatClientBuilderProvider != null ? chatClientBuilderProvider.getIfAvailable() : null;
-        this.chatClient = builder != null ? builder.build() : null;
+        this.chatClient = builder != null
+            ? builder.defaultAdvisors(new SimpleLoggerAdvisor()).build()
+            : null;
         this.findingStore = findingStore;
         this.taskStore = taskStore;
-        this.validator = validator;
         this.budgetCalculator = budgetCalculator;
         this.simulationStub = simulationStub;
     }
@@ -51,32 +53,19 @@ public class SemanticExecutor {
                                                        String sourceContent, String testContent,
                                                        String structuralContextJson, boolean dryRun) {
         try {
+            ExecutionFinding finding;
             String resultJson;
+
             if (dryRun) {
                 resultJson = simulationStub.generateEnrichment(task.taskId(), task.filePath(), task.contentType());
+                finding = MAPPER.readValue(resultJson, ExecutionFinding.class);
             } else {
                 if (chatClient == null) {
                     throw new IllegalStateException(
                         "ChatClient not available: configure spring.ai.openai.* properties or use --dry-run");
                 }
-                resultJson = callLlm(task, sourceContent, testContent, structuralContextJson);
-            }
-
-            var validationErrors = validator.validate(resultJson);
-            if (!validationErrors.isEmpty()) {
-                log.warn("Schema validation failed for task {}: {}", task.taskId(), validationErrors);
-                taskStore.updateStatus(task.taskId(), TaskStatus.FAILED);
-                return CompletableFuture.failedFuture(
-                    new IllegalArgumentException("Output failed §4 schema validation: " + validationErrors));
-            }
-
-            ExecutionFinding finding;
-            try {
-                finding = MAPPER.readValue(resultJson, ExecutionFinding.class);
-            } catch (JsonProcessingException e) {
-                log.error("Failed to parse enriched JSON for task {}: {}", task.taskId(), e.getMessage());
-                taskStore.updateStatus(task.taskId(), TaskStatus.FAILED);
-                return CompletableFuture.failedFuture(e);
+                finding = callLlm(task, sourceContent, testContent, structuralContextJson);
+                resultJson = MAPPER.writeValueAsString(finding);
             }
 
             findingStore.save(task.taskId(), FindingType.SEMANTIC_ENRICHMENT, resultJson, true);
@@ -96,7 +85,7 @@ public class SemanticExecutor {
         }
     }
 
-    private String callLlm(Task task, String sourceContent, String testContent, String structuralContextJson) {
+    private ExecutionFinding callLlm(Task task, String sourceContent, String testContent, String structuralContextJson) {
         String systemPrompt = buildSystemPrompt();
         String userPrompt = buildUserPrompt(task, sourceContent, testContent, structuralContextJson);
 
@@ -106,6 +95,14 @@ public class SemanticExecutor {
             log.info("Context budget exceeded 80% for task {}, triggering pre-summarization", task.taskId());
             userPrompt = summarizeContext(userPrompt);
         }
+
+        var outputConverter = new BeanOutputConverter<>(ExecutionFinding.class);
+        var options = OpenAiChatOptions.builder()
+            .responseFormat(ResponseFormat.builder()
+                .type(ResponseFormat.Type.JSON_SCHEMA)
+                .jsonSchema(outputConverter.getJsonSchema())
+                .build())
+            .build();
 
         int maxRetries = 3;
         long delayMs = 2000;
@@ -117,13 +114,15 @@ public class SemanticExecutor {
                 String response = chatClient.prompt()
                     .system(systemPrompt)
                     .user(userPrompt)
+                    .options(options)
                     .call()
                     .content();
 
+                //   log.debug(response);
                 if (response == null || response.isBlank()) {
                     throw new RuntimeException("LLM returned empty response");
                 }
-                return response;
+                return outputConverter.convert(response);
 
             } catch (Exception e) {
                 boolean isRateLimit = e.getMessage() != null && e.getMessage().contains("429");
@@ -150,13 +149,39 @@ public class SemanticExecutor {
             You are a code analyst specializing in extracting business semantics from source code.
             The structural dependencies (call graph, database access, endpoint mappings, event links)
             have ALREADY been resolved. Do NOT attempt to resolve structural dependencies.
-            Focus exclusively on:
-            1. Business purpose of each method (1-2 sentences)
-            2. Implicit validation rules not captured by annotations
-            3. Inferred SQL for Spring Data derived query methods
-            4. Business logic interpretation of stored procedures
-            5. Edge cases extracted from test file assertions
-            Output must conform to the ExecutionFinding JSON Schema exactly.
+
+            Populate each section of the output JSON as follows:
+
+            metadata
+              Copy task_id, target_name, file_path, module_tag and tech_profile from the task context.
+              Set timestamp to the current date/time.
+
+            business_abstraction.purpose
+              1-2 sentence high-level summary of this file's business responsibility.
+
+            business_abstraction.happy_paths[]
+              High-level describe each normal (success) execution flow the code supports.
+
+            business_rules_and_guardrails.validations[]
+              List input constraints and business rejection rules found in the code.
+              For each: field_or_context = the validated input/context; rule = the constraint;
+              error_behavior = what happens on failure.
+
+            business_rules_and_guardrails.edge_cases[]
+              Boundary conditions and error states the code handles explicitly.
+
+            test_insights[]
+              If a test file is provided, extract: scenario_verified (what the test checks)
+              and hidden_rule_uncovered (assertions that reveal non-obvious rules).
+
+            architectural_connections
+              List HTTP endpoints, event subscriptions, scheduled triggers (inbound) and
+              HTTP calls, event publications (outbound) found in the code.
+              Use empty arrays/objects if none exist — do not omit the section.
+
+            discovered_dependencies[]
+              List any references to files not already in the indexed call graph.
+              Use an empty array if no new dependencies are found.
             """.stripIndent();
     }
 

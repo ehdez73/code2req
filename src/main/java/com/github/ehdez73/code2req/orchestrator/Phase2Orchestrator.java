@@ -74,8 +74,7 @@ public class Phase2Orchestrator {
 
         log.info("Phase 2 orchestrator starting with {} qualified tasks", qualified.size());
 
-        int maxDepth = executionConfig.maxDiscoveryDepth() != null
-            ? executionConfig.maxDiscoveryDepth() : 3;
+        int maxDepth = executionConfig.maxDiscoveryDepth();
         EnrichmentDag dag = new EnrichmentDag(maxDepth);
         for (PlannerDecision d : qualified) {
             dag.registerRootTask(d);

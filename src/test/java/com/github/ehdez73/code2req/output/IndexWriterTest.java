@@ -16,7 +16,6 @@ import com.github.ehdez73.code2req.analyzer.event.broker.kafka.KafkaInfo;
 import com.github.ehdez73.code2req.analyzer.event.broker.rabbitmq.RabbitMqInfo;
 import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskInfo;
 import com.github.ehdez73.code2req.analyzer.validator.ValidatorInfo;
-import com.github.ehdez73.code2req.model.OutputConfig;
 import com.github.ehdez73.code2req.model.ProjectManifest;
 import com.github.ehdez73.code2req.model.ScanTarget;
 import org.junit.jupiter.api.Test;
@@ -31,7 +30,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class IndexWriterTest {
 
-    private final IndexWriter writer = new IndexWriter();
+    private IndexWriter writer(String indexFile) {
+        return new IndexWriter(new com.github.ehdez73.code2req.model.OutputConfig(tempDir.toString(), indexFile, null));
+    }
     private final ObjectMapper mapper = new ObjectMapper();
 
     @TempDir
@@ -41,10 +42,10 @@ class IndexWriterTest {
     void writesEmptyIndex() throws IOException {
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
         ScanTarget target = new ScanTarget("test-app", targetDir.toString(), "backend", "java-spring", List.of(), List.of());
-        ProjectManifest manifest = new ProjectManifest(List.of(target), null, new OutputConfig(tempDir.toString(), "index.json", null));
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
         List<AnalysisResult> results = List.of();
 
-        Path outputPath = writer.write(manifest, results);
+        Path outputPath = writer("index.json").write(manifest, results);
 
         assertTrue(Files.exists(outputPath));
         assertEquals("index.json", outputPath.getFileName().toString());
@@ -62,7 +63,7 @@ class IndexWriterTest {
         Path targetDir = Files.createDirectory(tempDir.resolve("proj"));
         String filePath = targetDir.resolve("App.java").toString();
         ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java-spring", List.of(), List.of());
-        ProjectManifest manifest = new ProjectManifest(List.of(target), null, new OutputConfig(tempDir.toString(), "out.json", null));
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         List<AnalysisFinding> findings = List.of(
             new ComponentInfo("RestController", "UserController", "com.app", filePath),
@@ -79,7 +80,7 @@ class IndexWriterTest {
         );
         AnalysisResult result = new AnalysisResult(filePath, findings);
 
-        Path outputPath = writer.write(manifest, List.of(result));
+        Path outputPath = writer("out.json").write(manifest, List.of(result));
         JsonNode root = mapper.readTree(outputPath.toFile());
         JsonNode targetNode = root.get("targets").get(0);
 
@@ -120,10 +121,10 @@ class IndexWriterTest {
         Path customDir = Files.createDirectory(tempDir.resolve("custom-out"));
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
         ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
-        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
-            new OutputConfig(customDir.toString(), "my-index.json", null));
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
 
-        Path outputPath = writer.write(manifest, List.of());
+        var iw = new IndexWriter(new com.github.ehdez73.code2req.model.OutputConfig(customDir.toString(), "my-index.json", null));
+        Path outputPath = iw.write(manifest, List.of());
 
         assertEquals("my-index.json", outputPath.getFileName().toString());
         assertEquals(customDir, outputPath.getParent());
@@ -139,8 +140,7 @@ class IndexWriterTest {
 
         ScanTarget target1 = new ScanTarget("mod-a", target1Dir.toString(), "backend", "java", List.of(), List.of());
         ScanTarget target2 = new ScanTarget("mod-b", target2Dir.toString(), "backend", "java", List.of(), List.of());
-        ProjectManifest manifest = new ProjectManifest(List.of(target1, target2), null,
-            new OutputConfig(tempDir.toString(), "multi.json", null));
+        ProjectManifest manifest = new ProjectManifest(List.of(target1, target2));
 
         AnalysisResult result1 = new AnalysisResult(file1, List.of(
             new ComponentInfo("Service", "AService", "com.a", file1)
@@ -149,7 +149,7 @@ class IndexWriterTest {
             new ComponentInfo("Service", "BService", "com.b", file2)
         ));
 
-        Path outputPath = writer.write(manifest, List.of(result1, result2));
+        Path outputPath = writer("multi.json").write(manifest, List.of(result1, result2));
         JsonNode root = mapper.readTree(outputPath.toFile());
         JsonNode targets = root.get("targets");
 
@@ -171,8 +171,7 @@ class IndexWriterTest {
         String outsideFile = outsideDir.resolve("Other.java").toString();
 
         ScanTarget target = new ScanTarget("mod-a", targetDir.toString(), "backend", "java", List.of(), List.of());
-        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
-            new OutputConfig(tempDir.toString(), "filtered.json", null));
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         AnalysisResult insideResult = new AnalysisResult(insideFile, List.of(
             new ComponentInfo("Service", "AService", "com.a", insideFile)
@@ -181,7 +180,7 @@ class IndexWriterTest {
             new ComponentInfo("Service", "OtherService", "com.other", outsideFile)
         ));
 
-        Path outputPath = writer.write(manifest, List.of(insideResult, outsideResult));
+        Path outputPath = writer("filtered.json").write(manifest, List.of(insideResult, outsideResult));
         JsonNode root = mapper.readTree(outputPath.toFile());
         assertEquals(1, root.get("targets").get(0).get("components").size());
         assertEquals("AService", root.get("targets").get(0).get("components").get(0).get("className").asText());
@@ -192,8 +191,7 @@ class IndexWriterTest {
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
         String filePath = targetDir.resolve("App.java").toString();
         ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
-        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
-            new OutputConfig(tempDir.toString(), "linked.json", null));
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         AnalysisResult result = new AnalysisResult(filePath, List.of(
             new ComponentInfo("Service", "MyService", "com.app", filePath)
@@ -204,7 +202,7 @@ class IndexWriterTest {
             TopicLink.orphanProducer("RABBITMQ", "unmatched.q", "OrphanPub", "/app/OrphanPub.java")
         );
 
-        Path outputPath = writer.write(manifest, List.of(result), topicLinks);
+        Path outputPath = writer("linked.json").write(manifest, List.of(result), topicLinks);
         JsonNode root = mapper.readTree(outputPath.toFile());
 
         assertTrue(root.has("topic_links"), "Root should have topic_links array");
@@ -219,10 +217,9 @@ class IndexWriterTest {
     void topicLinksOmittedWhenEmpty() throws IOException {
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
         ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
-        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
-            new OutputConfig(tempDir.toString(), "no-links.json", null));
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
 
-        Path outputPath = writer.write(manifest, List.of(), List.of());
+        Path outputPath = writer("no-links.json").write(manifest, List.of(), List.of());
         JsonNode root = mapper.readTree(outputPath.toFile());
 
         assertFalse(root.has("topic_links"), "Root should not have topic_links when empty");
@@ -235,10 +232,10 @@ class IndexWriterTest {
         readOnlyDir.toFile().setWritable(false);
 
         ScanTarget target = new ScanTarget("app", tempDir.resolve("src").toString(), "backend", "java", List.of(), List.of());
-        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
-            new OutputConfig(readOnlyDir.toString(), "index.json", null));
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
 
-        IOException exception = assertThrows(IOException.class, () -> writer.write(manifest, List.of()));
+        var roWriter = new IndexWriter(new com.github.ehdez73.code2req.model.OutputConfig(readOnlyDir.toString(), "index.json", null));
+        IOException exception = assertThrows(IOException.class, () -> roWriter.write(manifest, List.of()));
         assertTrue(exception.getMessage().toLowerCase().contains("writ"));
     }
 
@@ -247,14 +244,13 @@ class IndexWriterTest {
         Path targetDir = Files.createDirectory(tempDir.resolve("proj"));
         String filePath = targetDir.resolve("App.java").toString();
         ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
-        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
-            new OutputConfig(tempDir.toString(), "sparse.json", null));
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         AnalysisResult result = new AnalysisResult(filePath, List.of(
             new ComponentInfo("Service", "MyService", "com.app", filePath)
         ));
 
-        Path outputPath = writer.write(manifest, List.of(result));
+        Path outputPath = writer("sparse.json").write(manifest, List.of(result));
         JsonNode root = mapper.readTree(outputPath.toFile());
         JsonNode targetNode = root.get("targets").get(0);
 
@@ -274,15 +270,14 @@ class IndexWriterTest {
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
         String filePath = targetDir.resolve("OrderController.java").toString();
         ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
-        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
-            new OutputConfig(tempDir.toString(), "cg.json", null));
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         AnalysisResult result = new AnalysisResult(filePath, List.of(
             CallGraphEdge.resolved("OrderController", "create", filePath,
                 "OrderService", "createOrder", "/app/OrderService.java", 1)
         ));
 
-        Path outputPath = writer.write(manifest, List.of(result));
+        Path outputPath = writer("cg.json").write(manifest, List.of(result));
         JsonNode root = mapper.readTree(outputPath.toFile());
         JsonNode targetNode = root.get("targets").get(0);
 
@@ -298,14 +293,13 @@ class IndexWriterTest {
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
         String filePath = targetDir.resolve("App.java").toString();
         ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
-        ProjectManifest manifest = new ProjectManifest(List.of(target), null,
-            new OutputConfig(tempDir.toString(), "no-cg.json", null));
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         AnalysisResult result = new AnalysisResult(filePath, List.of(
             new ComponentInfo("Service", "MyService", "com.app", filePath)
         ));
 
-        Path outputPath = writer.write(manifest, List.of(result));
+        Path outputPath = writer("no-cg.json").write(manifest, List.of(result));
         JsonNode root = mapper.readTree(outputPath.toFile());
         JsonNode targetNode = root.get("targets").get(0);
 

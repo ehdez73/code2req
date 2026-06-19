@@ -439,7 +439,7 @@ Phase 3 takes the complete set of enriched `ExecutionFinding` records (produced 
 
 4. **Dynamic Re-Planning (GOAP):** After each action, the Embabel planner reassesses goal completion. If ambiguity remains, it replans the next action sequence — this is an OODA loop, not a fixed pipeline. The planner uses a non-LLM GOAP algorithm for planning; LLM calls are reserved for individual actions that require semantic analysis.
 
-5. **Guardrails (configurable via manifest):**
+5. **Guardrails (configurable via `application.properties`):**
    - `max-investigation-steps-per-flow` (default: 5) — Caps the number of investigation actions per functional flow. Prevents runaway exploration on deeply ambiguous code.
    - `max-tokens-per-run` (default: 500000) — Hard token budget for Phase 3 LLM calls.
    - `ambiguity-confidence-threshold` (default: 0.7) — Below this threshold, the flow is marked `AWAITING_HUMAN_REVIEW` instead of continuing investigation.
@@ -484,12 +484,6 @@ targets:
     exclude_patterns:
       - "**/generated/**"
       - "**/*Pb.java"
-
-execution:
-  max-concurrent-llm-calls: 5
-  max-discovery-depth: 3
-  semantic-validation-sample-rate: 0.20
-
 ```
 
 ### 3.2 Full-Stack Flow Stitching (Floating Links)

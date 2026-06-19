@@ -19,7 +19,7 @@
 - Spring AI OpenAI dependency in pom.xml (used as OpenAI-compatible client for OpenRouter)
 - Spring AOP + `@Async` pool configured in `application.properties`
 - Spring Shell CLI infrastructure (`scan`, `resume`, `validate`, `status`, `clean`)
-- `ProjectManifest` with `ExecutionConfig` (max-concurrent-llm-calls, max-discovery-depth, semantic-validation-sample-rate)
+- `ExecutionConfig` (`@ConfigurationProperties` bound from `application.properties` — max-concurrent-llm-calls, max-discovery-depth, semantic-validation-sample-rate, etc.)
 
 ## Key Decisions
 
@@ -33,7 +33,7 @@
 8. **`status` command** already exists — extend to show Phase 2 counters (tokens consumed, estimated cost, per-task enrichment status) and Phase 3 counters (flow extraction rate, ambiguity gaps).
 9. **Spring AI `ChatClient.Builder`** is auto-configured via `spring-ai-openai` when OpenAI-compatible credentials are present — no manual bean creation needed. The OpenAI client is configured to point at OpenRouter (`spring.ai.openai.base-url=https://openrouter.ai/api/v1`).
 10. **OpenRouter** is the sole LLM provider for Phase 2. Configured via `OPENROUTER_API_KEY` env var; model selected via `OPENROUTER_MODEL` env var (default: `deepseek/deepseek-v4-flash:free`). `.env` file is loaded automatically via `spring.config.import=optional:file:.env`.
-11. **Phase 3 guardrails** (`max-investigation-steps-per-flow`, `max-tokens-per-run`, `ambiguity-confidence-threshold`) are added to `ExecutionConfig` and `project-manifest.yaml`.
+11. **Phase 3 guardrails** (`max-investigation-steps-per-flow`, `max-tokens-per-run`, `ambiguity-confidence-threshold`) are in `ExecutionConfig` (populated from `application.properties`, no longer in `project-manifest.yaml`).
 
 ---
 
@@ -134,10 +134,12 @@ Key behaviors:
 - **US046** (must): `plan` command displays qualified tasks grouped by target with qualification reasons — zero LLM calls, zero SQLite mutations
 - **US047** (must): `run` command orchestrates Phase 2 → Phase 3 with `--dry-run`, `--llm-threshold N` support; `status` shows Phase 2+3 counters
 - [x] Gherkin: `docs/sdlc/features/E003-F019-cli-run-command.feature`
-- [ ] Depends on: F016, F017, F018, E004 (Phase 3 output)
-- [ ] Classes: `PlanCommand`, `RunCommand`
-- [ ] Modified: `StatusCommand` (Phase 2+3 metrics columns)
-- [ ] Verify: `mvn test` — plan produces correct DAG, run with `--dry-run` completes without network calls
+- [x] Depends on: F016, F017, F018, E004 (Phase 3 output — **Phase3Orchestrator placeholder created**)
+- [x] Classes: `PlanCommand`, `RunCommand`
+- [x] Modified: `StatusCommand` (Phase 2+3 metrics columns)
+- [x] `ExecutionConfig` — moved to `@ConfigurationProperties` bound from `application.properties`
+- [x] New: `synthesis/Phase3Result.java`, `synthesis/Phase3Orchestrator.java` (E004 placeholder)
+- [x] Verify: `mvn test` — 420 tests pass (6 new PlanCommand tests, 5 new RunCommand tests, 4 new StatusCommand metrics tests)
 - [ ] Manual: `plan --manifest ...` then `run --dry-run --manifest ...` — verify end-to-end flow
 
 #### F020: Test Suite Mining (US048, PRD §3.4)
@@ -166,7 +168,7 @@ Uncomment and configure Embabel in pom.xml. Embabel provides the GOAP (Goal-Orie
 - **US049** (must): Embabel dependency uncommented in pom.xml, framework initializes at startup, AgentPlatform available for Phase 3
 - [x] Gherkin: `docs/sdlc/features/E004-F021-embabel-setup.feature`
 - [ ] Depends on: Phase 2 completion, Embabel repo availability
-- [ ] Modified: `pom.xml` (uncomment embabel-agent-starter), `application.properties` (Embabel config if needed), `model/ExecutionConfig.java` (add guardrail fields)
+- [ ] Modified: `pom.xml` (uncomment embabel-agent-starter), `application.properties` (Embabel config if needed)
 - [ ] Verify: `mvn compile` succeeds with Embabel on classpath
 - [ ] Manual: run with `--dry-run` — confirm Embabel initialises without error
 
@@ -258,8 +260,8 @@ Post-agent validation pass (pure Java, not part of the Embabel agent):
 | US043 | F017 | must | E003 — Executor |
 | US044 | F017 | should | E003 — Executor (dry-run) |
 | US045 ✓ | F018 | must | E003 — Orchestrator |
-| US046 | F019 | must | E003 — `plan` command |
-| US047 | F019 | must | E003 — `run` command |
+| US046 ✓ | F019 | must | E003 — `plan` command |
+| US047 ✓ | F019 | must | E003 — `run` command |
 | US048 | F020 | should | E003 — Test Suite Mining |
 | US049 | F021 | must | E004 — Embabel Agent Framework Setup |
 | US050 | F022 | must | E004 — CodebaseKnowledge + Orchestrator |
@@ -306,7 +308,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 |------|--------|
 | ✓ `Application.java` | Add `@EnableAsync` |
 | ✓ `config/AppConfig.java` | Add `@Bean("orchestratorTaskExecutor")` `ThreadPoolTaskExecutor` (core=5, max=10, queue=1000) |
-| ✓ `application.properties` | Add OpenRouter config (`spring.ai.openai.base-url`, `spring.ai.openai.api-key`, `spring.ai.openai.chat.options.model`, `spring.config.import=optional:file:.env`); rename thread prefix to `c2r-orchestrator-` |
+| ✓ `application.properties` | Add OpenRouter config (`spring.ai.openai.base-url`, `spring.ai.openai.api-key`, `spring.ai.openai.chat.options.model`, `spring.config.import=optional:file:.env`); rename thread prefix to `c2r-orchestrator-`; add `code2req.output.*` properties |
 | ✓ `model/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
 | ✓ `model/AnalysisFinding.java` | Add `default boolean isResolved() { return true; }` |
 | ✓ `analyzer/callgraph/CallGraphEdge.java` | Override `isResolved()` to return `STATUS_RESOLVED.equals(resolvedStatus)` |
@@ -315,10 +317,17 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `pipeline/ScanPipeline.java` | Add re-classification step after `persistFindings()` to create granular FindingType rows (now 5 mapping cases) |
 | ✓ `store/FloatingLinkStore.java` | Add `findSourceFilePathsByResolvedStatus(String)` query for planner |
 | ✓ `planner/Phase2Planner.java` | Refactored with Strategy Pattern — delegates to 9 `QualificationRule` components |
-| `shell/StatusCommand.java` | Add Phase 2 metrics (tokens, cost, enriched count) + Phase 3 metrics (flow extraction rate, ambiguity gaps) |
+| ✓ `shell/StatusCommand.java` | Add Phase 2 metrics (tokens, cost, enriched count) + Phase 3 metrics (flow extraction rate, ambiguity gaps) |
 | ✓ `pom.xml` | Add `spring-ai-client-chat`, `spring-ai-autoconfigure-model-chat-client` dependencies |
-| `model/ExecutionConfig.java` | Add `maxInvestigationStepsPerFlow`, `maxTokensPerRun`, `ambiguityConfidenceThreshold` (removed `llmQualificationRules`) |
-| `project-manifest.yaml` | Add `llm-unresolved-threshold` and guardrail fields under `execution:` (removed `llm-qualification-rules`) |
+| ✓ `model/ExecutionConfig.java` | Converted to `@ConfigurationProperties(prefix="code2req.execution")`; defaults in `application.properties`; removed `defaultConfig()`; removed from `ProjectManifest` |
+| ✓ `application.properties` | Add `code2req.execution.*` properties with all pipeline defaults |
+| `project-manifest.yaml` | Removed `execution:` block entirely — config now in `application.properties` |
+| ✓ `model/OutputConfig.java` | Converted to `@ConfigurationProperties(prefix="code2req.output")`; removed `defaultConfig()` and `@JsonProperty` |
+| ✓ `model/ProjectManifest.java` | Removed `output` field and `outputConfig()` method |
+| ✓ `output/IndexWriter.java` | `OutputConfig` injected via constructor instead of read from manifest |
+| ✓ `shell/CleanCommand.java` | `OutputConfig` injected via constructor; removed `resolveOutputConfig()` |
+| ✓ `config/AppConfig.java` | Added `OutputConfig.class` to `@EnableConfigurationProperties` |
+| ✓ `project-manifest.yaml` | Removed `output:` block — config now in `application.properties` |
 
 ### New files:
 | Package | Files |
@@ -335,7 +344,8 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | `synthesis/domain/` | `FunctionalFlow`, `BusinessRule`, `EndpointSpec`, `CodePattern`, `AmbiguityGap`, `FlowStep`, `TraceabilityEntry` |
 | `synthesis/output/` | `MarkdownSpecWriter`, `SemanticManifestWriter` |
 | `synthesis/audit/` | `Phase3QualityAudit`, `AuditSample`, `AuditReport` |
-| `shell/` | `PlanCommand`, `RunCommand` |
+| ✓ `shell/` | `PlanCommand`, `RunCommand` |
+| ✓ `synthesis/` | `Phase3Result`, `Phase3Orchestrator` (E004 placeholder) |
 
 ## Verification Guide
 

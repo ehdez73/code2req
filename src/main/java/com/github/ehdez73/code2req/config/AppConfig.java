@@ -1,12 +1,14 @@
 package com.github.ehdez73.code2req.config;
 
 import com.github.ehdez73.code2req.model.ExecutionConfig;
+import com.github.ehdez73.code2req.model.OutputConfig;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -14,12 +16,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.util.concurrent.Executor;
 
 @Configuration
+@EnableConfigurationProperties({ExecutionConfig.class, OutputConfig.class})
 public class AppConfig {
-
-    @Bean
-    public ExecutionConfig executionConfig() {
-        return ExecutionConfig.defaultConfig();
-    }
 
     @Bean("orchestratorTaskExecutor")
     public Executor orchestratorTaskExecutor() {

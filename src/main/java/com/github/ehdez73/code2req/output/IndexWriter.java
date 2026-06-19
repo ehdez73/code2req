@@ -73,9 +73,11 @@ public class IndexWriter {
     }
 
     private final ObjectMapper mapper;
+    private final OutputConfig outputConfig;
 
-    public IndexWriter() {
+    public IndexWriter(OutputConfig outputConfig) {
         this.mapper = new ObjectMapper();
+        this.outputConfig = outputConfig;
     }
 
     public Path write(ProjectManifest manifest, List<AnalysisResult> results) throws IOException {
@@ -101,7 +103,6 @@ public class IndexWriter {
                       List<TemplateFormInfo> templateForms,
                       List<TemplateLinkInfo> templateLinks,
                       List<FloatingLinkInfo> floatingLinks) throws IOException {
-        OutputConfig outputConfig = manifest.outputConfig();
         Path outputDir = Path.of(outputConfig.specDir());
         Files.createDirectories(outputDir);
 

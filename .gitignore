@@ -47,4 +47,11 @@ project-manifest.yaml
 code2req.log
 spring-shell.log
 
+# SQLite Database Files
+*.db
+*.db-shm
+*.db-wal
 
+# backup files
+*.bak
+*.bk

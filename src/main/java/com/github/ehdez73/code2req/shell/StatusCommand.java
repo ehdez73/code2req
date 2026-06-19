@@ -1,7 +1,9 @@
 package com.github.ehdez73.code2req.shell;
 
+import com.github.ehdez73.code2req.model.Metric;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
+import com.github.ehdez73.code2req.store.MetricsStore;
 import com.github.ehdez73.code2req.store.TaskStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,12 +19,14 @@ public class StatusCommand {
     private static final Logger log = LoggerFactory.getLogger(StatusCommand.class);
 
     private final TaskStore taskStore;
+    private final MetricsStore metricsStore;
 
-    public StatusCommand(TaskStore taskStore) {
+    public StatusCommand(TaskStore taskStore, MetricsStore metricsStore) {
         this.taskStore = taskStore;
+        this.metricsStore = metricsStore;
     }
 
-    @ShellMethod(key = "status", value = "Shows the task store summary with counts per status")
+    @ShellMethod(key = "status", value = "Shows the task store summary with counts per status and Phase 2+3 metrics")
     public String status(
             @ShellOption(value = "--status", defaultValue = ShellOption.NULL,
                          help = "Filter by status: PENDING, RUNNING, SUCCESS, FAILED") String statusFilter,
@@ -36,7 +40,7 @@ public class StatusCommand {
             try {
                 filter = TaskStatus.valueOf(statusFilter.toUpperCase());
             } catch (IllegalArgumentException e) {
-                return "Error: Invalid status '" + statusFilter + "'. Valid values: PENDING, RUNNING, SUCCESS, FAILED";
+                return "Error: Invalid status '" + statusFilter + "'. Valid values: PENDING, RUNNING, SUCCESS, FAILED, AWAITING_HUMAN_REVIEW";
             }
             appendStatusGroup(sb, filter, verbose);
         } else {
@@ -44,6 +48,25 @@ public class StatusCommand {
             for (TaskStatus status : TaskStatus.values()) {
                 appendStatusGroup(sb, status, verbose);
             }
+        }
+
+        sb.append("\n=== Phase 2 Metrics ===\n");
+        Metric p2 = metricsStore.getLatestForPhase(2);
+        if (p2 != null) {
+            sb.append(String.format("  Tasks completed: %d%n", p2.tasksCompleted()));
+            sb.append(String.format("  Tokens consumed: %d%n", p2.tokensConsumed()));
+            sb.append(String.format("  Estimated cost: $%.6f%n", p2.apiCostEstimated()));
+        } else {
+            sb.append("  No Phase 2 run data available\n");
+        }
+
+        sb.append("\n=== Phase 3 Metrics ===\n");
+        Metric p3 = metricsStore.getLatestForPhase(3);
+        if (p3 != null) {
+            sb.append(String.format("  Tasks completed: %d%n", p3.tasksCompleted()));
+            sb.append(String.format("  Tokens consumed: %d%n", p3.tokensConsumed()));
+        } else {
+            sb.append("  No Phase 3 run data available\n");
         }
 
         return sb.toString();

@@ -85,7 +85,7 @@ class ScanCommandTest {
         );
         astAnalyzer = new JavaAstAnalyzer(visitors);
 
-        indexWriter = new IndexWriter();
+        indexWriter = new IndexWriter(new com.github.ehdez73.code2req.model.OutputConfig(tempDir.toString(), "code-graph-index.json", null));
         orphanRecovery = new OrphanRecovery(taskStore);
 
         var pass1Collector = new Pass1DeclarationCollector();
@@ -128,11 +128,7 @@ class ScanCommandTest {
             targets:
               - name: test-app
                 path: %s
-            output:
-              spec-dir: %s
-              index-file: index.json
-            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\"),
-                           tempDir.resolve("out").toString().replace("\\", "\\\\")));
+            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\")));
 
         String result = command.scan(manifest.toString());
 
@@ -143,7 +139,7 @@ class ScanCommandTest {
         assertTrue(result.contains("Phase 5/5 — Index Output"), "Expected index output phase");
 
         assertTrue(taskStore.count() > 0, "Expected tasks in store");
-        assertTrue(Files.exists(tempDir.resolve("out/index.json")), "Expected index file");
+        assertTrue(Files.exists(tempDir.resolve("code-graph-index.json")), "Expected index file");
     }
 
     @Test
@@ -170,11 +166,7 @@ class ScanCommandTest {
             targets:
               - name: empty
                 path: %s
-            output:
-              spec-dir: %s
-              index-file: index.json
-            """.formatted(targetDir.toAbsolutePath().toString().replace("\\", "\\\\"),
-                           tempDir.resolve("out2").toString().replace("\\", "\\\\")));
+            """.formatted(targetDir.toAbsolutePath().toString().replace("\\", "\\\\")));
 
         String result = command.scan(manifest.toString());
         assertTrue(result.contains("no Java files found"));
@@ -201,11 +193,7 @@ class ScanCommandTest {
                 path: %s
                 exclude_patterns:
                   - "**/Generated.java"
-            output:
-              spec-dir: %s
-              index-file: index.json
-            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\"),
-                           tempDir.resolve("out3").toString().replace("\\", "\\\\")));
+            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\")));
 
         String result = command.scan(manifest.toString());
         assertTrue(result.contains("Scan Complete"));
@@ -236,12 +224,8 @@ class ScanCommandTest {
                 path: %s
               - name: mod-b
                 path: %s
-            output:
-              spec-dir: %s
-              index-file: multi.json
             """.formatted(modA.toAbsolutePath().toString().replace("\\", "\\\\"),
-                           modB.toAbsolutePath().toString().replace("\\", "\\\\"),
-                           tempDir.resolve("out4").toString().replace("\\", "\\\\")));
+                           modB.toAbsolutePath().toString().replace("\\", "\\\\")));
 
         String result = command.scan(manifest.toString());
         assertTrue(result.contains("Scan Complete"));
@@ -264,11 +248,7 @@ class ScanCommandTest {
             targets:
               - name: secure-app
                 path: %s
-            output:
-              spec-dir: %s
-              index-file: secure.json
-            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\"),
-                           tempDir.resolve("out5").toString().replace("\\", "\\\\")));
+            """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\")));
 
         String result = command.scan(manifest.toString());
         assertTrue(result.contains("Scan Complete"));

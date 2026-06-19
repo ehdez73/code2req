@@ -43,12 +43,11 @@ class SemanticExecutorTest {
         taskStore = new TaskStore(jdbc);
         findingStore = new ExecutionFindingStore(jdbc);
 
-        var validator = new ExecutionFindingValidator();
         var budgetCalculator = new ContextBudgetCalculator();
         var simulationStub = new SimulationStub();
 
         executor = new SemanticExecutor(null, findingStore, taskStore,
-            validator, budgetCalculator, simulationStub);
+            budgetCalculator, simulationStub);
     }
 
     @Test

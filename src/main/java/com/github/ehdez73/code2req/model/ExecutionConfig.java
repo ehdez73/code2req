@@ -1,17 +1,17 @@
 package com.github.ehdez73.code2req.model;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 
+@ConfigurationProperties(prefix = "code2req.execution")
 public record ExecutionConfig(
-    @JsonProperty("max-concurrent-llm-calls") Integer maxConcurrentLlmCalls,
-    @JsonProperty("max-discovery-depth") Integer maxDiscoveryDepth,
-    @JsonProperty("semantic-validation-sample-rate") Double semanticValidationSampleRate,
-    @JsonProperty("llm-unresolved-threshold") Integer llmUnresolvedThreshold
+    Integer maxConcurrentLlmCalls,
+    Integer maxDiscoveryDepth,
+    Double semanticValidationSampleRate,
+    Integer llmUnresolvedThreshold,
+    Integer maxInvestigationStepsPerFlow,
+    Integer maxTokensPerRun,
+    Double ambiguityConfidenceThreshold
 ) {
-    public static ExecutionConfig defaultConfig() {
-        return new ExecutionConfig(5, 3, 0.20, 5);
-    }
-
     public int resolvedUnresolvedThreshold() {
         return llmUnresolvedThreshold != null ? llmUnresolvedThreshold : 5;
     }

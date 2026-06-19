@@ -2,7 +2,6 @@ package com.github.ehdez73.code2req.shell;
 
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.model.OutputConfig;
-import com.github.ehdez73.code2req.model.ProjectManifest;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.FloatingLinkStore;
 import com.github.ehdez73.code2req.store.MetricsStore;
@@ -28,17 +27,17 @@ public class CleanCommand {
     private final TopicLinkStore topicLinkStore;
     private final FloatingLinkStore floatingLinkStore;
     private final MetricsStore metricsStore;
-    private final ManifestLoader manifestLoader;
+    private final OutputConfig outputConfig;
 
     public CleanCommand(TaskStore taskStore, ExecutionFindingStore executionFindingStore,
                         TopicLinkStore topicLinkStore, FloatingLinkStore floatingLinkStore,
-                        MetricsStore metricsStore, ManifestLoader manifestLoader) {
+                        MetricsStore metricsStore, OutputConfig outputConfig) {
         this.taskStore = taskStore;
         this.executionFindingStore = executionFindingStore;
         this.topicLinkStore = topicLinkStore;
         this.floatingLinkStore = floatingLinkStore;
         this.metricsStore = metricsStore;
-        this.manifestLoader = manifestLoader;
+        this.outputConfig = outputConfig;
     }
 
     @ShellMethod(key = "clean", value = "Deletes all scanned data: SQLite task store and output JSON files")
@@ -66,9 +65,8 @@ public class CleanCommand {
         sb.append(String.format("  Rows removed: %d tasks, %d findings, %d topic links, %d floating links, %d metrics%n",
             tasksBefore, findingsBefore, topicLinksBefore, floatingLinksBefore, metricsBefore));
 
-        OutputConfig config = resolveOutputConfig(manifestPath, sb);
-        Path specDir = Path.of(config.specDir());
-        Path indexPath = specDir.resolve(config.indexFile());
+        Path specDir = Path.of(outputConfig.specDir());
+        Path indexPath = specDir.resolve(outputConfig.indexFile());
 
         boolean indexDeleted = false;
         try {
@@ -101,26 +99,5 @@ public class CleanCommand {
 
         sb.append("\nClean complete.");
         return sb.toString();
-    }
-
-    private OutputConfig resolveOutputConfig(String manifestPath, StringBuilder sb) {
-        if (manifestPath != null) {
-            Path path = Path.of(manifestPath);
-            if (Files.exists(path)) {
-                try {
-                    ProjectManifest manifest = manifestLoader.load(path);
-                    OutputConfig config = manifest.outputConfig();
-                    if (config != null) {
-                        sb.append(String.format("  Using output paths from manifest: spec-dir=%s, index-file=%s%n",
-                            config.specDir(), config.indexFile()));
-                        return config;
-                    }
-                } catch (IOException e) {
-                    log.warn("Failed to load manifest '{}': {}", manifestPath, e.getMessage());
-                }
-            }
-            sb.append("  Manifest not found or invalid — using default output paths\n");
-        }
-        return OutputConfig.defaultConfig();
     }
 }

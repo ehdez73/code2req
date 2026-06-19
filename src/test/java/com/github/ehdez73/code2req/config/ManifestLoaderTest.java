@@ -1,6 +1,5 @@
 package com.github.ehdez73.code2req.config;
 
-import com.github.ehdez73.code2req.model.ExecutionConfig;
 import com.github.ehdez73.code2req.model.ProjectManifest;
 import com.github.ehdez73.code2req.model.ScanTarget;
 import org.junit.jupiter.api.Test;
@@ -54,42 +53,6 @@ class ManifestLoaderTest {
     }
 
     @Test
-    void loadManifestWithExecutionConfig(@TempDir Path tempDir) throws IOException {
-        Path manifest = tempDir.resolve("manifest.yaml");
-        Files.writeString(manifest, """
-            targets:
-              - name: my-service
-                path: /some/path
-            execution:
-              max-concurrent-llm-calls: 3
-              max-discovery-depth: 5
-              semantic-validation-sample-rate: 0.50
-            """);
-
-        ProjectManifest result = loader.load(manifest);
-        ExecutionConfig exec = result.executionConfig();
-        assertEquals(3, exec.maxConcurrentLlmCalls());
-        assertEquals(5, exec.maxDiscoveryDepth());
-        assertEquals(0.50, exec.semanticValidationSampleRate(), 0.001);
-    }
-
-    @Test
-    void loadManifestWithDefaultExecutionConfig(@TempDir Path tempDir) throws IOException {
-        Path manifest = tempDir.resolve("manifest.yaml");
-        Files.writeString(manifest, """
-            targets:
-              - name: my-service
-                path: /some/path
-            """);
-
-        ProjectManifest result = loader.load(manifest);
-        ExecutionConfig exec = result.executionConfig();
-        assertEquals(5, exec.maxConcurrentLlmCalls());
-        assertEquals(3, exec.maxDiscoveryDepth());
-        assertEquals(0.20, exec.semanticValidationSampleRate(), 0.001);
-    }
-
-    @Test
     void loadManifestWithAllFields(@TempDir Path tempDir) throws IOException {
         Path manifest = tempDir.resolve("manifest.yaml");
         Files.writeString(manifest, """
@@ -115,40 +78,6 @@ class ManifestLoaderTest {
         assertEquals(1, target.entryPoints().size());
         assertEquals("com.example.Main", target.entryPoints().getFirst());
         assertEquals(2, target.excludePatterns().size());
-    }
-
-    @Test
-    void loadManifestWithOutputConfig(@TempDir Path tempDir) throws IOException {
-        Path manifest = tempDir.resolve("manifest.yaml");
-        Files.writeString(manifest, """
-            targets:
-              - name: my-service
-                path: /some/path
-            output:
-              spec-dir: custom-output
-              index-file: custom-index.json
-              db-path: custom.db
-            """);
-
-        ProjectManifest result = loader.load(manifest);
-        assertEquals("custom-output", result.outputConfig().specDir());
-        assertEquals("custom-index.json", result.outputConfig().indexFile());
-        assertEquals("custom.db", result.outputConfig().dbPath());
-    }
-
-    @Test
-    void loadManifestWithDefaultOutputConfig(@TempDir Path tempDir) throws IOException {
-        Path manifest = tempDir.resolve("manifest.yaml");
-        Files.writeString(manifest, """
-            targets:
-              - name: my-service
-                path: /some/path
-            """);
-
-        ProjectManifest result = loader.load(manifest);
-        assertEquals("spec-output", result.outputConfig().specDir());
-        assertEquals("code-graph-index.json", result.outputConfig().indexFile());
-        assertEquals(".code2req_cache.db", result.outputConfig().dbPath());
     }
 
     @Test
