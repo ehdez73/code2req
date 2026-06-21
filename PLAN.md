@@ -263,6 +263,23 @@
 - [ ] Verify: `mvn test` (new tests for parser-agnostic redaction, output, persistence; zero pipeline code changes)
 - [ ] Manual: add a dummy Kotlin parser, run `scan`, confirm output includes Kotlin findings alongside Java findings
 
+### Phase 14 — Snapshot & Restore (Epic E005)
+
+Cross-cutting operational capability for point-in-time save and restore of all local state (SQLite DB + JSON index). Not tied to any specific analysis phase — works after scan, after enrichment, or at any point.
+
+#### 14.1 F025: Snapshot and Restore (US053, US054)
+
+- [ ] Gherkin: `docs/sdlc/features/E005-F025-snapshot-restore.feature`
+- [ ] Depends on: Phase 5.1 (F005 — SQLite persistence/index output), Phase 6.x (F006 — CLI command infrastructure)
+- [ ] Classes: `SnapshotService` (core backup/restore logic), `SnapshotCommand` (shell: snapshot/snapshot-list/restore)
+- [ ] Modified: `application.properties` (add `code2req.snapshot.dir=./snapshots`), `.gitignore` (add `snapshots/`)
+- [ ] **Snapshot:** `VACUUM INTO` for transactionally consistent SQLite copy + JSON index copy + metadata
+- [ ] **Restore:** drains HikariCP pool → overwrites files → reinitialises pool + schema
+- [ ] **Snapshot list:** reads `snapshots/` directory, displays name + date + size per snapshot
+- [ ] **No ORM changes:** snapshot operates at filesystem level, not table level — stores untouched
+- [ ] Verify: `mvn test` — snapshot creates consistent copy, restore survives pool drain/init
+- [ ] Manual: `scan` petclinic, `snapshot`, `clean`, `restore`, `status` — confirm state matches pre-clean
+
 ## Story Index (Extended)
 | Story | Feature | Priority | Phase |
 |-------|---------|----------|-------|
@@ -305,6 +322,8 @@
 | US020 | F008 | should | 13.2 |
 | US021 | F008 | should | 13.2 |
 | US022 | F009 | should | 13.3 |
+| US053 | F025 | must | 14.1 |
+| US054 | F025 | must | 14.1 |
 
 ## Phase Dependency Graph
 
@@ -365,3 +384,4 @@ Phase 11c.1 (Template File Parsing) ── depends on Phase 4a + Phase 6.1 + Pha
 - 2026-06-16 — **Phase 11a.1 F012** (HTTP Client Detection & Floating Link Resolution): `OutboundHttpVisitor`, `HttpClientDetector` SPI + 9 detectors (RestTemplate, WebClient, FeignClient, RestClient, HttpExchange, java.net.http, HttpURLConnection, Apache HttpClient, OkHttp), `FloatingLinkResolver` (post-pass matching), `FloatingLinkInfo`, `OutboundHttpCallInfo`; integrated into `ScanPipeline`/`ScanPipelineResult`/`IndexWriter`/`ScanCommand`; 34 new tests across 11 test classes — 315 total (excluding 16 pre-existing DbAccessVisitorTest failures on JDK 26), all new tests pass ✓
 - 2026-06-16 — **Phase 12.1 F014** (Extended SQLite Schema): 4 new tables (`execution_findings`, `topic_links`, `floating_links`, `metrics`); `ExecutionFindingStore`, `TopicLinkStore`, `FloatingLinkStore`, `MetricsStore`, `FindingType`, `Metric`; persistence wired into `ScanPipeline` (per-file findings, topic/floating links, metrics) and `ScanCommand` (template findings); `CleanCommand` cleans all 5 tables; 15 new store+ schema tests — 335 total, all pass ✓
 - 2026-06-17 — **Phase 4a F003 — EndpointVisitor OCP Refactoring + Servlet Endpoint Detection**: `EndpointDetector` SPI interface, `SpringEndpointDetector` (extracted Spring logic), `ServletEndpointDetector` (doGet/doPost/..., @WebServlet, HttpServlet subclass, javax + jakarta), `WebXmlAnalyzer` (DOM-based web.xml parser), `EndpointVisitor` refactored to thin delegator; integrated into `ScanCommand`; all 17 existing tests pass unchanged; no changes to `EndpointInfo`, `IndexWriter`, `FindingType`, or `ScanPipeline` ✓
+- 2026-06-21 — **Phase 14 — Snapshot & Restore (E005/F025)** added to PLAN.md with full PRD §5.9 specification. Not yet implemented. ✓

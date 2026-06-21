@@ -824,12 +824,37 @@ The application must expose the following commands via Spring Shell:
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |
 | `retry-failed` | | Reset all FAILED tasks to SUCCESS so the Phase 2 planner re-evaluates them on the next `run`. Tasks with existing SEMANTIC_ENRICHMENT findings are automatically skipped by the planner to avoid re-enriching already-successful tasks. |
 | `clear` | `[--manifest path]` | Delete all tasks in SQLite store and remove output JSON index files |
+| `snapshot` | `[--name label]` | Create a point-in-time snapshot of local state (DB + JSON index) |
+| `snapshot list` | | List available snapshots with name, date, and metadata |
+| `restore` | `<name>` | Restore local state (DB + JSON index) from a named snapshot |
 
 The `--dry-run` flag on the `run` command enables simulation mode (see §5.8).
 
 ### 5.8 Testing Isolation & Simulation Mode
 
 To verify system orchestrations and engine state transitions within CI/CD pipelines without generating external provider token fees, the application must support a strict simulation mode via an execution flag (`--dry-run`). When active, Spring AI calls are intercepted by local stubs (`SimulationStub`) that validate prompt schema layout accuracy and return deterministic static JSON fragments matching Section 4 contracts. No `OPENROUTER_API_KEY` is required in dry-run mode.
+
+### 5.9 Snapshot & Restore Capability
+
+To enable safe experimentation and rollback during iterative analysis, the CLI supports creating point-in-time snapshots of all local state (SQLite database + JSON index) and restoring from them later.
+
+**Snapshot workflow (`snapshot` command):**
+1. Accepts an optional `--name` label; defaults to auto-generated `snapshot_YYYYMMDD_HHMMSS`.
+2. Creates `{snapshot.dir}/{name}/` directory.
+3. Executes `VACUUM INTO` on the SQLite database — produces a transactionally consistent, optimised copy without stopping the application.
+4. Copies `code-graph-index.json` from the spec output directory.
+5. Writes `snapshot.json` metadata (timestamp, CLI version, git commit hash, file list with sizes and checksums).
+
+**Restore workflow (`restore` command):**
+1. Verifies the named snapshot directory exists.
+2. Drains and closes the HikariCP connection pool.
+3. Overwrites the live SQLite database file and JSON index from the snapshot.
+4. Reinitialises the connection pool and schema if the database file did not exist before.
+
+**Configuration:**
+- Snapshot directory set via `code2req.snapshot.dir=./snapshots` in `application.properties`.
+- Directory and contents are gitignored via `snapshots/` pattern.
+- Snapshots are independent of `clean` — the `clean` command never removes or affects them.
 
 ---
 
