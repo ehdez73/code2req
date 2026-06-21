@@ -28,6 +28,7 @@ public class TaskStoreSchema {
                 status TEXT NOT NULL DEFAULT 'PENDING',
                 content_type TEXT,
                 content_hash TEXT NOT NULL,
+                target_name TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             )

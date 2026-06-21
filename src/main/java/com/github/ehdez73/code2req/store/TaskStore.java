@@ -18,6 +18,7 @@ public class TaskStore {
         TaskStatus.valueOf(rs.getString("status")),
         rs.getString("content_type"),
         rs.getString("content_hash"),
+        rs.getString("target_name"),
         rs.getString("created_at"),
         rs.getString("updated_at")
     );
@@ -28,9 +29,10 @@ public class TaskStore {
 
     public void save(Task task) {
         jdbc.update("""
-            INSERT OR REPLACE INTO tasks (task_id, file_path, status, content_type, content_hash, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO tasks (task_id, file_path, status, content_type, content_hash, target_name, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, task.taskId(), task.filePath(), task.status().name(), task.contentType(), task.contentHash(),
+            task.targetName(),
             task.createdAt() != null ? task.createdAt() : LocalDateTime.now().toString(),
             task.updatedAt() != null ? task.updatedAt() : LocalDateTime.now().toString());
     }

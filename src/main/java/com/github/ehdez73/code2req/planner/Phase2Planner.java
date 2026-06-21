@@ -75,8 +75,8 @@ public class Phase2Planner {
             }
         }
         if (reasons.isEmpty()) {
-            return PlannerDecision.notQualified(task.taskId(), task.filePath());
+            return PlannerDecision.notQualified(task.taskId(), task.filePath(), task.targetName());
         }
-        return PlannerDecision.qualified(task.taskId(), task.filePath(), Collections.unmodifiableList(reasons));
+        return PlannerDecision.qualified(task.taskId(), task.filePath(), task.targetName(), Collections.unmodifiableList(reasons));
     }
 }

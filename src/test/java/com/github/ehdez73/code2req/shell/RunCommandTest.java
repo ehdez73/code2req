@@ -147,6 +147,6 @@ class RunCommandTest {
     }
 
     private void insertSuccessTask(String taskId, String filePath) {
-        taskStore.save(new Task(taskId, filePath, TaskStatus.SUCCESS, "java", "hash-" + taskId));
+        taskStore.save(new Task(taskId, filePath, TaskStatus.SUCCESS, "java", "hash-" + taskId, "test"));
     }
 }

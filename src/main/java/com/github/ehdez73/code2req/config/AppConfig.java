@@ -2,6 +2,8 @@ package com.github.ehdez73.code2req.config;
 
 import com.github.ehdez73.code2req.model.ExecutionConfig;
 import com.github.ehdez73.code2req.model.OutputConfig;
+import com.github.ehdez73.code2req.service.RefreshableDataSource;
+import com.zaxxer.hikari.HikariDataSource;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -11,13 +13,27 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import javax.sql.DataSource;
 import java.util.concurrent.Executor;
 
 @Configuration
 @EnableConfigurationProperties({ExecutionConfig.class, OutputConfig.class})
 public class AppConfig {
+
+    @Bean
+    @Primary
+    public RefreshableDataSource dataSource(
+            @Value("${spring.datasource.url}") String url) {
+        var hds = new HikariDataSource();
+        hds.setJdbcUrl(url);
+        hds.setDriverClassName("org.sqlite.JDBC");
+        hds.setMaximumPoolSize(10);
+        hds.setConnectionInitSql("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA synchronous=NORMAL;");
+        return new RefreshableDataSource(hds);
+    }
 
     @Bean("orchestratorTaskExecutor")
     public Executor orchestratorTaskExecutor() {

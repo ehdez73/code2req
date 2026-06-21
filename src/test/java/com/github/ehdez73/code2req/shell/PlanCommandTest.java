@@ -145,7 +145,7 @@ class PlanCommandTest {
     }
 
     private void insertTask(String taskId, String filePath) {
-        taskStore.save(new Task(taskId, filePath, TaskStatus.SUCCESS, "java", "hash-" + taskId));
+        taskStore.save(new Task(taskId, filePath, TaskStatus.SUCCESS, "java", "hash-" + taskId, "test"));
     }
 
     private void insertFinding(String taskId, String findingType, boolean resolved) {

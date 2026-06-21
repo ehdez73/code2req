@@ -81,7 +81,7 @@ public class ResumeCommand {
         var allFiles = discoverFiles(manifest, report);
         if (allFiles == null) return report.toString();
 
-        var pendingFiles = filterCompleted(allFiles, report);
+        var pendingFiles = filterCompleted(allFiles, manifest.targets(), report);
         if (pendingFiles.isEmpty()) {
             report.append("Phase 4/5 — Analysis: all files already completed, nothing to resume\n");
         } else {
@@ -170,13 +170,13 @@ public class ResumeCommand {
         return allFiles;
     }
 
-    private List<Path> filterCompleted(List<Path> files, StringBuilder report) {
+    private List<Path> filterCompleted(List<Path> files, List<ScanTarget> targets, StringBuilder report) {
         var phaseStart = Instant.now();
         int skipped = 0;
         List<Path> pending = new ArrayList<>();
 
         for (Path file : files) {
-            if (isAlreadyCompleted(file)) {
+            if (isAlreadyCompleted(file, targets)) {
                 skipped++;
             } else {
                 pending.add(file);
@@ -188,18 +188,32 @@ public class ResumeCommand {
         return pending;
     }
 
-    private boolean isAlreadyCompleted(Path file) {
+    private boolean isAlreadyCompleted(Path file, List<ScanTarget> targets) {
         String fp = file.toString();
         try {
             String content = Files.readString(file, StandardCharsets.UTF_8);
             String contentHash = sha256Hex(content);
-            String taskId = taskIdHasher.hash(fp, contentHash);
+            String targetName = targetNameForFile(file, targets);
+            String taskId = taskIdHasher.hash(fp, contentHash, targetName);
             Optional<Task> existing = taskStore.findById(taskId);
             return existing.isPresent() && existing.get().status() == TaskStatus.SUCCESS;
         } catch (IOException e) {
             log.warn("Failed to check completion for {}: {}", fp, e.getMessage());
             return false;
         }
+    }
+
+    private static String targetNameForFile(Path file, List<ScanTarget> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return "";
+        }
+        Path normalized = file.toAbsolutePath().normalize();
+        for (ScanTarget target : targets) {
+            if (normalized.startsWith(Path.of(target.path()).normalize())) {
+                return target.name();
+            }
+        }
+        return "";
     }
 
     private List<AnalysisResult> mergeResults(ScanPipelineResult pipelineResult, List<Path> allFiles, ProjectManifest manifest) {

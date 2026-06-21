@@ -9,17 +9,18 @@ import java.util.HexFormat;
 @Component
 public class TaskIdHasher {
 
-    public String hash(String filePath, String contentHash) {
-        return sha256(filePath + "|" + contentHash);
+    public String hash(String filePath, String contentHash, String targetName) {
+        return sha256(targetName + "|" + filePath + "|" + contentHash);
     }
 
-    public String hash(String filePath, String contentHash, String testContentHash) {
-        return sha256(filePath + "|" + contentHash + "|" + testContentHash);
+    public String hash(String filePath, String contentHash, String testContentHash, String targetName) {
+        return sha256(targetName + "|" + filePath + "|" + contentHash + "|" + testContentHash);
     }
 
     public String hash(String filePath, String contentHash, String testContentHash,
-                       String modelId, String promptVersion) {
-        return sha256(filePath + "|" + contentHash + "|" + (testContentHash != null ? testContentHash : "")
+                       String modelId, String promptVersion, String targetName) {
+        return sha256((targetName != null ? targetName : "")
+            + "|" + filePath + "|" + contentHash + "|" + (testContentHash != null ? testContentHash : "")
             + "|" + (modelId != null ? modelId : "") + "|" + (promptVersion != null ? promptVersion : ""));
     }
 

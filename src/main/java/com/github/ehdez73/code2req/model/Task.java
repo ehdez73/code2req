@@ -8,10 +8,11 @@ public record Task(
     TaskStatus status,
     String contentType,
     String contentHash,
+    String targetName,
     String createdAt,
     String updatedAt
 ) {
-    public Task(String taskId, String filePath, TaskStatus status, String contentType, String contentHash) {
-        this(taskId, filePath, status, contentType, contentHash, LocalDateTime.now().toString(), LocalDateTime.now().toString());
+    public Task(String taskId, String filePath, TaskStatus status, String contentType, String contentHash, String targetName) {
+        this(taskId, filePath, status, contentType, contentHash, targetName, LocalDateTime.now().toString(), LocalDateTime.now().toString());
     }
 }

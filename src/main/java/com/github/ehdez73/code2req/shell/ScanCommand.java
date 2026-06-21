@@ -121,7 +121,7 @@ public class ScanCommand {
             templateLinks = templateLinkResolver.resolve(templateForms, allEndpoints);
             report.append(String.format("  %d template-to-endpoint link(s) matched%n", templateLinks.size()));
 
-            persistTemplateFindings(pipelineResult, templateForms, templateLinks);
+            persistTemplateFindings(pipelineResult, templateForms, templateLinks, manifest.targets());
             report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(scanStart)));
         }
 
@@ -295,12 +295,14 @@ public class ScanCommand {
 
     private void persistTemplateFindings(ScanPipelineResult pipelineResult,
                                           List<TemplateFormInfo> templateForms,
-                                          List<TemplateLinkInfo> templateLinks) {
+                                          List<TemplateLinkInfo> templateLinks,
+                                          List<ScanTarget> targets) {
         var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
         for (var form : templateForms) {
             try {
                 String json = objectMapper.writeValueAsString(form);
-                String taskId = taskIdHasher.hash(form.templatePath(), "template-" + form.linkType());
+                String targetName = targetNameForFile(Path.of(form.templatePath()), targets);
+                String taskId = taskIdHasher.hash(form.templatePath(), "template-" + form.linkType(), targetName);
                 String findingType = "FORM".equals(form.linkType()) ? FindingType.TEMPLATE_FORM : FindingType.TEMPLATE_LINK;
                 executionFindingStore.save(taskId, findingType, json, true);
             } catch (Exception e) {
@@ -310,12 +312,26 @@ public class ScanCommand {
         for (var link : templateLinks) {
             try {
                 String json = objectMapper.writeValueAsString(link);
-                String taskId = taskIdHasher.hash(link.templatePath() != null ? link.templatePath() : "unknown", "template-link");
+                String targetName = targetNameForFile(Path.of(link.templatePath() != null ? link.templatePath() : "unknown"), targets);
+                String taskId = taskIdHasher.hash(link.templatePath() != null ? link.templatePath() : "unknown", "template-link", targetName);
                 executionFindingStore.save(taskId, FindingType.TEMPLATE_ENDPOINT_LINK, json, true);
             } catch (Exception e) {
                 log.warn("Failed to persist template link: {}", e.getMessage());
             }
         }
+    }
+
+    private static String targetNameForFile(Path file, List<ScanTarget> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return "";
+        }
+        Path normalized = file.toAbsolutePath().normalize();
+        for (ScanTarget target : targets) {
+            if (normalized.startsWith(Path.of(target.path()).normalize())) {
+                return target.name();
+            }
+        }
+        return "";
     }
 
     private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results,

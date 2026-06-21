@@ -56,8 +56,10 @@ class TaskStoreSchemaTest {
         var columnNames = columns.stream()
             .map(row -> (String) row.get("name"))
             .toList();
-        assertTrue(columnNames.containsAll(List.of("task_id", "file_path", "status", "content_type", "content_hash", "created_at", "updated_at")));
+        assertTrue(columnNames.containsAll(List.of("task_id", "file_path", "status", "content_type", "content_hash", "target_name", "created_at", "updated_at")));
     }
+
+
 
     @Test
     void executionFindingsTableHasExpectedColumns() {

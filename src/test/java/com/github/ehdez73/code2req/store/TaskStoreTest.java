@@ -35,7 +35,7 @@ class TaskStoreTest {
 
     @Test
     void saveAndFindById() {
-        Task task = new Task("id-1", "src/main/App.java", TaskStatus.PENDING, "java", "hash123");
+        Task task = new Task("id-1", "src/main/App.java", TaskStatus.PENDING, "java", "hash123", "test");
         taskStore.save(task);
 
         Optional<Task> found = taskStore.findById("id-1");
@@ -49,10 +49,10 @@ class TaskStoreTest {
 
     @Test
     void saveReplacesExisting() {
-        Task task = new Task("id-1", "src/main/App.java", TaskStatus.PENDING, "java", "hash123");
+        Task task = new Task("id-1", "src/main/App.java", TaskStatus.PENDING, "java", "hash123", "test");
         taskStore.save(task);
 
-        Task updated = new Task("id-1", "src/main/App.java", TaskStatus.SUCCESS, "java", "hash123");
+        Task updated = new Task("id-1", "src/main/App.java", TaskStatus.SUCCESS, "java", "hash123", "test");
         taskStore.save(updated);
 
         Optional<Task> found = taskStore.findById("id-1");
@@ -68,9 +68,9 @@ class TaskStoreTest {
 
     @Test
     void findAll() {
-        taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1"));
-        taskStore.save(new Task("id-2", "file2.java", TaskStatus.PENDING, "java", "h2"));
-        taskStore.save(new Task("id-3", "file3.java", TaskStatus.PENDING, "java", "h3"));
+        taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1", "test"));
+        taskStore.save(new Task("id-2", "file2.java", TaskStatus.PENDING, "java", "h2", "test"));
+        taskStore.save(new Task("id-3", "file3.java", TaskStatus.PENDING, "java", "h3", "test"));
 
         List<Task> all = taskStore.findAll();
         assertEquals(3, all.size());
@@ -78,9 +78,9 @@ class TaskStoreTest {
 
     @Test
     void findByStatus() {
-        taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1"));
-        taskStore.save(new Task("id-2", "file2.java", TaskStatus.RUNNING, "java", "h2"));
-        taskStore.save(new Task("id-3", "file3.java", TaskStatus.SUCCESS, "java", "h3"));
+        taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1", "test"));
+        taskStore.save(new Task("id-2", "file2.java", TaskStatus.RUNNING, "java", "h2", "test"));
+        taskStore.save(new Task("id-3", "file3.java", TaskStatus.SUCCESS, "java", "h3", "test"));
 
         assertEquals(1, taskStore.findByStatus(TaskStatus.PENDING).size());
         assertEquals(1, taskStore.findByStatus(TaskStatus.RUNNING).size());
@@ -89,7 +89,7 @@ class TaskStoreTest {
 
     @Test
     void updateStatus() {
-        taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1"));
+        taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1", "test"));
         taskStore.updateStatus("id-1", TaskStatus.RUNNING);
 
         Optional<Task> found = taskStore.findById("id-1");
@@ -99,8 +99,8 @@ class TaskStoreTest {
 
     @Test
     void deleteAll() {
-        taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1"));
-        taskStore.save(new Task("id-2", "file2.java", TaskStatus.PENDING, "java", "h2"));
+        taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1", "test"));
+        taskStore.save(new Task("id-2", "file2.java", TaskStatus.PENDING, "java", "h2", "test"));
 
         assertEquals(2, taskStore.count());
         taskStore.deleteAll();
@@ -110,7 +110,7 @@ class TaskStoreTest {
     @Test
     void count() {
         assertEquals(0, taskStore.count());
-        taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1"));
+        taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1", "test"));
         assertEquals(1, taskStore.count());
     }
 }

@@ -128,8 +128,8 @@ class ResumeCommandTest {
             """);
 
         String hashA = sha256Hex(Files.readString(fileA, StandardCharsets.UTF_8));
-        String taskIdA = taskIdHasher.hash(fileA.toString(), hashA);
-        taskStore.save(new Task(taskIdA, fileA.toString(), TaskStatus.SUCCESS, "java", hashA));
+        String taskIdA = taskIdHasher.hash(fileA.toString(), hashA, "test-app");
+        taskStore.save(new Task(taskIdA, fileA.toString(), TaskStatus.SUCCESS, "java", hashA, "test"));
 
         Path manifest = tempDir.resolve("manifest.yaml");
         Files.writeString(manifest, """
@@ -158,8 +158,8 @@ class ResumeCommandTest {
             """);
 
         String hashA = sha256Hex(Files.readString(fileA, StandardCharsets.UTF_8));
-        String taskIdA = taskIdHasher.hash(fileA.toString(), hashA);
-        taskStore.save(new Task(taskIdA, fileA.toString(), TaskStatus.SUCCESS, "java", hashA));
+        String taskIdA = taskIdHasher.hash(fileA.toString(), hashA, "test-app");
+        taskStore.save(new Task(taskIdA, fileA.toString(), TaskStatus.SUCCESS, "java", hashA, "test"));
 
         Path manifest = tempDir.resolve("manifest.yaml");
         Files.writeString(manifest, """
@@ -184,7 +184,7 @@ class ResumeCommandTest {
             public class A { public void run() {} }
             """);
 
-        taskStore.save(new Task("orphan-1", fileA.toString(), TaskStatus.RUNNING, "java", "h1"));
+        taskStore.save(new Task("orphan-1", fileA.toString(), TaskStatus.RUNNING, "java", "h1", "test"));
 
         Path manifest = tempDir.resolve("manifest.yaml");
         Files.writeString(manifest, """

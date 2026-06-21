@@ -70,7 +70,7 @@ class Phase2PlannerTest {
     }
 
     private void insertTask(String taskId, String filePath) {
-        taskStore.save(new Task(taskId, filePath, TaskStatus.SUCCESS, "java", "hash"));
+        taskStore.save(new Task(taskId, filePath, TaskStatus.SUCCESS, "java", "hash", "test"));
     }
 
     private void insertFinding(String taskId, String findingType, boolean resolved) {

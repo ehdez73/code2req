@@ -50,11 +50,11 @@ class StatusCommandTest {
 
     @Test
     void statusWithMixedStatuses() {
-        taskStore.save(new Task("id1", "/src/App.java", TaskStatus.SUCCESS, "java", "h1"));
-        taskStore.save(new Task("id2", "/src/Config.java", TaskStatus.SUCCESS, "java", "h2"));
-        taskStore.save(new Task("id3", "/src/Controller.java", TaskStatus.FAILED, "java", "h3"));
-        taskStore.save(new Task("id4", "/src/Service.java", TaskStatus.PENDING, "java", "h4"));
-        taskStore.save(new Task("id5", "/src/Repo.java", TaskStatus.RUNNING, "java", "h5"));
+        taskStore.save(new Task("id1", "/src/App.java", TaskStatus.SUCCESS, "java", "h1", "test"));
+        taskStore.save(new Task("id2", "/src/Config.java", TaskStatus.SUCCESS, "java", "h2", "test"));
+        taskStore.save(new Task("id3", "/src/Controller.java", TaskStatus.FAILED, "java", "h3", "test"));
+        taskStore.save(new Task("id4", "/src/Service.java", TaskStatus.PENDING, "java", "h4", "test"));
+        taskStore.save(new Task("id5", "/src/Repo.java", TaskStatus.RUNNING, "java", "h5", "test"));
 
         String result = command.status(null, false);
         assertTrue(result.contains("Total: 5"));
@@ -66,9 +66,9 @@ class StatusCommandTest {
 
     @Test
     void statusWithFilter() {
-        taskStore.save(new Task("id1", "/src/App.java", TaskStatus.SUCCESS, "java", "h1"));
-        taskStore.save(new Task("id2", "/src/Config.java", TaskStatus.FAILED, "java", "h2"));
-        taskStore.save(new Task("id3", "/src/Controller.java", TaskStatus.FAILED, "java", "h3"));
+        taskStore.save(new Task("id1", "/src/App.java", TaskStatus.SUCCESS, "java", "h1", "test"));
+        taskStore.save(new Task("id2", "/src/Config.java", TaskStatus.FAILED, "java", "h2", "test"));
+        taskStore.save(new Task("id3", "/src/Controller.java", TaskStatus.FAILED, "java", "h3", "test"));
 
         String result = command.status("FAILED", false);
         assertTrue(result.contains("FAILED: 2"));
@@ -84,8 +84,8 @@ class StatusCommandTest {
 
     @Test
     void statusVerbose() {
-        taskStore.save(new Task("id1", "/src/App.java", TaskStatus.SUCCESS, "java", "h1"));
-        taskStore.save(new Task("id2", "/src/Config.java", TaskStatus.SUCCESS, "java", "h2"));
+        taskStore.save(new Task("id1", "/src/App.java", TaskStatus.SUCCESS, "java", "h1", "test"));
+        taskStore.save(new Task("id2", "/src/Config.java", TaskStatus.SUCCESS, "java", "h2", "test"));
 
         String result = command.status(null, true);
         assertTrue(result.contains("/src/App.java"));

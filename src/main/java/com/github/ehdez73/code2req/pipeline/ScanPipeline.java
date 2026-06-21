@@ -146,7 +146,8 @@ public class ScanPipeline {
 
         for (Path file : files) {
             configureParserForFile(file, targets);
-            var result = analyzeSingleFile(file, registry);
+            String targetName = targetNameForFile(file, targets);
+            var result = analyzeSingleFile(file, registry, targetName);
             if (result == null) {
                 pass2Failed++;
             } else {
@@ -211,6 +212,19 @@ public class ScanPipeline {
         return ParserConfiguration.LanguageLevel.JAVA_17;
     }
 
+    private static String targetNameForFile(Path file, List<ScanTarget> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return "";
+        }
+        Path normalized = file.toAbsolutePath().normalize();
+        for (ScanTarget target : targets) {
+            if (normalized.startsWith(Path.of(target.path()).normalize())) {
+                return target.name();
+            }
+        }
+        return "";
+    }
+
     private int runPass1(List<Path> files, List<ScanTarget> targets, GlobalDeclarationRegistry registry, StringBuilder report) {
         int failed = 0;
         for (Path file : files) {
@@ -229,14 +243,14 @@ public class ScanPipeline {
         return failed;
     }
 
-    private AnalysisResult analyzeSingleFile(Path file, GlobalDeclarationRegistry registry) {
+    private AnalysisResult analyzeSingleFile(Path file, GlobalDeclarationRegistry registry, String targetName) {
         String fp = file.toString();
         String content;
         try {
             content = Files.readString(file, StandardCharsets.UTF_8);
         } catch (Exception e) {
             log.warn("Failed to read {}: {}", fp, e.getMessage());
-            storeFailedTask(fp);
+            storeFailedTask(fp, targetName);
             return null;
         }
 
@@ -245,8 +259,8 @@ public class ScanPipeline {
         AnalysisResult result = astAnalyzer.analyze(fp, redactedContent, context);
 
         String contentHash = sha256Hex(content);
-        String taskId = taskIdHasher.hash(fp, contentHash);
-        taskStore.save(new Task(taskId, fp, TaskStatus.SUCCESS, "java", contentHash));
+        String taskId = taskIdHasher.hash(fp, contentHash, targetName);
+        taskStore.save(new Task(taskId, fp, TaskStatus.SUCCESS, "java", contentHash, targetName));
 
         persistFindings(taskId, result);
         reclassifyFindings(taskId, result);
@@ -292,10 +306,10 @@ public class ScanPipeline {
         }
     }
 
-    private void storeFailedTask(String filePath) {
+    private void storeFailedTask(String filePath, String targetName) {
         var failedTask = new Task(
-            taskIdHasher.hash(filePath, "unreadable"),
-            filePath, TaskStatus.FAILED, "java", "unreadable");
+            taskIdHasher.hash(filePath, "unreadable", targetName),
+            filePath, TaskStatus.FAILED, "java", "unreadable", targetName);
         taskStore.save(failedTask);
     }
 

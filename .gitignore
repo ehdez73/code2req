@@ -55,3 +55,6 @@ spring-shell.log
 # backup files
 *.bak
 *.bk
+
+# Snapshots
+snapshots/

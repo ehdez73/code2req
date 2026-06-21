@@ -100,7 +100,7 @@ class Phase2OrchestratorTest {
     }
 
     private void insertTask(String taskId, String filePath) {
-        taskStore.save(new Task(taskId, filePath, TaskStatus.SUCCESS, "java", "hash-" + taskId));
+        taskStore.save(new Task(taskId, filePath, TaskStatus.SUCCESS, "java", "hash-" + taskId, "test"));
     }
 
     @Nested
@@ -211,7 +211,7 @@ class Phase2OrchestratorTest {
 
             var orchestrator = createOrchestrator();
             var dag = new EnrichmentDag(3);
-            var decision = PlannerDecision.qualified("t1", "/src/Foo.java", List.of());
+            var decision = PlannerDecision.qualified("t1", "/src/Foo.java", "test", List.of());
             dag.registerRootTask(decision);
             dag.markVisited("t1|/src/Foo.java");
             assertTrue(dag.isVisited("t1|/src/Foo.java"));
@@ -261,7 +261,7 @@ class Phase2OrchestratorTest {
         @Test
         void registerRootTaskCreatesBranch() {
             var dag = new EnrichmentDag(3);
-            var decision = PlannerDecision.qualified("root", "/src/Root.java", List.of());
+            var decision = PlannerDecision.qualified("root", "/src/Root.java", "test", List.of());
             dag.registerRootTask(decision);
             assertNotNull(dag.getBranchForRoot("root"));
             assertEquals(1, dag.branchCount());
@@ -278,8 +278,8 @@ class Phase2OrchestratorTest {
         @Test
         void drainPendingReturnsAllQueuedDecisions() {
             var dag = new EnrichmentDag(3);
-            var d1 = PlannerDecision.qualified("t1", "/src/Foo.java", List.of());
-            var d2 = PlannerDecision.qualified("t2", "/src/Bar.java", List.of());
+            var d1 = PlannerDecision.qualified("t1", "/src/Foo.java", "test", List.of());
+            var d2 = PlannerDecision.qualified("t2", "/src/Bar.java", "test", List.of());
             dag.registerRootTask(d1);
             dag.registerRootTask(d2);
 
@@ -291,7 +291,7 @@ class Phase2OrchestratorTest {
         @Test
         void allBranchesCompleteWhenNoPendingDependencies() {
             var dag = new EnrichmentDag(3);
-            var d1 = PlannerDecision.qualified("t1", "/src/Foo.java", List.of());
+            var d1 = PlannerDecision.qualified("t1", "/src/Foo.java", "test", List.of());
             dag.registerRootTask(d1);
             dag.drainPending();
 

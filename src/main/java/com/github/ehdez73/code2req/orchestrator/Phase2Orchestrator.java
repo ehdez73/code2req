@@ -101,7 +101,7 @@ public class Phase2Orchestrator {
                 Task task;
                 if (taskOpt.isEmpty()) {
                     task = new Task(decision.taskId(), decision.filePath(),
-                        TaskStatus.PENDING, "java", hashKey);
+                        TaskStatus.PENDING, "java", hashKey, decision.targetName());
                     taskStore.save(task);
                 } else {
                     task = taskOpt.get();
@@ -152,12 +152,14 @@ public class Phase2Orchestrator {
                             }
                             dag.markVisited(depHash);
 
+                            String depTargetName = entry.task.targetName();
+
                             BranchState branch = dag.getBranch(entry.decision.taskId());
                             if (branch != null && branch.incrementDepth()) {
                                 log.warn("Max hop depth exceeded for dependency {} (depth={}, max={})",
                                     dep.filePath(), branch.currentDepth(), maxDepth);
 
-                                String depTaskId = taskIdHasher.hash(dep.filePath(), depHash);
+                                String depTaskId = taskIdHasher.hash(dep.filePath(), depHash, depTargetName);
                                 taskStore.updateStatus(depTaskId, TaskStatus.AWAITING_HUMAN_REVIEW);
                                 awaitingReview.add(dep.filePath());
                                 continue;
@@ -166,16 +168,16 @@ public class Phase2Orchestrator {
                             String childTaskId = dag.registerDiscoveredDependency(
                                 entry.decision.taskId(), dep.filePath());
                             if (childTaskId == null) {
-                                childTaskId = taskIdHasher.hash(dep.filePath(), depHash);
+                                childTaskId = taskIdHasher.hash(dep.filePath(), depHash, depTargetName);
                             }
 
                             String taskHash = sha256(dep.filePath() + "|" + System.nanoTime());
                             Task newTask = new Task(childTaskId, dep.filePath(),
-                                TaskStatus.PENDING, entry.task.contentType(), taskHash);
+                                TaskStatus.PENDING, entry.task.contentType(), taskHash, depTargetName);
                             taskStore.save(newTask);
 
                             PlannerDecision newDecision = PlannerDecision.qualified(
-                                childTaskId, dep.filePath(), entry.decision.reasons());
+                                childTaskId, dep.filePath(), depTargetName, entry.decision.reasons());
                             dag.enqueue(newDecision);
                             nextBatch.add(newDecision);
                         }

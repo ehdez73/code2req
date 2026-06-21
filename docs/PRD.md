@@ -274,15 +274,15 @@ Immediately after Pass 2 resolution completes, the indexer persists all findings
 INSERT INTO tasks (
     task_id, 
     file_path, 
-    module_tag, 
+    target_name, 
     status, 
     source_hash, 
     paired_test_path, 
     json_payload
 ) VALUES (
-    ?, -- SHA-256 environmental hash calculated per Section 5.1
+    ?, -- SHA-256: target_name | file_path | sha256(content)
     ?, -- file_path
-    ?, -- module_tag
+    ?, -- target_name — the manifest target this file belongs to
     'PENDING', -- Initial State
     ?, -- source_hash
     ?, -- paired_test_file (nullable)
@@ -299,7 +299,7 @@ INSERT INTO tasks (
 CREATE TABLE IF NOT EXISTS tasks (
     task_id         TEXT PRIMARY KEY,
     file_path       TEXT NOT NULL,
-    module_tag      TEXT NOT NULL,
+    target_name     TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'PENDING',
     source_hash     TEXT NOT NULL,
     paired_test_path TEXT,
@@ -824,9 +824,9 @@ The application must expose the following commands via Spring Shell:
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |
 | `retry-failed` | | Reset all FAILED tasks to SUCCESS so the Phase 2 planner re-evaluates them on the next `run`. Tasks with existing SEMANTIC_ENRICHMENT findings are automatically skipped by the planner to avoid re-enriching already-successful tasks. |
 | `clear` | `[--manifest path]` | Delete all tasks in SQLite store and remove output JSON index files |
-| `snapshot` | `[--name label]` | Create a point-in-time snapshot of local state (DB + JSON index) |
+| `snapshot create` | `[--name label]` | Create a point-in-time snapshot of local state (DB + JSON index) |
 | `snapshot list` | | List available snapshots with name, date, and metadata |
-| `restore` | `<name>` | Restore local state (DB + JSON index) from a named snapshot |
+| `snapshot restore` | `<name>` | Restore local state (DB + JSON index) from a named snapshot |
 
 The `--dry-run` flag on the `run` command enables simulation mode (see §5.8).
 

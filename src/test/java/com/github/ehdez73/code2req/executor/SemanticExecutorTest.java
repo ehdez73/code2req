@@ -53,10 +53,10 @@ class SemanticExecutorTest {
     @Test
     void enrichWithDryRunReturnsValidResult() throws Exception {
         var task = new Task("test-task-1", "/src/test.java",
-            TaskStatus.PENDING, "test-module", "abc123");
+            TaskStatus.PENDING, "test-module", "abc123", "test");
         taskStore.save(task);
 
-        var decision = PlannerDecision.qualified("test-task-1", "/src/test.java",
+        var decision = PlannerDecision.qualified("test-task-1", "/src/test.java", "test",
             List.of(QualificationReason.SPRING_DATA_INTERFACE));
 
         CompletableFuture<ExecutionFinding> future = executor.enrich(
@@ -75,10 +75,10 @@ class SemanticExecutorTest {
     @Test
     void enrichWithDryRunPersistsFinding() throws Exception {
         var task = new Task("test-task-2", "/src/service/OrderService.java",
-            TaskStatus.PENDING, "test-module", "def456");
+            TaskStatus.PENDING, "test-module", "def456", "test");
         taskStore.save(task);
 
-        var decision = PlannerDecision.qualified("test-task-2", "/src/service/OrderService.java",
+        var decision = PlannerDecision.qualified("test-task-2", "/src/service/OrderService.java", "test",
             List.of(QualificationReason.NATIVE_SQL_QUERY));
 
         executor.enrich(task, decision, "class OrderService {}", null, null, true).get();
@@ -89,10 +89,10 @@ class SemanticExecutorTest {
     @Test
     void enrichWithDryRunUpdatesTaskStatusToSuccess() throws Exception {
         var task = new Task("test-task-3", "/src/Test.java",
-            TaskStatus.PENDING, "test-module", "ghi789");
+            TaskStatus.PENDING, "test-module", "ghi789", "test");
         taskStore.save(task);
 
-        var decision = PlannerDecision.qualified("test-task-3", "/src/Test.java",
+        var decision = PlannerDecision.qualified("test-task-3", "/src/Test.java", "test",
             List.of(QualificationReason.SCHEDULED_TASK_PRESENT));
 
         executor.enrich(task, decision, "class Test {}", null, null, true).get();
@@ -105,7 +105,7 @@ class SemanticExecutorTest {
     @Test
     void enrichWithStructuralContext() throws Exception {
         var task = new Task("test-task-4", "/src/Test.java",
-            TaskStatus.PENDING, "test-module", "jkl012");
+            TaskStatus.PENDING, "test-module", "jkl012", "test");
         taskStore.save(task);
 
         String structuralContext = """
@@ -117,7 +117,7 @@ class SemanticExecutorTest {
             }
             """;
 
-        var decision = PlannerDecision.qualified("test-task-4", "/src/Test.java",
+        var decision = PlannerDecision.qualified("test-task-4", "/src/Test.java", "test",
             List.of(QualificationReason.UNRESOLVED_SIGNATURES_EXCEEDED));
 
         CompletableFuture<ExecutionFinding> future = executor.enrich(
@@ -131,10 +131,10 @@ class SemanticExecutorTest {
     @Test
     void enrichWithNullSourceSucceedsInDryRun() throws Exception {
         var task = new Task("test-task-5", "/src/Nullable.java",
-            TaskStatus.PENDING, "test-module", "mno345");
+            TaskStatus.PENDING, "test-module", "mno345", "test");
         taskStore.save(task);
 
-        var decision = PlannerDecision.qualified("test-task-5", "/src/Nullable.java",
+        var decision = PlannerDecision.qualified("test-task-5", "/src/Nullable.java", "test",
             List.of(QualificationReason.SPRING_DATA_INTERFACE));
 
         CompletableFuture<ExecutionFinding> future = executor.enrich(
