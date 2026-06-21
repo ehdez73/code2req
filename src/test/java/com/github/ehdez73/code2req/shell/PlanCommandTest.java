@@ -15,6 +15,7 @@ import com.github.ehdez73.code2req.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.planner.rule.UnresolvedFloatingLinkRule;
 import com.github.ehdez73.code2req.planner.rule.UnresolvedSignaturesRule;
+import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.FloatingLinkStore;
 import com.github.ehdez73.code2req.store.TaskStore;
 import com.github.ehdez73.code2req.store.TaskStoreSchema;
@@ -48,6 +49,7 @@ class PlanCommandTest {
         schema.createSchemaIfNotExists();
 
         taskStore = new TaskStore(jdbc);
+        var findingStore = new ExecutionFindingStore(jdbc);
         var floatingLinkStore = new FloatingLinkStore(jdbc);
 
         List<QualificationRule> rules = List.of(
@@ -62,7 +64,7 @@ class PlanCommandTest {
             new JpqlHqlQueryRule()
         );
 
-        var planner = new Phase2Planner(taskStore, jdbc, rules);
+        var planner = new Phase2Planner(taskStore, jdbc, rules, findingStore);
         var manifestLoader = new ManifestLoader();
         var manifestValidator = new ManifestValidator(manifestLoader);
         command = new PlanCommand(planner, manifestLoader, manifestValidator);

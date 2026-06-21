@@ -411,6 +411,7 @@ The structural trace produced by Phase 1 resolves all deterministic call paths (
 * **The Orchestrator:** Processes the enrichment DAG, submits tasks asynchronously to the Spring pool, and tracks progress via `CompletableFuture<ExecutionFinding>` responses. The enriched `ExecutionFinding` JSON (§4) is merged with the Phase 1 structural data in the SQLite store.
 
 * **Phase Synchronization Barrier:** Phase 3 (synthesis) is blocked until ALL Phase 2 enrichment tasks complete, using `CompletableFuture.allOf(...)`. Phase 2 is skipped entirely if `--llm-threshold` is set to 0 or no files qualify.
+* **FAILED Task Recovery:** Tasks that exhaust retries and transition to FAILED (e.g., persistent rate limits or unrecoverable LLM output) can be recovered without re-running Phase 1. The `retry-failed` CLI command resets FAILED tasks to SUCCESS; on re-run, the planner skips tasks that already have a SEMANTIC_ENRICHMENT finding, so only truly failed tasks are re-processed.
   **Authentication:** LLM requests are authenticated via `OPENROUTER_API_KEY` environment variable (loaded from `.env` via `spring.config.import=optional:file:.env`).
 
 ---
@@ -790,6 +791,8 @@ Concurrency limits are managed declaratively via Spring's core context execution
 
 * **Queue Control:** The pool queue capacity must be sufficiently deep to accommodate large parallel DAG discovery spikes without overflow exceptions.
 * **In-Thread Resiliency:** Model interactions within the `@Async` task context employ an active exponential backoff strategy (initial delay: 2s, multiplier: 2.0, capped at 60s, maximum retry attempts: 3). If an HTTP 429 (Rate Limit Exceeded) is received from the AI provider, the running thread pauses natively (`Thread.sleep()`) and securely retries the processing step. If rate limits persist after all retries, the task transitions to `FAILED`.
+* **Error-Feedback Retry:** When the LLM returns structurally invalid JSON (malformed syntax or missing required fields), the failed output and parse error are fed back into the retry prompt so the model can self-correct on subsequent attempts. This is distinct from rate-limit backoff — the retry is immediate (no exponential delay) and the augmented prompt includes the specific parsing failure.
+* **FAILED Task Recovery:** Tasks that exhaust all retries (rate-limit or JSON parse errors) and transition to FAILED can be recovered without re-running Phase 1 indexing. The `retry-failed` CLI command resets all FAILED tasks to SUCCESS. On the next `run`, the Phase 2 planner re-evaluates them, skipping any tasks that already have a persisted SEMANTIC_ENRICHMENT finding (so already-successful tasks are never re-enriched).
 
 ### 5.5 Crash Recovery & Warm Start Protocol
 
@@ -819,6 +822,7 @@ The application must expose the following commands via Spring Shell:
 | `status` | | Show current SQLite task state summary and counters |
 | `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `RUNNING` tasks, rebuild DAG, resume |
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |
+| `retry-failed` | | Reset all FAILED tasks to SUCCESS so the Phase 2 planner re-evaluates them on the next `run`. Tasks with existing SEMANTIC_ENRICHMENT findings are automatically skipped by the planner to avoid re-enriching already-successful tasks. |
 | `clear` | `[--manifest path]` | Delete all tasks in SQLite store and remove output JSON index files |
 
 The `--dry-run` flag on the `run` command enables simulation mode (see §5.8).

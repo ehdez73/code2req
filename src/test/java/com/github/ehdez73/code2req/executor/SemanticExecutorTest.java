@@ -47,7 +47,7 @@ class SemanticExecutorTest {
         var simulationStub = new SimulationStub();
 
         executor = new SemanticExecutor(null, findingStore, taskStore,
-            budgetCalculator, simulationStub);
+            budgetCalculator, simulationStub, null, null);
     }
 
     @Test

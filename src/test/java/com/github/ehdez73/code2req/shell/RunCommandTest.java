@@ -77,9 +77,9 @@ class RunCommandTest {
             new JpqlHqlQueryRule()
         );
 
-        var planner = new Phase2Planner(taskStore, jdbc, rules);
+        var planner = new Phase2Planner(taskStore, jdbc, rules, findingStore);
         var executor = new SemanticExecutor(null, findingStore, taskStore,
-            budgetCalculator, simulationStub);
+            budgetCalculator, simulationStub, null, null);
         var phase2Orchestrator = new Phase2Orchestrator(planner, executor, taskStore,
             findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator);
 

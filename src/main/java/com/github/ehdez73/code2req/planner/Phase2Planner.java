@@ -4,6 +4,8 @@ import com.github.ehdez73.code2req.model.PlannerDecision;
 import com.github.ehdez73.code2req.model.QualificationReason;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
+import com.github.ehdez73.code2req.store.ExecutionFindingStore;
+import com.github.ehdez73.code2req.store.FindingType;
 import com.github.ehdez73.code2req.store.TaskStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,12 +24,15 @@ public class Phase2Planner {
     private final TaskStore taskStore;
     private final JdbcTemplate jdbc;
     private final List<QualificationRule> rules;
+    private final ExecutionFindingStore findingStore;
 
     public Phase2Planner(TaskStore taskStore, JdbcTemplate jdbc,
-                         List<QualificationRule> rules) {
+                         List<QualificationRule> rules,
+                         ExecutionFindingStore findingStore) {
         this.taskStore = taskStore;
         this.jdbc = jdbc;
         this.rules = rules;
+        this.findingStore = findingStore;
     }
 
     public List<PlannerDecision> plan() {
@@ -37,10 +42,26 @@ public class Phase2Planner {
             return List.of();
         }
 
+        // Skip tasks that already have a SEMANTIC_ENRICHMENT finding from a prior run
+        List<Task> unenriched = tasks.stream()
+            .filter(t -> findingStore.countByTaskIdAndType(t.taskId(),
+                FindingType.SEMANTIC_ENRICHMENT) == 0)
+            .toList();
+
+        int skipped = tasks.size() - unenriched.size();
+        if (skipped > 0) {
+            log.info("Planner skipped {} already-enriched task(s)", skipped);
+        }
+
+        if (unenriched.isEmpty()) {
+            log.info("All SUCCESS tasks already enriched — planner has nothing to evaluate");
+            return List.of();
+        }
+
         var ctx = new PlanningContext(jdbc);
 
-        List<PlannerDecision> decisions = new ArrayList<>(tasks.size());
-        for (Task task : tasks) {
+        List<PlannerDecision> decisions = new ArrayList<>(unenriched.size());
+        for (Task task : unenriched) {
             decisions.add(evaluateTask(task, ctx));
         }
         return decisions;

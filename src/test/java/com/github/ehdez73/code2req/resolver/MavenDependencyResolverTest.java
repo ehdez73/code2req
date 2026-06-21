@@ -113,7 +113,7 @@ class MavenDependencyResolverTest {
 
     @Test
     void resolve_returnsHeuristic_whenPathDoesNotExist() {
-        ScanTarget target = new ScanTarget("missing", "/nonexistent/path", null, null, null, null);
+        ScanTarget target = new ScanTarget("missing", "/nonexistent/path", null, null, null, null, null);
         DependencyGraph result = resolver.resolve(target);
         assertTrue(result.heuristicMode());
         assertFalse(result.resolved());
@@ -122,7 +122,7 @@ class MavenDependencyResolverTest {
 
     @Test
     void resolve_returnsHeuristic_whenNoPomXml(@TempDir Path tempDir) throws IOException {
-        ScanTarget target = new ScanTarget("empty", tempDir.toString(), null, null, null, null);
+        ScanTarget target = new ScanTarget("empty", tempDir.toString(), null, null, null, null, null);
         DependencyGraph result = resolver.resolve(target);
         assertTrue(result.heuristicMode());
         assertFalse(result.resolved());

@@ -30,8 +30,10 @@ import com.github.ehdez73.code2req.analyzer.httpclient.OutboundHttpCallInfo;
 import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskInfo;
 import com.github.ehdez73.code2req.analyzer.validator.ValidatorInfo;
 import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointInfo;
+import com.github.ehdez73.code2req.config.JavaVersionMapper;
 import com.github.ehdez73.code2req.config.SecretRedactor;
 import com.github.ehdez73.code2req.model.Metric;
+import com.github.ehdez73.code2req.model.ScanTarget;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
@@ -43,6 +45,7 @@ import com.github.ehdez73.code2req.store.TaskStore;
 import com.github.ehdez73.code2req.store.TopicLinkStore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import org.slf4j.Logger;
@@ -126,11 +129,15 @@ public class ScanPipeline {
     }
 
     public ScanPipelineResult execute(List<Path> files, StringBuilder report) {
+        return execute(files, List.of(), report);
+    }
+
+    public ScanPipelineResult execute(List<Path> files, List<ScanTarget> targets, StringBuilder report) {
         var phaseStart = Instant.now();
         var registry = new GlobalDeclarationRegistry();
         String runId = UUID.randomUUID().toString().substring(0, 8);
 
-        int pass1Failed = runPass1(files, registry, report);
+        int pass1Failed = runPass1(files, targets, registry, report);
         int pass2Analyzed = 0;
         int pass2Failed = 0;
         List<AnalysisResult> allResults = new ArrayList<>();
@@ -138,6 +145,7 @@ public class ScanPipeline {
         registry.freeze();
 
         for (Path file : files) {
+            configureParserForFile(file, targets);
             var result = analyzeSingleFile(file, registry);
             if (result == null) {
                 pass2Failed++;
@@ -185,13 +193,32 @@ public class ScanPipeline {
         return new ScanPipelineResult(allResults, registry, pass2Analyzed, pass2Failed, topicLinks, floatingLinks);
     }
 
-    private int runPass1(List<Path> files, GlobalDeclarationRegistry registry, StringBuilder report) {
+    private void configureParserForFile(Path file, List<ScanTarget> targets) {
+        ParserConfiguration.LanguageLevel level = languageLevelForFile(file, targets);
+        StaticJavaParser.getConfiguration().setLanguageLevel(level);
+    }
+
+    private static ParserConfiguration.LanguageLevel languageLevelForFile(Path file, List<ScanTarget> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return ParserConfiguration.LanguageLevel.JAVA_17;
+        }
+        Path normalized = file.toAbsolutePath().normalize();
+        for (ScanTarget target : targets) {
+            if (normalized.startsWith(Path.of(target.path()).normalize())) {
+                return JavaVersionMapper.toLanguageLevel(target.javaVersionOrDefault());
+            }
+        }
+        return ParserConfiguration.LanguageLevel.JAVA_17;
+    }
+
+    private int runPass1(List<Path> files, List<ScanTarget> targets, GlobalDeclarationRegistry registry, StringBuilder report) {
         int failed = 0;
         for (Path file : files) {
             String fp = file.toString();
             try {
                 String content = Files.readString(file, StandardCharsets.UTF_8);
                 String redacted = secretRedactor.redact(content);
+                configureParserForFile(file, targets);
                 CompilationUnit cu = StaticJavaParser.parse(redacted);
                 pass1Collector.collect(cu, registry, fp);
             } catch (Exception e) {

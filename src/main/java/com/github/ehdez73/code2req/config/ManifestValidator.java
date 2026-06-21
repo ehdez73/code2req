@@ -11,7 +11,7 @@ import java.util.Set;
 public class ManifestValidator {
     private static final Set<String> KNOWN_TOP_LEVEL_FIELDS = Set.of("targets", "execution", "output");
     private static final Set<String> KNOWN_TARGET_FIELDS = Set.of(
-        "name", "path", "layer", "tech_profile", "entry_points", "exclude_patterns"
+        "name", "path", "layer", "tech_profile", "entry_points", "exclude_patterns", "java_version"
     );
     private static final Set<String> KNOWN_EXECUTION_FIELDS = Set.of(
         "max-concurrent-llm-calls", "max-discovery-depth", "semantic-validation-sample-rate"

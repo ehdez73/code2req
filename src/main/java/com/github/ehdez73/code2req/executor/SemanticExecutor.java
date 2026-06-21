@@ -1,6 +1,8 @@
 package com.github.ehdez73.code2req.executor;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.ehdez73.code2req.model.ExecutionFinding;
 import com.github.ehdez73.code2req.model.PlannerDecision;
 import com.github.ehdez73.code2req.model.Task;
@@ -8,6 +10,7 @@ import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.FindingType;
 import com.github.ehdez73.code2req.store.TaskStore;
+import com.networknt.schema.ValidationMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -19,6 +22,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 @Component
@@ -32,20 +37,25 @@ public class SemanticExecutor {
     private final TaskStore taskStore;
     private final ContextBudgetCalculator budgetCalculator;
     private final SimulationStub simulationStub;
+    private final ExecutionFindingValidator validator;
+    private final ExecutionFindingParser parser;
 
     public SemanticExecutor(ObjectProvider<ChatClient.Builder> chatClientBuilderProvider,
                             ExecutionFindingStore findingStore,
                             TaskStore taskStore,
                             ContextBudgetCalculator budgetCalculator,
-                            SimulationStub simulationStub) {
-        ChatClient.Builder builder = chatClientBuilderProvider != null ? chatClientBuilderProvider.getIfAvailable() : null;
-        this.chatClient = builder != null
-            ? builder.defaultAdvisors(new SimpleLoggerAdvisor()).build()
-            : null;
+                            SimulationStub simulationStub,
+                            ExecutionFindingValidator validator,
+                            ExecutionFindingParser parser) {
         this.findingStore = findingStore;
         this.taskStore = taskStore;
         this.budgetCalculator = budgetCalculator;
         this.simulationStub = simulationStub;
+        this.validator = validator;
+        this.parser = parser;
+        this.chatClient = chatClientBuilderProvider != null
+            ? chatClientBuilderProvider.getObject().defaultAdvisors(new SimpleLoggerAdvisor()).build()
+            : null;
     }
 
     @Async("orchestratorTaskExecutor")
@@ -97,10 +107,16 @@ public class SemanticExecutor {
         }
 
         var outputConverter = new BeanOutputConverter<>(ExecutionFinding.class);
+        String rawSchema = outputConverter.getJsonSchema();
+        String strictSchema = buildStrictSchema(rawSchema);
+
         var options = OpenAiChatOptions.builder()
+            .httpHeaders(Map.of(
+                    "X-OpenRouter-Plugins", "[{\"id\":\"response-healing\"}]"
+            ))
             .responseFormat(ResponseFormat.builder()
                 .type(ResponseFormat.Type.JSON_SCHEMA)
-                .jsonSchema(outputConverter.getJsonSchema())
+                .jsonSchema(strictSchema)
                 .build())
             .build();
 
@@ -109,33 +125,71 @@ public class SemanticExecutor {
         double multiplier = 2.0;
         long capMs = 60000;
 
+        String response = null;
+
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                String response = chatClient.prompt()
+                response = chatClient.prompt()
                     .system(systemPrompt)
                     .user(userPrompt)
                     .options(options)
                     .call()
                     .content();
 
-                //   log.debug(response);
                 if (response == null || response.isBlank()) {
                     throw new RuntimeException("LLM returned empty response");
                 }
-                return outputConverter.convert(response);
+
+                String sanitized = parser.sanitize(response);
+                String normalized = parser.normalize(sanitized);
+
+                ExecutionFinding finding;
+                try {
+                    finding = outputConverter.convert(normalized);
+                } catch (Exception strictError) {
+                    log.warn("Strict JSON parsing failed for task {}, trying lenient fallback: {}",
+                        task.taskId(), strictError.getMessage());
+                    finding = parser.parseLenient(sanitized);
+                }
+
+                if (validator != null) {
+                    try {
+                        Set<ValidationMessage> violations = validator.validate(
+                            MAPPER.writeValueAsString(finding));
+                        if (!violations.isEmpty()) {
+                            log.warn("Schema validation found {} issue(s) for task {}: {}",
+                                violations.size(), task.taskId(), violations);
+                        }
+                    } catch (Exception valError) {
+                        log.warn("Schema validation failed for task {}: {}", task.taskId(), valError.getMessage());
+                    }
+                }
+
+                return finding;
 
             } catch (Exception e) {
                 boolean isRateLimit = e.getMessage() != null && e.getMessage().contains("429");
-                if (isRateLimit && attempt < maxRetries) {
-                    log.warn("Rate limited (attempt {}/{}), backing off {}ms for task {}",
-                        attempt, maxRetries, delayMs, task.taskId());
+                long backoffMs = isRateLimit ? delayMs : 1000L;
+                if (attempt < maxRetries) {
+                    if (!isRateLimit && response != null) {
+                        userPrompt = buildErrorFeedbackPrompt(
+                            task, sourceContent, testContent, structuralContextJson,
+                            response, e.getMessage());
+                        log.warn("Recoverable error (attempt {}/{}), feeding back to LLM for task {}: {}",
+                            attempt, maxRetries, task.taskId(), e.getMessage());
+                    } else {
+                        log.warn("Recoverable error (attempt {}/{}), retrying in {}ms for task {}: {}",
+                            attempt, maxRetries, backoffMs, task.taskId(), e.getMessage());
+                    }
                     try {
-                        Thread.sleep(delayMs);
+                        Thread.sleep(backoffMs);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         throw new RuntimeException("Retry interrupted", ie);
                     }
-                    delayMs = (long) Math.min(delayMs * (long) multiplier, capMs);
+                    if (isRateLimit) {
+                        delayMs = (long) Math.min(delayMs * (long) multiplier, capMs);
+                    }
                 } else {
                     throw new RuntimeException("LLM call failed after " + attempt + " attempt(s)", e);
                 }
@@ -144,65 +198,128 @@ public class SemanticExecutor {
         throw new RuntimeException("LLM call failed after " + maxRetries + " retries");
     }
 
-    private String buildSystemPrompt() {
-        return """
-            You are a code analyst specializing in extracting business semantics from source code.
-            The structural dependencies (call graph, database access, endpoint mappings, event links)
-            have ALREADY been resolved. Do NOT attempt to resolve structural dependencies.
+private String buildSystemPrompt() {
+    return """
+        You are a code analyst. Your ONLY output is a single JSON object — no markdown fences, \
+        no prose, no explanation. Any non-JSON output will break the pipeline.
 
-            Populate each section of the output JSON as follows:
+        STRICT OUTPUT CONTRACT
+        ─────────────────────
+        • Output MUST start with `{` and end with `}`.
+        • All string values must be valid JSON strings (escape quotes, newlines, backslashes).
+        • Arrays that have no entries MUST be `[]` — never omit them.
+        • Objects that have no entries MUST be `{}` — never omit them.
+        • Do NOT add fields not listed in the schema below.
+        • Do NOT include comments or trailing commas.
 
-            metadata
-              Copy task_id, target_name, file_path, module_tag and tech_profile from the task context.
-              Set timestamp to the current date/time.
+        SCHEMA (fill every field)
+        ─────────────────────────
+        {
+          "metadata": {
+            "task_id":      "<copy from task context>",
+            "target_name":  "<copy from task context>",
+            "file_path":    "<copy from task context>",
+            "tech_profile": "<copy from task context>",
+            "module_tag":   "<copy from task context>",
+            "timestamp":    "<ISO-8601, e.g. 2025-06-01T12:00:00>"
+          },
+          "business_abstraction": {
+            "purpose": "<1-2 sentence business responsibility of this file>",
+            "happy_paths": [
+              { "flow_name": "<short name>", "description": "<normal success flow>" }
+            ]
+          },
+          "business_rules_and_guardrails": {
+            "validations": [
+              {
+                "field_or_context": "<validated input or context>",
+                "rule":             "<constraint>",
+                "error_behavior":   "<what happens on failure>"
+              }
+            ],
+            "edge_cases": [
+              { "scenario": "<boundary or error state>", "business_consequence": "<impact>" }
+            ]
+          },
+          "test_insights": [
+            {
+              "test_file_path":       "<path to test file>",
+              "scenario_verified":    "<what the test checks>",
+              "hidden_rule_uncovered": "<non-obvious rule revealed by assertions>"
+            }
+          ],
+          "architectural_connections": {
+            "inbound": {
+              "http_endpoints":    [ { "method": "<GET|POST|…>", "path_pattern": "<path>", "description": "<purpose>" } ],
+              "event_subscriptions": [ { "broker": "<kafka|rabbitmq|jms|...>", "topic_or_queue": "<topic or queue>", "payload_structure": "<expected payload type>" } ],
+              "scheduled_triggers":  [ { "schedule_expression": "<cron or interval>", "description": "<purpose>" } ]
+            },
+            "outbound": {
+              "http_calls": [
+                {
+                  "method":                "<GET|POST|…>",
+                  "url_or_path":           "<url>",
+                  "encapsulated_in":       "<method call>",
+                  "is_external":           true,
+                  "external_contract_hint": "<REST/SOAP/etc: expected response shape>"
+                }
+              ],
+              "event_publications": [ { "broker": "<kafka|rabbitmq|jms|...>", "topic_or_queue": "<topic>", "routing_key": "<routing key>", "business_trigger": "<what triggers publication>" } ]
+            }
+          },
+          "discovered_dependencies": [
+            { "file_path": "<path not in structural context>", "reason": "<why discovered>", "discovery_depth": 0 }
+          ]
+        }
 
-            business_abstraction.purpose
-              1-2 sentence high-level summary of this file's business responsibility.
+        FIELD RULES
+        ───────────
+        metadata          — copy all five fields verbatim from the task context block.
+        purpose           — one or two sentences, business language, no code terms.
+        happy_paths       — one entry per distinct success flow; omit error flows here.
+        validations       — every guard clause, null check, or business rejection rule.
+        edge_cases        — boundary states and explicit error handling only.
+        test_insights     — only if a TEST FILE section is present; otherwise `[]`.
+        architectural_connections — scan for @RequestMapping, RestTemplate, @KafkaListener,
+                            @Scheduled, JmsTemplate, WebClient, and similar. Empty arrays
+                            for sections with no matches — never omit the section.
+        discovered_dependencies — objects with file_path, reason, and discovery_depth for files referenced
+                            but absent from STRUCTURAL CONTEXT; `[]` if none.
+        """.stripIndent();
+}
 
-            business_abstraction.happy_paths[]
-              High-level describe each normal (success) execution flow the code supports.
-
-            business_rules_and_guardrails.validations[]
-              List input constraints and business rejection rules found in the code.
-              For each: field_or_context = the validated input/context; rule = the constraint;
-              error_behavior = what happens on failure.
-
-            business_rules_and_guardrails.edge_cases[]
-              Boundary conditions and error states the code handles explicitly.
-
-            test_insights[]
-              If a test file is provided, extract: scenario_verified (what the test checks)
-              and hidden_rule_uncovered (assertions that reveal non-obvious rules).
-
-            architectural_connections
-              List HTTP endpoints, event subscriptions, scheduled triggers (inbound) and
-              HTTP calls, event publications (outbound) found in the code.
-              Use empty arrays/objects if none exist — do not omit the section.
-
-            discovered_dependencies[]
-              List any references to files not already in the indexed call graph.
-              Use an empty array if no new dependencies are found.
-            """.stripIndent();
-    }
-
-    private String buildUserPrompt(Task task, String sourceContent, String testContent, String structuralContextJson) {
+    private String buildUserPrompt(Task task, String sourceContent, String testContent,
+                                   String structuralContextJson) {
         StringBuilder sb = new StringBuilder();
-        sb.append("### TASK\n");
-        sb.append("File: ").append(task.filePath()).append("\n");
-        sb.append("Module: ").append(task.contentType()).append("\n\n");
 
+        // ── TASK CONTEXT (metadata source for the LLM) ──────────────────────────
+        sb.append("TASK CONTEXT\n");
+        sb.append("task_id:     ").append(task.taskId()).append("\n");
+        sb.append("target_name: ").append(task.filePath()
+                .substring(task.filePath().lastIndexOf('/') + 1)
+                .replaceAll("\\.java$", "")).append("\n");
+        sb.append("file_path:   ").append(task.filePath()).append("\n");
+        sb.append("tech_profile: business_semantics\n");
+        sb.append("module_tag:  ").append(task.contentType()).append("\n\n");
+
+        // ── STRUCTURAL CONTEXT ───────────────────────────────────────────────────
         if (structuralContextJson != null && !structuralContextJson.isBlank()) {
-            sb.append("### STRUCTURAL CONTEXT (pre-resolved)\n");
+            sb.append("STRUCTURAL CONTEXT (already resolved — do not re-derive these)\n");
             sb.append(structuralContextJson).append("\n\n");
         }
 
-        sb.append("### SOURCE CODE\n");
+        // ── SOURCE CODE ──────────────────────────────────────────────────────────
+        sb.append("SOURCE CODE\n");
         sb.append(sourceContent).append("\n");
 
+        // ── TEST FILE ────────────────────────────────────────────────────────────
         if (testContent != null && !testContent.isBlank()) {
-            sb.append("\n### TEST FILE CONTENT\n");
+            sb.append("\nTEST FILE\n");
             sb.append(testContent).append("\n");
         }
+
+        // ── OUTPUT REMINDER (keeps contract top-of-mind at the end too) ─────────
+        sb.append("\nRemember: output ONLY the JSON object. Start with `{`, end with `}`. No other text.\n");
 
         return sb.toString();
     }
@@ -219,5 +336,53 @@ public class SemanticExecutor {
             log.warn("Pre-summarization failed, using original context: {}", e.getMessage());
             return userPrompt;
         }
+    }
+
+    private String buildStrictSchema(String rawSchema) {
+        try {
+            JsonNode schemaNode = MAPPER.readTree(rawSchema);
+            if (schemaNode instanceof ObjectNode root) {
+                addAdditionalPropertiesFalse(root);
+                ObjectNode wrapper = MAPPER.createObjectNode();
+                wrapper.put("name", "ExecutionFinding");
+                wrapper.put("strict", true);
+                wrapper.set("schema", root);
+                return MAPPER.writeValueAsString(wrapper);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to build strict schema, using raw schema: {}", e.getMessage());
+        }
+        return rawSchema;
+    }
+
+    private void addAdditionalPropertiesFalse(ObjectNode node) {
+        if (!node.has("type") || !"object".equals(node.get("type").asText())) return;
+        node.put("additionalProperties", false);
+        JsonNode properties = node.get("properties");
+        if (properties instanceof ObjectNode propsObj) {
+            propsObj.fieldNames().forEachRemaining(fieldName -> {
+                JsonNode fieldSchema = propsObj.get(fieldName);
+                if (fieldSchema instanceof ObjectNode fieldObj) {
+                    addAdditionalPropertiesFalse(fieldObj);
+                }
+            });
+        }
+        JsonNode items = node.get("items");
+        if (items instanceof ObjectNode itemsObj) {
+            addAdditionalPropertiesFalse(itemsObj);
+        }
+    }
+
+    private String buildErrorFeedbackPrompt(Task task, String sourceContent, String testContent,
+                                             String structuralContextJson, String failedJson, String error) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("YOUR PREVIOUS RESPONSE FAILED JSON PARSING.\n\n");
+        sb.append("FAILED JSON:\n").append(failedJson).append("\n\n");
+        sb.append("PARSE ERROR:\n").append(error).append("\n\n");
+        sb.append("Fix the JSON and output ONLY the corrected version. ");
+        sb.append("Follow the schema exactly.\n");
+        sb.append("─────────────────────────────────────\n\n");
+        sb.append(buildUserPrompt(task, sourceContent, testContent, structuralContextJson));
+        return sb.toString();
     }
 }

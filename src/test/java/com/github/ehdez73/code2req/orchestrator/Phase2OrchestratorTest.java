@@ -92,9 +92,9 @@ class Phase2OrchestratorTest {
     }
 
     private Phase2Orchestrator createOrchestrator() {
-        planner = new Phase2Planner(taskStore, jdbc, defaultRules);
+        planner = new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
         var executor = new SemanticExecutor(null, findingStore, taskStore,
-            budgetCalculator, simulationStub);
+            budgetCalculator, simulationStub, null, null);
         return new Phase2Orchestrator(planner, executor, taskStore, findingStore,
             metricsStore, executionConfig, taskIdHasher, budgetCalculator);
     }
@@ -164,9 +164,9 @@ class Phase2OrchestratorTest {
             );
 
             var controlledStub = new ControlledSimulationStub(depPaths);
-            planner = new Phase2Planner(taskStore, jdbc, defaultRules);
+            planner = new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
             var executor = new SemanticExecutor(null, findingStore, taskStore,
-                budgetCalculator, controlledStub);
+                budgetCalculator, controlledStub, null, null);
             var orchestratorWithDeps = new Phase2Orchestrator(planner, executor, taskStore,
                 findingStore, metricsStore,
                 new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7),
@@ -190,9 +190,9 @@ class Phase2OrchestratorTest {
             );
 
             var controlledStub = new ControlledSimulationStub(depPaths);
-            planner = new Phase2Planner(taskStore, jdbc, defaultRules);
+            planner = new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
             var executor = new SemanticExecutor(null, findingStore, taskStore,
-                budgetCalculator, controlledStub);
+                budgetCalculator, controlledStub, null, null);
             var orchestratorWithDeps = new Phase2Orchestrator(planner, executor, taskStore,
                 findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator);
 

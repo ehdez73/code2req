@@ -14,6 +14,7 @@ import com.github.ehdez73.code2req.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.planner.rule.UnresolvedFloatingLinkRule;
 import com.github.ehdez73.code2req.planner.rule.UnresolvedSignaturesRule;
+import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.FloatingLinkStore;
 import com.github.ehdez73.code2req.store.TaskStore;
 import com.github.ehdez73.code2req.store.TaskStoreSchema;
@@ -36,6 +37,7 @@ class Phase2PlannerTest {
 
     private JdbcTemplate jdbc;
     private TaskStore taskStore;
+    private ExecutionFindingStore findingStore;
     private FloatingLinkStore floatingLinkStore;
     private List<QualificationRule> defaultRules;
 
@@ -48,6 +50,7 @@ class Phase2PlannerTest {
         var schema = new TaskStoreSchema(jdbc);
         schema.createSchemaIfNotExists();
         taskStore = new TaskStore(jdbc);
+        findingStore = new ExecutionFindingStore(jdbc);
         floatingLinkStore = new FloatingLinkStore(jdbc);
         defaultRules = List.of(
             new SpringDataInterfaceRule(),
@@ -63,7 +66,7 @@ class Phase2PlannerTest {
     }
 
     private Phase2Planner createPlanner() {
-        return new Phase2Planner(taskStore, jdbc, defaultRules);
+        return new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
     }
 
     private void insertTask(String taskId, String filePath) {
@@ -249,7 +252,7 @@ class Phase2PlannerTest {
             insertFinding("t1", "CALL_GRAPH_EDGE", false);
             insertFinding("t1", "CALL_GRAPH_EDGE", false);
             insertFinding("t1", "CALL_GRAPH_EDGE", false);
-            var planner = new Phase2Planner(taskStore, jdbc, rules);
+            var planner = new Phase2Planner(taskStore, jdbc, rules, findingStore);
             var decisions = planner.plan();
             assertTrue(decisions.get(0).qualified());
         }

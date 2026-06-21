@@ -101,7 +101,7 @@ public class ScanCommand {
         var allFiles = flattenBatches(batches);
 
         report.append("Phase 4/5 — Analysis (Two-Pass):\n");
-        var pipelineResult = pipeline.execute(allFiles, report);
+        var pipelineResult = pipeline.execute(allFiles, manifest.targets(), report);
 
         var templateBatches = discoverTemplateFiles(manifest, report);
         List<TemplateFormInfo> templateForms = new ArrayList<>();

@@ -8,6 +8,7 @@
   - `run --manifest project-manifest.yaml` — Phase 2 + Phase 3 (via OpenRouter, model from `OPENROUTER_MODEL` env var)
   - `run --manifest ... --llm-threshold 0` — run without LLM enrichment
   - `run --manifest ... --dry-run` — simulation mode (no API calls, no key required)
+  - `retry-failed` — reset FAILED tasks to SUCCESS for re-enrichment on next run
 
 ## Prerequisites (Already Done in Phase 1)
 - SQLite store with `tasks`, `execution_findings`, `topic_links`, `floating_links`, `metrics` tables
@@ -81,6 +82,7 @@ Individual file enrichment workers. Each executor receives the pre-resolved stru
 Key behaviors:
 - Spring `@Async("orchestratorTaskExecutor")` method returning `CompletableFuture<ExecutionFinding>`
 - Exponential backoff: initial 2s, multiplier 2.0, cap 60s, max 3 retries (PRD §5.4)
+- Error-feedback retry: on JSON parse failure, the LLM's broken output and the parse error are prepended to the retry prompt so the model can self-correct on the next attempt
 - Context budgeting: if combined token weight > 80% of model context window, trigger pre-summarization step (PRD §3.6)
 - Output validated against JSON Schema §4 before transition to `SUCCESS`
 - `--dry-run` mode: Spring AI calls intercepted by local `SimulationStub` returning deterministic static JSON (zero API calls, no key required)
@@ -111,6 +113,7 @@ Key behaviors:
   - Process the new task, wait for completion, resume original branch
 - **Max Hop Depth**: configurable (default: 3). Exceeded → `AWAITING_HUMAN_REVIEW` (PRD §5.2)
 - **Visited Registry**: thread-safe set of hashes to prevent redundant evaluation (PRD §5.2)
+- **FAILED Task Recovery**: tasks that exhaust retries and transition to FAILED can be recovered via the `retry-failed` CLI command, which resets FAILED → SUCCESS. On re-run, the planner skips tasks with existing SEMANTIC_ENRICHMENT findings (see F016) so only genuinely failed tasks are re-processed.
 - Writes `metrics` after Phase 2 completes (tokens consumed, cost estimate)
 
 - [x] **US045** (must): Orchestrator manages enrichment DAG, submits tasks async, implements Phase 2→3 barrier via CompletableFuture.allOf(), handles dynamic re-planning with branch isolation, enforces max-hop-depth
@@ -129,6 +132,7 @@ Key behaviors:
   - Phase 3: Synthesis (delegates to E004)
   - `--llm-threshold 0` skips Phase 2 entirely (degenerate case)
   - `--dry-run` simulation mode (deterministic stubs, no API spend)
+- `retry-failed` — reset all FAILED tasks to SUCCESS. Planner skips tasks that already have a SEMANTIC_ENRICHMENT finding, so only truly failed tasks are re-processed. Safe to run multiple times — already-successful tasks are never duplicated.
 - `status` — extend existing command to show Phase 2 metrics (enriched tasks, tokens consumed, estimated cost, pending/complete counts)
 
 - **US046** (must): `plan` command displays qualified tasks grouped by target with qualification reasons — zero LLM calls, zero SQLite mutations
@@ -312,11 +316,11 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `model/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
 | ✓ `model/AnalysisFinding.java` | Add `default boolean isResolved() { return true; }` |
 | ✓ `analyzer/callgraph/CallGraphEdge.java` | Override `isResolved()` to return `STATUS_RESOLVED.equals(resolvedStatus)` |
-| ✓ `store/ExecutionFindingStore.java` | `saveAllForTask` uses `finding.isResolved()` instead of hardcoded `true` |
+| ✓ `store/ExecutionFindingStore.java` | `saveAllForTask` uses `finding.isResolved()` instead of hardcoded `true`. Added `countByTaskIdAndType()` query for planner. |
 | ✓ `store/FindingType.java` | Add `SPRING_DATA_INTERFACE`, `DATABASE_PROCEDURE_CALL`, `CONSTRAINT_VALIDATOR`, `NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY`, `SEMANTIC_ENRICHMENT` |
 | ✓ `pipeline/ScanPipeline.java` | Add re-classification step after `persistFindings()` to create granular FindingType rows (now 5 mapping cases) |
 | ✓ `store/FloatingLinkStore.java` | Add `findSourceFilePathsByResolvedStatus(String)` query for planner |
-| ✓ `planner/Phase2Planner.java` | Refactored with Strategy Pattern — delegates to 9 `QualificationRule` components |
+| ✓ `planner/Phase2Planner.java` | Refactored with Strategy Pattern — delegates to 9 `QualificationRule` components. Extended with `ExecutionFindingStore` check to skip tasks that already have SEMANTIC_ENRICHMENT findings (prevents re-enrichment after `retry-failed`). |
 | ✓ `shell/StatusCommand.java` | Add Phase 2 metrics (tokens, cost, enriched count) + Phase 3 metrics (flow extraction rate, ambiguity gaps) |
 | ✓ `pom.xml` | Add `spring-ai-client-chat`, `spring-ai-autoconfigure-model-chat-client` dependencies |
 | ✓ `model/ExecutionConfig.java` | Converted to `@ConfigurationProperties(prefix="code2req.execution")`; defaults in `application.properties`; removed `defaultConfig()`; removed from `ProjectManifest` |
@@ -334,7 +338,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 |---------|-------|
 | `planner/` | `QualificationRule.java` (interface), `PlanningContext.java` (shared data access), `PlannerDecision.java` (record), `QualificationReason.java` (enum) |
 | `planner/rule/` | `SpringDataInterfaceRule`, `StoredProcedureCallRule`, `CustomConstraintValidatorRule`, `ScheduledTaskPresentRule`, `UnresolvedSignaturesRule`, `UnresolvedFloatingLinkRule`, `TestAssertionsPresentRule`, `NativeSqlQueryRule`, `JpqlHqlQueryRule`, `AbstractFindingTypeRule` (base class) |
-| ✓ `executor/` | `SemanticExecutor`, `ExecutionFindingValidator`, `ContextBudgetCalculator`, `SimulationStub` |
+| ✓ `executor/` | `SemanticExecutor` (error-feedback retry), `ExecutionFindingValidator`, `ContextBudgetCalculator`, `SimulationStub` |
 | ✓ `model/` | `ExecutionFinding` (nested record hierarchy matching §4 schema) |
 | ✓ `resources/schema/` | `execution-finding-schema.json` (embedded §4 JSON Schema) |
 | ✓ `orchestrator/` | `Phase2Orchestrator`, `EnrichmentDag`, `BranchState`, `CompletionStatus` |
@@ -345,6 +349,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | `synthesis/output/` | `MarkdownSpecWriter`, `SemanticManifestWriter` |
 | `synthesis/audit/` | `Phase3QualityAudit`, `AuditSample`, `AuditReport` |
 | ✓ `shell/` | `PlanCommand`, `RunCommand` |
+| `shell/` | `RetryFailedCommand` (FAILED → SUCCESS recovery) |
 | ✓ `synthesis/` | `Phase3Result`, `Phase3Orchestrator` (E004 placeholder) |
 
 ## Verification Guide

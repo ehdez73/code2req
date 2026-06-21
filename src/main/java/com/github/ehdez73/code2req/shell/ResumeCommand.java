@@ -86,7 +86,7 @@ public class ResumeCommand {
             report.append("Phase 4/5 — Analysis: all files already completed, nothing to resume\n");
         } else {
             report.append("Phase 4/5 — Analysis (Two-Pass):\n");
-            var pipelineResult = pipeline.execute(pendingFiles, report);
+            var pipelineResult = pipeline.execute(pendingFiles, manifest.targets(), report);
             var merged = mergeResults(pipelineResult, allFiles, manifest);
             writeIndex(manifest, merged, pipelineResult.topicLinks(), report);
         }

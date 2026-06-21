@@ -41,7 +41,7 @@ class IndexWriterTest {
     @Test
     void writesEmptyIndex() throws IOException {
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
-        ScanTarget target = new ScanTarget("test-app", targetDir.toString(), "backend", "java-spring", List.of(), List.of());
+        ScanTarget target = new ScanTarget("test-app", targetDir.toString(), "backend", "java-spring", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
         List<AnalysisResult> results = List.of();
 
@@ -62,7 +62,7 @@ class IndexWriterTest {
     void writesMixedFindings() throws IOException {
         Path targetDir = Files.createDirectory(tempDir.resolve("proj"));
         String filePath = targetDir.resolve("App.java").toString();
-        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java-spring", List.of(), List.of());
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java-spring", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         List<AnalysisFinding> findings = List.of(
@@ -120,7 +120,7 @@ class IndexWriterTest {
     void customOutputPath() throws IOException {
         Path customDir = Files.createDirectory(tempDir.resolve("custom-out"));
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
-        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         var iw = new IndexWriter(new com.github.ehdez73.code2req.model.OutputConfig(customDir.toString(), "my-index.json", null));
@@ -138,8 +138,8 @@ class IndexWriterTest {
         String file1 = target1Dir.resolve("A.java").toString();
         String file2 = target2Dir.resolve("B.java").toString();
 
-        ScanTarget target1 = new ScanTarget("mod-a", target1Dir.toString(), "backend", "java", List.of(), List.of());
-        ScanTarget target2 = new ScanTarget("mod-b", target2Dir.toString(), "backend", "java", List.of(), List.of());
+        ScanTarget target1 = new ScanTarget("mod-a", target1Dir.toString(), "backend", "java", List.of(), List.of(), null);
+        ScanTarget target2 = new ScanTarget("mod-b", target2Dir.toString(), "backend", "java", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target1, target2));
 
         AnalysisResult result1 = new AnalysisResult(file1, List.of(
@@ -170,7 +170,7 @@ class IndexWriterTest {
         String insideFile = targetDir.resolve("A.java").toString();
         String outsideFile = outsideDir.resolve("Other.java").toString();
 
-        ScanTarget target = new ScanTarget("mod-a", targetDir.toString(), "backend", "java", List.of(), List.of());
+        ScanTarget target = new ScanTarget("mod-a", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         AnalysisResult insideResult = new AnalysisResult(insideFile, List.of(
@@ -190,7 +190,7 @@ class IndexWriterTest {
     void writesTopicLinksAtRootLevel() throws IOException {
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
         String filePath = targetDir.resolve("App.java").toString();
-        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         AnalysisResult result = new AnalysisResult(filePath, List.of(
@@ -216,7 +216,7 @@ class IndexWriterTest {
     @Test
     void topicLinksOmittedWhenEmpty() throws IOException {
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
-        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         Path outputPath = writer("no-links.json").write(manifest, List.of(), List.of());
@@ -231,7 +231,7 @@ class IndexWriterTest {
         readOnlyDir.toFile().mkdir();
         readOnlyDir.toFile().setWritable(false);
 
-        ScanTarget target = new ScanTarget("app", tempDir.resolve("src").toString(), "backend", "java", List.of(), List.of());
+        ScanTarget target = new ScanTarget("app", tempDir.resolve("src").toString(), "backend", "java", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         var roWriter = new IndexWriter(new com.github.ehdez73.code2req.model.OutputConfig(readOnlyDir.toString(), "index.json", null));
@@ -243,7 +243,7 @@ class IndexWriterTest {
     void emptyFindingsKeysOmittedFromJson() throws IOException {
         Path targetDir = Files.createDirectory(tempDir.resolve("proj"));
         String filePath = targetDir.resolve("App.java").toString();
-        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         AnalysisResult result = new AnalysisResult(filePath, List.of(
@@ -269,7 +269,7 @@ class IndexWriterTest {
     void writesCallGraphEdgesInTarget() throws IOException {
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
         String filePath = targetDir.resolve("OrderController.java").toString();
-        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         AnalysisResult result = new AnalysisResult(filePath, List.of(
@@ -292,7 +292,7 @@ class IndexWriterTest {
     void callGraphEdgesOmittedWhenEmpty() throws IOException {
         Path targetDir = Files.createDirectory(tempDir.resolve("src"));
         String filePath = targetDir.resolve("App.java").toString();
-        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of());
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
 
         AnalysisResult result = new AnalysisResult(filePath, List.of(

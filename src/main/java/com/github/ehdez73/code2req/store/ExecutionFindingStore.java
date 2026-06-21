@@ -58,4 +58,11 @@ public class ExecutionFindingStore {
             "SELECT COUNT(*) FROM execution_findings WHERE finding_type = ?", Integer.class, findingType);
         return count != null ? count : 0;
     }
+
+    public int countByTaskIdAndType(String taskId, String findingType) {
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM execution_findings WHERE task_id = ? AND finding_type = ?",
+            Integer.class, taskId, findingType);
+        return count != null ? count : 0;
+    }
 }
