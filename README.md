@@ -17,7 +17,7 @@ Development (SDD).
 |---------|-------------|
 | `scan` | Parse Java sources via JavaParser AST, redact secrets, store in embedded SQLite, export JSON code graph |
 | `resume` | Incremental re-scan — skips already-completed files using deterministic SHA-256 task IDs |
-| `status` | Query task store by status (`PENDING`, `RUNNING`, `SUCCESS`, `FAILED`) |
+| `status` | Query task store by status (`PENDING`, `ENRICHING`, `INDEXED`, `ENRICHED`, `FAILED`) |
 | `clean` | Wipe all scanned data (SQLite store + output files) |
 | `validate` | Verify project manifest YAML structure |
 

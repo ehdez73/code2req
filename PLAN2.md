@@ -8,11 +8,11 @@
   - `run --manifest project-manifest.yaml` — Phase 2 + Phase 3 (via OpenRouter, model from `OPENROUTER_MODEL` env var)
   - `run --manifest ... --llm-threshold 0` — run without LLM enrichment
   - `run --manifest ... --dry-run` — simulation mode (no API calls, no key required)
-  - `retry-failed` — reset FAILED tasks to SUCCESS for re-enrichment on next run
+  - `retry-failed` — reset FAILED tasks to INDEXED for re-enrichment on next run
 
 ## Prerequisites (Already Done in Phase 1)
 - SQLite store with `tasks`, `execution_findings`, `topic_links`, `floating_links`, `metrics` tables
-- `TaskStore` with `PENDING`/`RUNNING`/`SUCCESS`/`FAILED` status queries (`findByStatus`)
+- `TaskStore` with `PENDING`/`ENRICHING`/`INDEXED`/`ENRICHED`/`FAILED` status queries (`findByStatus`)
 - `ExecutionFindingStore` (save, saveAllForTask, countByType)
 - `MetricsStore` (save, getLatestForPhase)
 - `TaskIdHasher` (deterministic SHA-256 — needed for discovered_dependency tasks)
@@ -84,7 +84,7 @@ Key behaviors:
 - Exponential backoff: initial 2s, multiplier 2.0, cap 60s, max 3 retries (PRD §5.4)
 - Error-feedback retry: on JSON parse failure, the LLM's broken output and the parse error are prepended to the retry prompt so the model can self-correct on the next attempt
 - Context budgeting: if combined token weight > 80% of model context window, trigger pre-summarization step (PRD §3.6)
-- Output validated against JSON Schema §4 before transition to `SUCCESS`
+- Output validated against JSON Schema §4 before transition to `ENRICHED`
 - `--dry-run` mode: Spring AI calls intercepted by local `SimulationStub` returning deterministic static JSON (zero API calls, no key required)
 - Persists enriched JSON to `execution_findings` table via `ExecutionFindingStore`
 - Attaches `discovered_dependency` array when unindexed runtime deps uncovered (PRD §3.5)
@@ -113,7 +113,7 @@ Key behaviors:
   - Process the new task, wait for completion, resume original branch
 - **Max Hop Depth**: configurable (default: 3). Exceeded → `AWAITING_HUMAN_REVIEW` (PRD §5.2)
 - **Visited Registry**: thread-safe set of hashes to prevent redundant evaluation (PRD §5.2)
-- **FAILED Task Recovery**: tasks that exhaust retries and transition to FAILED can be recovered via the `retry-failed` CLI command, which resets FAILED → SUCCESS. On re-run, the planner skips tasks with existing SEMANTIC_ENRICHMENT findings (see F016) so only genuinely failed tasks are re-processed.
+- **FAILED Task Recovery**: tasks that exhaust retries and transition to FAILED can be recovered via the `retry-failed` CLI command, which resets FAILED → INDEXED. On re-run, the planner skips tasks with existing SEMANTIC_ENRICHMENT findings (see F016) so only genuinely failed tasks are re-processed.
 - Writes `metrics` after Phase 2 completes (tokens consumed, cost estimate)
 
 - [x] **US045** (must): Orchestrator manages enrichment DAG, submits tasks async, implements Phase 2→3 barrier via CompletableFuture.allOf(), handles dynamic re-planning with branch isolation, enforces max-hop-depth
@@ -132,7 +132,7 @@ Key behaviors:
   - Phase 3: Synthesis (delegates to E004)
   - `--llm-threshold 0` skips Phase 2 entirely (degenerate case)
   - `--dry-run` simulation mode (deterministic stubs, no API spend)
-- `retry-failed` — reset all FAILED tasks to SUCCESS. Planner skips tasks that already have a SEMANTIC_ENRICHMENT finding, so only truly failed tasks are re-processed. Safe to run multiple times — already-successful tasks are never duplicated.
+- `retry-failed` — reset all FAILED tasks to INDEXED. Planner skips tasks that already have a SEMANTIC_ENRICHMENT finding, so only truly failed tasks are re-processed. Safe to run multiple times — already-enriched tasks are never duplicated.
 - `status` — extend existing command to show Phase 2 metrics (enriched tasks, tokens consumed, estimated cost, pending/complete counts)
 
 - **US046** (must): `plan` command displays qualified tasks grouped by target with qualification reasons — zero LLM calls, zero SQLite mutations
@@ -349,7 +349,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | `synthesis/output/` | `MarkdownSpecWriter`, `SemanticManifestWriter` |
 | `synthesis/audit/` | `Phase3QualityAudit`, `AuditSample`, `AuditReport` |
 | ✓ `shell/` | `PlanCommand`, `RunCommand` |
-| `shell/` | `RetryFailedCommand` (FAILED → SUCCESS recovery) |
+| `shell/` | `RetryFailedCommand` (FAILED → INDEXED recovery) |
 | ✓ `synthesis/` | `Phase3Result`, `Phase3Orchestrator` (E004 placeholder) |
 
 ## Verification Guide

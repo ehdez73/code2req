@@ -52,12 +52,12 @@ class TaskStoreTest {
         Task task = new Task("id-1", "src/main/App.java", TaskStatus.PENDING, "java", "hash123", "test");
         taskStore.save(task);
 
-        Task updated = new Task("id-1", "src/main/App.java", TaskStatus.SUCCESS, "java", "hash123", "test");
+        Task updated = new Task("id-1", "src/main/App.java", TaskStatus.INDEXED, "java", "hash123", "test");
         taskStore.save(updated);
 
         Optional<Task> found = taskStore.findById("id-1");
         assertTrue(found.isPresent());
-        assertEquals(TaskStatus.SUCCESS, found.get().status());
+        assertEquals(TaskStatus.INDEXED, found.get().status());
     }
 
     @Test
@@ -79,22 +79,22 @@ class TaskStoreTest {
     @Test
     void findByStatus() {
         taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1", "test"));
-        taskStore.save(new Task("id-2", "file2.java", TaskStatus.RUNNING, "java", "h2", "test"));
-        taskStore.save(new Task("id-3", "file3.java", TaskStatus.SUCCESS, "java", "h3", "test"));
+        taskStore.save(new Task("id-2", "file2.java", TaskStatus.ENRICHING, "java", "h2", "test"));
+        taskStore.save(new Task("id-3", "file3.java", TaskStatus.INDEXED, "java", "h3", "test"));
 
         assertEquals(1, taskStore.findByStatus(TaskStatus.PENDING).size());
-        assertEquals(1, taskStore.findByStatus(TaskStatus.RUNNING).size());
-        assertEquals(1, taskStore.findByStatus(TaskStatus.SUCCESS).size());
+        assertEquals(1, taskStore.findByStatus(TaskStatus.ENRICHING).size());
+        assertEquals(1, taskStore.findByStatus(TaskStatus.INDEXED).size());
     }
 
     @Test
     void updateStatus() {
         taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1", "test"));
-        taskStore.updateStatus("id-1", TaskStatus.RUNNING);
+        taskStore.updateStatus("id-1", TaskStatus.ENRICHING);
 
         Optional<Task> found = taskStore.findById("id-1");
         assertTrue(found.isPresent());
-        assertEquals(TaskStatus.RUNNING, found.get().status());
+        assertEquals(TaskStatus.ENRICHING, found.get().status());
     }
 
     @Test

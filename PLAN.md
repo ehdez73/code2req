@@ -133,7 +133,7 @@
 - [x] Depends on: 1.2, 4a
 - [x] Classes: `IndexWriter`, `OrphanRecovery`, `OrphanRecoveryResult`
 - [x] Verify: `mvn test` (178 total — 7 IndexWriter + 4 OrphanRecovery new tests)
-- [x] Manual: `IndexWriter` produces valid JSON at `spec-output/code-graph-index.json` with all 17 finding types grouped by scan target; `OrphanRecovery` reverts `RUNNING` tasks to `PENDING`
+- [x] Manual: `IndexWriter` produces valid JSON at `spec-output/code-graph-index.json` with all 17 finding types grouped by scan target; `OrphanRecovery` reverts `ENRICHING` tasks to `PENDING`
 
 ### Phase 6 — CLI Commands
 

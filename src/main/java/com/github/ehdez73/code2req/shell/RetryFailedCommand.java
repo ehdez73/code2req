@@ -21,7 +21,7 @@ public class RetryFailedCommand {
         this.taskStore = taskStore;
     }
 
-    @ShellMethod(key = "retry-failed", value = "Reset all FAILED tasks to SUCCESS so they are re-evaluated by the Phase 2 planner on the next run. Tasks that already have enriched findings are skipped by the planner.")
+    @ShellMethod(key = "retry-failed", value = "Reset all FAILED tasks to INDEXED so they are re-evaluated by the Phase 2 planner on the next run. Tasks that already have enriched findings are skipped by the planner.")
     public String retryFailed() {
         List<Task> failedTasks = taskStore.findByStatus(TaskStatus.FAILED);
         if (failedTasks.isEmpty()) {
@@ -30,11 +30,11 @@ public class RetryFailedCommand {
 
         int count = 0;
         for (Task task : failedTasks) {
-            taskStore.updateStatus(task.taskId(), TaskStatus.SUCCESS);
+            taskStore.updateStatus(task.taskId(), TaskStatus.INDEXED);
             count++;
-            log.info("Reset task {} ({}) from FAILED to SUCCESS", task.taskId(), task.filePath());
+            log.info("Reset task {} ({}) from FAILED to INDEXED", task.taskId(), task.filePath());
         }
 
-        return String.format("Reset %d FAILED task(s) to SUCCESS. Run `run` to re-enrich them.", count);
+        return String.format("Reset %d FAILED task(s) to INDEXED. Run `run` to re-enrich them.", count);
     }
 }

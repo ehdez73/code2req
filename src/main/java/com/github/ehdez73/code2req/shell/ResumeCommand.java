@@ -183,7 +183,7 @@ public class ResumeCommand {
             }
         }
 
-        report.append(String.format("  Skipped (already SUCCESS): %d, Remaining: %d%n", skipped, pending.size()));
+        report.append(String.format("  Skipped (already INDEXED or ENRICHED): %d, Remaining: %d%n", skipped, pending.size()));
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
         return pending;
     }
@@ -196,7 +196,7 @@ public class ResumeCommand {
             String targetName = targetNameForFile(file, targets);
             String taskId = taskIdHasher.hash(fp, contentHash, targetName);
             Optional<Task> existing = taskStore.findById(taskId);
-            return existing.isPresent() && existing.get().status() == TaskStatus.SUCCESS;
+            return existing.isPresent() && (existing.get().status() == TaskStatus.INDEXED || existing.get().status() == TaskStatus.ENRICHED);
         } catch (IOException e) {
             log.warn("Failed to check completion for {}: {}", fp, e.getMessage());
             return false;

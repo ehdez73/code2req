@@ -260,7 +260,7 @@ public class ScanPipeline {
 
         String contentHash = sha256Hex(content);
         String taskId = taskIdHasher.hash(fp, contentHash, targetName);
-        taskStore.save(new Task(taskId, fp, TaskStatus.SUCCESS, "java", contentHash, targetName));
+        taskStore.save(new Task(taskId, fp, TaskStatus.INDEXED, "java", contentHash, targetName));
 
         persistFindings(taskId, result);
         reclassifyFindings(taskId, result);

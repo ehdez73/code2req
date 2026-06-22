@@ -19,7 +19,7 @@
 - [ ] On HTTP 429, exponential backoff is applied: 2s initial, 2.0 multiplier, 60s cap, 3 max retries
 - [ ] After 3 retries, task transitions to FAILED
 - [ ] Output is persisted to `execution_findings` table with type `SEMANTIC_ENRICHMENT`
-- [ ] Task transitions to SUCCESS on valid completion
+- [ ] Task transitions to ENRICHED on valid completion
 
 ### INVEST Flags
 

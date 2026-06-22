@@ -87,7 +87,7 @@ class SemanticExecutorTest {
     }
 
     @Test
-    void enrichWithDryRunUpdatesTaskStatusToSuccess() throws Exception {
+    void enrichWithDryRunUpdatesTaskStatusToEnriched() throws Exception {
         var task = new Task("test-task-3", "/src/Test.java",
             TaskStatus.PENDING, "test-module", "ghi789", "test");
         taskStore.save(task);
@@ -99,7 +99,7 @@ class SemanticExecutorTest {
 
         var saved = taskStore.findById("test-task-3");
         assertTrue(saved.isPresent());
-        assertEquals(TaskStatus.SUCCESS, saved.get().status());
+        assertEquals(TaskStatus.ENRICHED, saved.get().status());
     }
 
     @Test
@@ -142,6 +142,6 @@ class SemanticExecutorTest {
 
         ExecutionFinding result = future.get();
         assertNotNull(result);
-        assertEquals(TaskStatus.SUCCESS, taskStore.findById("test-task-5").get().status());
+        assertEquals(TaskStatus.ENRICHED, taskStore.findById("test-task-5").get().status());
     }
 }

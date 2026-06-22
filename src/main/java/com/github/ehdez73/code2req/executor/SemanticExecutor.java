@@ -79,7 +79,7 @@ public class SemanticExecutor {
             }
 
             findingStore.save(task.taskId(), FindingType.SEMANTIC_ENRICHMENT, resultJson, true);
-            taskStore.updateStatus(task.taskId(), TaskStatus.SUCCESS);
+            taskStore.updateStatus(task.taskId(), TaskStatus.ENRICHED);
 
             if (finding.discoveredDependencies() != null && !finding.discoveredDependencies().isEmpty()) {
                 log.info("Task {} discovered {} new dependencies", task.taskId(), finding.discoveredDependencies().size());

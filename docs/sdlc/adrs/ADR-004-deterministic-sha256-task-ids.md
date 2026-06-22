@@ -6,7 +6,7 @@
 
 ## Context
 
-Each processing task in the scan pipeline needs a unique identifier for tracking state through the processing DAG. This ID is used to persist task status (PENDING → RUNNING → SUCCESS/FAILED), cache results for idempotent re-scans, and detect orphaned tasks during crash recovery.
+Each processing task in the scan pipeline needs a unique identifier for tracking state through the processing DAG. This ID is used to persist task status (PENDING → ENRICHING → INDEXED → ENRICHED/FAILED), cache results for idempotent re-scans, and detect orphaned tasks during crash recovery.
 
 Key requirements:
 - Re-running against an unchanged workspace must consume zero tokens (reuse cached results)

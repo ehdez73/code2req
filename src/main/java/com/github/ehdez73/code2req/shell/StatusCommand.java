@@ -29,7 +29,7 @@ public class StatusCommand {
     @ShellMethod(key = "status", value = "Shows the task store summary with counts per status and Phase 2+3 metrics")
     public String status(
             @ShellOption(value = "--status", defaultValue = ShellOption.NULL,
-                         help = "Filter by status: PENDING, RUNNING, SUCCESS, FAILED") String statusFilter,
+                         help = "Filter by status: PENDING, ENRICHING, INDEXED, ENRICHED, FAILED") String statusFilter,
             @ShellOption(value = "--verbose", defaultValue = "false",
                          help = "List individual task file paths") boolean verbose) {
 
@@ -40,7 +40,7 @@ public class StatusCommand {
             try {
                 filter = TaskStatus.valueOf(statusFilter.toUpperCase());
             } catch (IllegalArgumentException e) {
-                return "Error: Invalid status '" + statusFilter + "'. Valid values: PENDING, RUNNING, SUCCESS, FAILED, AWAITING_HUMAN_REVIEW";
+                return "Error: Invalid status '" + statusFilter + "'. Valid values: PENDING, ENRICHING, INDEXED, ENRICHED, FAILED, AWAITING_HUMAN_REVIEW";
             }
             appendStatusGroup(sb, filter, verbose);
         } else {

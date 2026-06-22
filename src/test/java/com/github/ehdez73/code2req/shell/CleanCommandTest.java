@@ -58,8 +58,8 @@ class CleanCommandTest {
 
     @Test
     void cleanWithPopulatedStore() {
-        taskStore.save(new Task("id1", "/src/App.java", TaskStatus.SUCCESS, "java", "h1", "test"));
-        taskStore.save(new Task("id2", "/src/Config.java", TaskStatus.SUCCESS, "java", "h2", "test"));
+        taskStore.save(new Task("id1", "/src/App.java", TaskStatus.INDEXED, "java", "h1", "test"));
+        taskStore.save(new Task("id2", "/src/Config.java", TaskStatus.INDEXED, "java", "h2", "test"));
         taskStore.save(new Task("id3", "/src/Controller.java", TaskStatus.FAILED, "java", "h3", "test"));
 
         assertEquals(3, taskStore.count());
@@ -73,7 +73,7 @@ class CleanCommandTest {
 
     @Test
     void cleanWithCustomManifest() throws IOException {
-        taskStore.save(new Task("id1", "/src/App.java", TaskStatus.SUCCESS, "java", "h1", "test"));
+        taskStore.save(new Task("id1", "/src/App.java", TaskStatus.INDEXED, "java", "h1", "test"));
 
         Files.createDirectories(specDir);
         Files.writeString(indexPath, "{\"test\": true}");

@@ -18,7 +18,7 @@ public class OrphanRecovery {
     }
 
     public OrphanRecoveryResult recover() {
-        List<Task> orphans = taskStore.findByStatus(TaskStatus.RUNNING);
+        List<Task> orphans = taskStore.findByStatus(TaskStatus.ENRICHING);
         int reverted = 0;
 
         for (Task task : orphans) {

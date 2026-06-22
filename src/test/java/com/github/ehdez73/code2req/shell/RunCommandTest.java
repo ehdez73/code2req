@@ -101,7 +101,7 @@ class RunCommandTest {
 
     @Test
     void runDryRunWithQualifiedTasksCompletesWithoutApiCalls() {
-        insertSuccessTask("t1", "/src/ScheduledService.java");
+        insertIndexedTask("t1", "/src/ScheduledService.java");
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t1", "SCHEDULED_TASK", "{}", 1);
 
@@ -114,7 +114,7 @@ class RunCommandTest {
 
     @Test
     void runWithLlmThresholdZeroSkipsPhase2() {
-        insertSuccessTask("t1", "/src/ScheduledService.java");
+        insertIndexedTask("t1", "/src/ScheduledService.java");
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t1", "SCHEDULED_TASK", "{}", 1);
 
@@ -125,9 +125,9 @@ class RunCommandTest {
 
     @Test
     void runDryRunWithMultipleQualifiedTasks() {
-        insertSuccessTask("t1", "/src/ServiceA.java");
-        insertSuccessTask("t2", "/src/ServiceB.java");
-        insertSuccessTask("t3", "/src/ServiceC.java");
+        insertIndexedTask("t1", "/src/ServiceA.java");
+        insertIndexedTask("t2", "/src/ServiceB.java");
+        insertIndexedTask("t3", "/src/ServiceC.java");
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t1", "SPRING_DATA_INTERFACE", "{}", 1);
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
@@ -146,7 +146,7 @@ class RunCommandTest {
         assertTrue(result.contains("Error: Manifest file not found"));
     }
 
-    private void insertSuccessTask(String taskId, String filePath) {
-        taskStore.save(new Task(taskId, filePath, TaskStatus.SUCCESS, "java", "hash-" + taskId, "test"));
+    private void insertIndexedTask(String taskId, String filePath) {
+        taskStore.save(new Task(taskId, filePath, TaskStatus.INDEXED, "java", "hash-" + taskId, "test"));
     }
 }

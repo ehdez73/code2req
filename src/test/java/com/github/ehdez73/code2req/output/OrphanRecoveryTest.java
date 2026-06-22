@@ -39,7 +39,7 @@ class OrphanRecoveryTest {
     @Test
     void noOrphansReturnsZeroCounts() {
         taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1", "test"));
-        taskStore.save(new Task("id-2", "file2.java", TaskStatus.SUCCESS, "java", "h2", "test"));
+        taskStore.save(new Task("id-2", "file2.java", TaskStatus.INDEXED, "java", "h2", "test"));
 
         OrphanRecoveryResult result = recovery.recover();
 
@@ -50,8 +50,8 @@ class OrphanRecoveryTest {
 
     @Test
     void revertsRunningTasksToPending() {
-        taskStore.save(new Task("id-1", "file1.java", TaskStatus.RUNNING, "java", "h1", "test"));
-        taskStore.save(new Task("id-2", "file2.java", TaskStatus.RUNNING, "java", "h2", "test"));
+        taskStore.save(new Task("id-1", "file1.java", TaskStatus.ENRICHING, "java", "h1", "test"));
+        taskStore.save(new Task("id-2", "file2.java", TaskStatus.ENRICHING, "java", "h2", "test"));
 
         OrphanRecoveryResult result = recovery.recover();
 
@@ -65,8 +65,8 @@ class OrphanRecoveryTest {
 
     @Test
     void onlyRunningTasksAreReverted() {
-        taskStore.save(new Task("id-1", "file1.java", TaskStatus.RUNNING, "java", "h1", "test"));
-        taskStore.save(new Task("id-2", "file2.java", TaskStatus.SUCCESS, "java", "h2", "test"));
+        taskStore.save(new Task("id-1", "file1.java", TaskStatus.ENRICHING, "java", "h1", "test"));
+        taskStore.save(new Task("id-2", "file2.java", TaskStatus.INDEXED, "java", "h2", "test"));
         taskStore.save(new Task("id-3", "file3.java", TaskStatus.PENDING, "java", "h3", "test"));
         taskStore.save(new Task("id-4", "file4.java", TaskStatus.FAILED, "java", "h4", "test"));
 
@@ -76,16 +76,16 @@ class OrphanRecoveryTest {
         assertEquals(1, result.revertedCount());
 
         assertEquals(TaskStatus.PENDING, taskStore.findById("id-1").get().status());
-        assertEquals(TaskStatus.SUCCESS, taskStore.findById("id-2").get().status());
+        assertEquals(TaskStatus.INDEXED, taskStore.findById("id-2").get().status());
         assertEquals(TaskStatus.PENDING, taskStore.findById("id-3").get().status());
         assertEquals(TaskStatus.FAILED, taskStore.findById("id-4").get().status());
     }
 
     @Test
     void mixedRunningAndNonRunningCountsCorrect() {
-        taskStore.save(new Task("id-1", "f1.java", TaskStatus.RUNNING, "java", "h1", "test"));
-        taskStore.save(new Task("id-2", "f2.java", TaskStatus.RUNNING, "java", "h2", "test"));
-        taskStore.save(new Task("id-3", "f3.java", TaskStatus.SUCCESS, "java", "h3", "test"));
+        taskStore.save(new Task("id-1", "f1.java", TaskStatus.ENRICHING, "java", "h1", "test"));
+        taskStore.save(new Task("id-2", "f2.java", TaskStatus.ENRICHING, "java", "h2", "test"));
+        taskStore.save(new Task("id-3", "f3.java", TaskStatus.INDEXED, "java", "h3", "test"));
 
         OrphanRecoveryResult result = recovery.recover();
 

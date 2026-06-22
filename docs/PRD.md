@@ -378,6 +378,37 @@ CREATE TABLE IF NOT EXISTS metrics (
 * [ ] Update `IndexWriter` with new finding types and link sections.
 * [ ] Add metrics collector for edges, topic links, floating links counts.
 
+### 2.1.8 Task State Machine
+
+The following state machine governs task lifecycle across all phases:
+
+```
+                         scan
+      PENDING ──────────────────────► INDEXED
+         ▲                     ▲          │
+         │                     │          │
+         │              OrphanRecovery   run
+         │                     │          │
+         │                     │          ├──────────────────┐
+         │                     │          │                  │
+         │                     │          ▼                  ▼
+         │                     │     ENRICHING      AWAITING_HUMAN_REVIEW
+         │                     │          │          (depth exceeded)
+         │                     │          │
+         │                     │    SemanticExecutor
+         │                     │          │
+         │                     │     ┌────┴────┐
+         │                     │     ▼         ▼
+         │                     │  ENRICHED   FAILED
+         │                     │                │
+         │                     │           retry-failed
+         │                     │                │
+         │               OrphanRecovery ◄───────┘
+         │              (ENRICHING→PENDING)
+         │
+         └──── OrphanRecovery ◄──── ENRICHING
+```
+
 ---
 
 ### 2.2 Phase 2: Semantic Enrichment (LLM-Scoped)
@@ -411,7 +442,7 @@ The structural trace produced by Phase 1 resolves all deterministic call paths (
 * **The Orchestrator:** Processes the enrichment DAG, submits tasks asynchronously to the Spring pool, and tracks progress via `CompletableFuture<ExecutionFinding>` responses. The enriched `ExecutionFinding` JSON (§4) is merged with the Phase 1 structural data in the SQLite store.
 
 * **Phase Synchronization Barrier:** Phase 3 (synthesis) is blocked until ALL Phase 2 enrichment tasks complete, using `CompletableFuture.allOf(...)`. Phase 2 is skipped entirely if `--llm-threshold` is set to 0 or no files qualify.
-* **FAILED Task Recovery:** Tasks that exhaust retries and transition to FAILED (e.g., persistent rate limits or unrecoverable LLM output) can be recovered without re-running Phase 1. The `retry-failed` CLI command resets FAILED tasks to SUCCESS; on re-run, the planner skips tasks that already have a SEMANTIC_ENRICHMENT finding, so only truly failed tasks are re-processed.
+* **FAILED Task Recovery:** Tasks that exhaust retries and transition to FAILED (e.g., persistent rate limits or unrecoverable LLM output) can be recovered without re-running Phase 1. The `retry-failed` CLI command resets FAILED tasks to INDEXED; on re-run, the planner skips tasks that already have a SEMANTIC_ENRICHMENT finding, so only truly failed tasks are re-processed.
   **Authentication:** LLM requests are authenticated via `OPENROUTER_API_KEY` environment variable (loaded from `.env` via `spring.config.import=optional:file:.env`).
 
 ---
@@ -515,7 +546,7 @@ If an Executor uncovers an unindexed runtime dependency during LLM file analysis
 
 * **Branch Isolation:** The Orchestrator pauses execution **only for that specific branch**, registers the new file tasks into the SQLite store as `PENDING`, updates task priorities, and triggers them asynchronously. Other branches of the DAG continue running completely uninterrupted.
 * **Phase 2 Threshold Guard:** The Phase 1 linker does not perform dynamic re-planning. If a deterministic resolution fails (unresolved signature), it is logged and counted. Only when the unresolved count per file exceeds `llm-unresolved-threshold` (default: 5) does the file qualify for Phase 2 enrichment.
-* **Phase Synchronization Barrier:** To prevent Phase 3 (Map-Reduce consolidation) from building partial or corrupted system maps, a strict execution barrier is enforced via Spring-managed completion frameworks. The engine is completely blocked from initiating Phase 3 if *any* task in the state store is flagged as `PENDING` or `RUNNING`. Using `CompletableFuture.allOf(...)`, synthesis only triggers when all futures across all branches have completed successfully and resolved.
+* **Phase Synchronization Barrier:** To prevent Phase 3 (Map-Reduce consolidation) from building partial or corrupted system maps, a strict execution barrier is enforced via Spring-managed completion frameworks. The engine is completely blocked from initiating Phase 3 if *any* task in the state store is flagged as `PENDING` or `ENRICHING`. Using `CompletableFuture.allOf(...)`, synthesis only triggers when all futures across all branches have completed successfully and resolved.
 
 ### 3.6 Automated Constraint Extraction & Context Budgeting
 
@@ -778,12 +809,12 @@ If an asset has no paired test class, `SHA-256(test_file_content)` is replaced w
 
 ### 5.2 Infinite Loop & Graph Prevention
 
-* **Visited Registry:** The Planner maintains an active thread-safe set of file hashes currently flagged as `SUCCESS` or `RUNNING`. Redundant evaluation requests targeting an active hash are discarded immediately.
+* **Visited Registry:** The Planner maintains an active thread-safe set of file hashes currently flagged as `INDEXED`, `ENRICHED`, or `ENRICHING`. Redundant evaluation requests targeting an active hash are discarded immediately.
 * **Max Hop Depth:** A configurable `max-discovery-depth` parameter (default: `3`) tracks boundary crossings (e.g., repository transitions, synchronous-to-asynchronous transformations). If a discovery sequence exceeds $N$ hops from its root entry point, processing for that branch is frozen, an alert is logged, and the task status is set to `AWAITING_HUMAN_REVIEW`.
 
 ### 5.3 Data Integrity & Schema Validation
 
-The local persistence layer rejects malformed payloads. Before an Executor task transitions to `SUCCESS`, its JSON string must validate against the strict JSON Schema defined in Section 4. Validation failures trigger an immediate transition to `FAILED` with a structural error classification, preventing corrupt data from entering Phase 3.
+The local persistence layer rejects malformed payloads. Before an Executor task transitions to `ENRICHED`, its JSON string must validate against the strict JSON Schema defined in Section 4. Validation failures trigger an immediate transition to `FAILED` with a structural error classification, preventing corrupt data from entering Phase 3.
 
 ### 5.4 Threading Infrastructure & Resilient In-Thread Backoff
 
@@ -792,14 +823,14 @@ Concurrency limits are managed declaratively via Spring's core context execution
 * **Queue Control:** The pool queue capacity must be sufficiently deep to accommodate large parallel DAG discovery spikes without overflow exceptions.
 * **In-Thread Resiliency:** Model interactions within the `@Async` task context employ an active exponential backoff strategy (initial delay: 2s, multiplier: 2.0, capped at 60s, maximum retry attempts: 3). If an HTTP 429 (Rate Limit Exceeded) is received from the AI provider, the running thread pauses natively (`Thread.sleep()`) and securely retries the processing step. If rate limits persist after all retries, the task transitions to `FAILED`.
 * **Error-Feedback Retry:** When the LLM returns structurally invalid JSON (malformed syntax or missing required fields), the failed output and parse error are fed back into the retry prompt so the model can self-correct on subsequent attempts. This is distinct from rate-limit backoff — the retry is immediate (no exponential delay) and the augmented prompt includes the specific parsing failure.
-* **FAILED Task Recovery:** Tasks that exhaust all retries (rate-limit or JSON parse errors) and transition to FAILED can be recovered without re-running Phase 1 indexing. The `retry-failed` CLI command resets all FAILED tasks to SUCCESS. On the next `run`, the Phase 2 planner re-evaluates them, skipping any tasks that already have a persisted SEMANTIC_ENRICHMENT finding (so already-successful tasks are never re-enriched).
+* **FAILED Task Recovery:** Tasks that exhaust all retries (rate-limit or JSON parse errors) and transition to FAILED can be recovered without re-running Phase 1 indexing. The `retry-failed` CLI command resets all FAILED tasks to INDEXED. On the next `run`, the Phase 2 planner re-evaluates them, skipping any tasks that already have a persisted SEMANTIC_ENRICHMENT finding (so already-enriched tasks are never re-processed).
 
 ### 5.5 Crash Recovery & Warm Start Protocol
 
 In the event of an abrupt process termination (e.g., manual kills via `Ctrl+C`, network timeouts, loss of local power), the application protects data integrity through a pre-run reconciliation loop upon restart.
 
-1. **Orphan Mitigation:** The system queries the SQLite task matrix for entries stuck in the `RUNNING` state.
-2. **Reversion Step:** These orphaned tasks are automatically rolled back from `RUNNING` to `PENDING`. Associated JSON fragments are inspected for schema compliance; if they are valid, the task transitions directly to `SUCCESS` to leverage cache recovery.
+1. **Orphan Mitigation:** The system queries the SQLite task matrix for entries stuck in the `ENRICHING` state.
+2. **Reversion Step:** These orphaned tasks are automatically rolled back from `ENRICHING` to `PENDING`. Associated JSON fragments are inspected for schema compliance; if they are valid, the task transitions directly to `INDEXED` to leverage cache recovery.
 3. **DAG Realignment:** The Planner rebuilds the dependency graph from the updated database state, resuming analysis with zero metadata corruption or double token expenditures.
 
 ### 5.6 CLI Visual Telemetry & UX
@@ -820,9 +851,9 @@ The application must expose the following commands via Spring Shell:
 | `plan` | `[--manifest path]` | Show the execution DAG without running executors (dry DAG view) |
 | `run` | `[--manifest path] [--dry-run] [--llm-threshold N]` | Execute all 3 phases end-to-end. Phase 2 LLM enrichment only activates for files exceeding N unresolved signatures (default: 5). |
 | `status` | | Show current SQLite task state summary and counters |
-| `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `RUNNING` tasks, rebuild DAG, resume |
+| `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `ENRICHING` tasks, rebuild DAG, resume |
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |
-| `retry-failed` | | Reset all FAILED tasks to SUCCESS so the Phase 2 planner re-evaluates them on the next `run`. Tasks with existing SEMANTIC_ENRICHMENT findings are automatically skipped by the planner to avoid re-enriching already-successful tasks. |
+| `retry-failed` | | Reset all FAILED tasks to INDEXED so the Phase 2 planner re-evaluates them on the next `run`. Tasks with existing SEMANTIC_ENRICHMENT findings are automatically skipped by the planner to avoid re-enriching already-enriched tasks. |
 | `clear` | `[--manifest path]` | Delete all tasks in SQLite store and remove output JSON index files |
 | `snapshot create` | `[--name label]` | Create a point-in-time snapshot of local state (DB + JSON index) |
 | `snapshot list` | | List available snapshots with name, date, and metadata |
@@ -977,7 +1008,7 @@ A CLI run is considered successful when all of the following conditions are met.
 | **Pub/Sub Channels (Kafka, RabbitMQ, ActiveMQ)** | $\ge 90\%$ | Cross-reference of matching topic, queue, and destination structures resolved between publisher and consumer modules across all supported brokers. |
 | **Custom Constraints** | $\ge 95\%$ | Verification that fields annotated with custom validators have their corresponding `isValid` logic slices extracted and represented. |
 | **Database Procedures** | $\ge 90\%$ | Complete end-to-end extraction and parsing of procedural statements invoked within active backend tasks. |
-| **Plan Execution Completeness** | $\ge 98\%$ | Processing tasks that reach the `SUCCESS` state (excluding tasks explicitly flagged as `AWAITING_HUMAN_REVIEW`). |
+| **Plan Execution Completeness** | $\ge 98\%$ | Processing tasks that reach the `INDEXED` or `ENRICHED` state (excluding tasks explicitly flagged as `AWAITING_HUMAN_REVIEW`). |
 | **Inter-File Call Resolution Rate** | $\ge 75\%$ | Ratio of resolved `MethodCallExpr` nodes to total non-JDK `MethodCallExpr` nodes in the codebase. |
 | **Database Access Point Detection** | $\ge 90\%$ | Verification that all `@Procedure` annotations and JdbcTemplate calls are captured. |
 | **Outbound HTTP Client Detection** | $\ge 90\%$ | Verification that all `RestTemplate`/`WebClient`/`FeignClient` usages are registered as `floating_links`. |

@@ -9,8 +9,8 @@
 
 ### Acceptance Criteria
 
-- [ ] On startup, the tool detects tasks stuck in `RUNNING` state (orphans) in the SQLite task store
-- [ ] Orphaned tasks are reverted from `RUNNING` to `PENDING` for re-processing
-- [ ] Existing valid JSON fragments from orphaned tasks are inspected for schema compliance; compliant fragments transition to `SUCCESS` (cache recovery)
+- [ ] On startup, the tool detects tasks stuck in `ENRICHING` state (orphans) in the SQLite task store
+- [ ] Orphaned tasks are reverted from `ENRICHING` to `PENDING` for re-processing
+- [ ] Existing valid JSON fragments from orphaned tasks are inspected for schema compliance; compliant fragments transition to `INDEXED` (cache recovery)
 - [ ] The dependency graph is rebuilt from the updated database state after orphan reconciliation
 - [ ] Recovery completes within 30 seconds for a typical interrupted workspace

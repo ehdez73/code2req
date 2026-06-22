@@ -36,9 +36,9 @@ public class Phase2Planner {
     }
 
     public List<PlannerDecision> plan() {
-        List<Task> tasks = taskStore.findByStatus(TaskStatus.SUCCESS);
+        List<Task> tasks = taskStore.findByStatus(TaskStatus.INDEXED);
         if (tasks.isEmpty()) {
-            log.info("No SUCCESS tasks found — planner has nothing to evaluate");
+            log.info("No INDEXED tasks found — planner has nothing to evaluate");
             return List.of();
         }
 
@@ -54,7 +54,7 @@ public class Phase2Planner {
         }
 
         if (unenriched.isEmpty()) {
-            log.info("All SUCCESS tasks already enriched — planner has nothing to evaluate");
+            log.info("All INDEXED tasks already enriched — planner has nothing to evaluate");
             return List.of();
         }
 

@@ -108,7 +108,7 @@ public class Phase2Orchestrator {
                 }
 
                 String sourceContent = readFileContent(task.filePath());
-                taskStore.updateStatus(task.taskId(), TaskStatus.RUNNING);
+                taskStore.updateStatus(task.taskId(), TaskStatus.ENRICHING);
 
                 CompletableFuture<ExecutionFinding> future = semanticExecutor.enrich(
                     task, decision, sourceContent, null, null, dryRun);

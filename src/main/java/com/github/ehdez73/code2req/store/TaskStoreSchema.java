@@ -33,6 +33,7 @@ public class TaskStoreSchema {
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """);
+
         jdbc.execute("""
             CREATE TABLE IF NOT EXISTS execution_findings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -129,7 +129,7 @@ class ResumeCommandTest {
 
         String hashA = sha256Hex(Files.readString(fileA, StandardCharsets.UTF_8));
         String taskIdA = taskIdHasher.hash(fileA.toString(), hashA, "test-app");
-        taskStore.save(new Task(taskIdA, fileA.toString(), TaskStatus.SUCCESS, "java", hashA, "test"));
+        taskStore.save(new Task(taskIdA, fileA.toString(), TaskStatus.INDEXED, "java", hashA, "test"));
 
         Path manifest = tempDir.resolve("manifest.yaml");
         Files.writeString(manifest, """
@@ -141,7 +141,7 @@ class ResumeCommandTest {
         String result = command.resume(manifest.toString());
 
         assertTrue(result.contains("Resume Complete"), "Expected resume completion message");
-        assertTrue(result.contains("Skipped (already SUCCESS): 1"), "Expected A to be skipped");
+        assertTrue(result.contains("Skipped (already INDEXED or ENRICHED): 1"), "Expected A to be skipped");
         assertTrue(result.contains("Remaining: 1"), "Expected B to remain");
 
         assertTrue(taskStore.findById(taskIdA).isPresent(), "A should still be in store");
@@ -159,7 +159,7 @@ class ResumeCommandTest {
 
         String hashA = sha256Hex(Files.readString(fileA, StandardCharsets.UTF_8));
         String taskIdA = taskIdHasher.hash(fileA.toString(), hashA, "test-app");
-        taskStore.save(new Task(taskIdA, fileA.toString(), TaskStatus.SUCCESS, "java", hashA, "test"));
+        taskStore.save(new Task(taskIdA, fileA.toString(), TaskStatus.INDEXED, "java", hashA, "test"));
 
         Path manifest = tempDir.resolve("manifest.yaml");
         Files.writeString(manifest, """
@@ -171,7 +171,7 @@ class ResumeCommandTest {
         String result = command.resume(manifest.toString());
 
         assertTrue(result.contains("Resume Complete"));
-        assertTrue(result.contains("Skipped (already SUCCESS): 1"));
+        assertTrue(result.contains("Skipped (already INDEXED or ENRICHED): 1"));
         assertTrue(result.contains("Remaining: 0"));
     }
 
@@ -184,7 +184,7 @@ class ResumeCommandTest {
             public class A { public void run() {} }
             """);
 
-        taskStore.save(new Task("orphan-1", fileA.toString(), TaskStatus.RUNNING, "java", "h1", "test"));
+        taskStore.save(new Task("orphan-1", fileA.toString(), TaskStatus.ENRICHING, "java", "h1", "test"));
 
         Path manifest = tempDir.resolve("manifest.yaml");
         Files.writeString(manifest, """
@@ -221,7 +221,7 @@ class ResumeCommandTest {
 
         assertTrue(result.contains("Resume Complete"));
         assertTrue(result.contains("Remaining: 1"));
-        assertTrue(result.contains("Skipped (already SUCCESS): 0"));
+        assertTrue(result.contains("Skipped (already INDEXED or ENRICHED): 0"));
         assertTrue(taskStore.count() > 0, "Expected tasks in store after fresh resume");
     }
 

@@ -100,7 +100,7 @@ class Phase2OrchestratorTest {
     }
 
     private void insertTask(String taskId, String filePath) {
-        taskStore.save(new Task(taskId, filePath, TaskStatus.SUCCESS, "java", "hash-" + taskId, "test"));
+        taskStore.save(new Task(taskId, filePath, TaskStatus.INDEXED, "java", "hash-" + taskId, "test"));
     }
 
     @Nested
@@ -128,7 +128,7 @@ class Phase2OrchestratorTest {
             assertEquals(1, status.tasksSubmitted());
             assertEquals(1, status.tasksCompleted());
             assertEquals(0, status.tasksFailed());
-            assertEquals(TaskStatus.SUCCESS, taskStore.findById("t1").get().status());
+            assertEquals(TaskStatus.ENRICHED, taskStore.findById("t1").get().status());
         }
 
         @Test
@@ -144,8 +144,8 @@ class Phase2OrchestratorTest {
             CompletionStatus status = orchestrator.executePhase2(true);
 
             assertEquals(2, status.tasksCompleted());
-            assertEquals(TaskStatus.SUCCESS, taskStore.findById("t1").get().status());
-            assertEquals(TaskStatus.SUCCESS, taskStore.findById("t2").get().status());
+            assertEquals(TaskStatus.ENRICHED, taskStore.findById("t1").get().status());
+            assertEquals(TaskStatus.ENRICHED, taskStore.findById("t2").get().status());
         }
 
         @Test
@@ -174,7 +174,7 @@ class Phase2OrchestratorTest {
 
             CompletionStatus status = orchestratorWithDeps.executePhase2(true);
 
-            assertEquals(TaskStatus.SUCCESS, taskStore.findById("root").get().status());
+            assertEquals(TaskStatus.ENRICHED, taskStore.findById("root").get().status());
         }
 
         @Test
@@ -200,7 +200,7 @@ class Phase2OrchestratorTest {
 
             assertEquals(2, status.tasksCompleted());
             assertEquals(1, status.dependenciesDiscovered());
-            assertEquals(TaskStatus.SUCCESS, taskStore.findById("root").get().status());
+            assertEquals(TaskStatus.ENRICHED, taskStore.findById("root").get().status());
         }
 
         @Test

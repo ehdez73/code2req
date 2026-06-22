@@ -6,7 +6,7 @@
 
 ## Context
 
-The tool needs local persistence for the scan task store — tracking processing states (PENDING, RUNNING, SUCCESS, FAILED), caching results for idempotent re-scans, and supporting crash recovery. The database must be embedded (no external service), support concurrent read/write from a configurable thread pool, and survive process crashes without corruption.
+The tool needs local persistence for the scan task store — tracking processing states (PENDING, ENRICHING, INDEXED, ENRICHED, FAILED), caching results for idempotent re-scans, and supporting crash recovery. The database must be embedded (no external service), support concurrent read/write from a configurable thread pool, and survive process crashes without corruption.
 
 Key drivers:
 - Zero external infrastructure — fully offline, no database server
