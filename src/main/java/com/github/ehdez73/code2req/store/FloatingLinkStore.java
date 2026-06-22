@@ -62,4 +62,15 @@ public class FloatingLinkStore {
             "SELECT DISTINCT source_task_id FROM floating_links WHERE resolved_status = ?",
             String.class, status);
     }
+
+    public void deleteByTaskId(String taskId) {
+        jdbc.update("DELETE FROM floating_links WHERE source_task_id = ?", taskId);
+    }
+
+    public int countByTaskId(String taskId) {
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM floating_links WHERE source_task_id = ?",
+            Integer.class, taskId);
+        return count != null ? count : 0;
+    }
 }

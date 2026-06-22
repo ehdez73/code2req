@@ -816,6 +816,8 @@ If an asset has no paired test class, `SHA-256(test_file_content)` is replaced w
 
 The local persistence layer rejects malformed payloads. Before an Executor task transitions to `ENRICHED`, its JSON string must validate against the strict JSON Schema defined in Section 4. Validation failures trigger an immediate transition to `FAILED` with a structural error classification, preventing corrupt data from entering Phase 3.
 
+The `task-set-status` command with `--delete-findings` also removes associated `execution_findings`, `topic_links`, and `floating_links` rows for the task to prevent orphaned references when resetting task state.
+
 ### 5.4 Threading Infrastructure & Resilient In-Thread Backoff
 
 Concurrency limits are managed declaratively via Spring's core context execution properties rather than hardcoded semaphore logic inside code loops. The application initializes a dedicated `ThreadPoolTaskExecutor` bean bound to the name `orchestratorTaskExecutor`.
@@ -823,7 +825,7 @@ Concurrency limits are managed declaratively via Spring's core context execution
 * **Queue Control:** The pool queue capacity must be sufficiently deep to accommodate large parallel DAG discovery spikes without overflow exceptions.
 * **In-Thread Resiliency:** Model interactions within the `@Async` task context employ an active exponential backoff strategy (initial delay: 2s, multiplier: 2.0, capped at 60s, maximum retry attempts: 3). If an HTTP 429 (Rate Limit Exceeded) is received from the AI provider, the running thread pauses natively (`Thread.sleep()`) and securely retries the processing step. If rate limits persist after all retries, the task transitions to `FAILED`.
 * **Error-Feedback Retry:** When the LLM returns structurally invalid JSON (malformed syntax or missing required fields), the failed output and parse error are fed back into the retry prompt so the model can self-correct on subsequent attempts. This is distinct from rate-limit backoff — the retry is immediate (no exponential delay) and the augmented prompt includes the specific parsing failure.
-* **FAILED Task Recovery:** Tasks that exhaust all retries (rate-limit or JSON parse errors) and transition to FAILED can be recovered without re-running Phase 1 indexing. The `retry-failed` CLI command resets all FAILED tasks to INDEXED. On the next `run`, the Phase 2 planner re-evaluates them, skipping any tasks that already have a persisted SEMANTIC_ENRICHMENT finding (so already-enriched tasks are never re-processed).
+* **FAILED Task Recovery:** Tasks that exhaust all retries (rate-limit or JSON parse errors) and transition to FAILED can be recovered without re-running Phase 1 indexing. The `retry-failed` CLI command resets all FAILED tasks to INDEXED. For per-task recovery, `task-set-status --task <id> --status INDEXED --delete-findings true` resets a single task, removing its existing findings and linked rows. On the next `run`, the Phase 2 planner re-evaluates them, skipping any tasks that already have a persisted SEMANTIC_ENRICHMENT finding (so already-enriched tasks are never re-processed).
 
 ### 5.5 Crash Recovery & Warm Start Protocol
 
@@ -847,17 +849,20 @@ The application must expose the following commands via Spring Shell:
 
 | Command | Arguments | Purpose |
 |---|---|---|
-| `scan` | `[--manifest path]` | Run Phase 1 (indexing) only — produces `code-graph-index.json` and populates SQLite |
+| `scan` | `[--manifest path] [--resume]` | Run Phase 1 (indexing) only — produces `code-graph-index.json` and populates SQLite. `--resume` skips already-completed files. |
 | `plan` | `[--manifest path]` | Show the execution DAG without running executors (dry DAG view) |
-| `run` | `[--manifest path] [--dry-run] [--llm-threshold N]` | Execute all 3 phases end-to-end. Phase 2 LLM enrichment only activates for files exceeding N unresolved signatures (default: 5). |
+| `run` | `[--manifest path] [--dry-run] [--resume] [--llm-threshold N]` | Execute all 3 phases end-to-end. Phase 2 LLM enrichment only activates for files exceeding N unresolved signatures (default: 5). `--resume` recovers orphaned `ENRICHING` tasks before Phase 2. |
 | `status` | | Show current SQLite task state summary and counters |
-| `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `ENRICHING` tasks, rebuild DAG, resume |
+| `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `ENRICHING` tasks, skip completed files. Delegates to `scan --resume`. |
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |
 | `retry-failed` | | Reset all FAILED tasks to INDEXED so the Phase 2 planner re-evaluates them on the next `run`. Tasks with existing SEMANTIC_ENRICHMENT findings are automatically skipped by the planner to avoid re-enriching already-enriched tasks. |
 | `clear` | `[--manifest path]` | Delete all tasks in SQLite store and remove output JSON index files |
 | `snapshot create` | `[--name label]` | Create a point-in-time snapshot of local state (DB + JSON index) |
 | `snapshot list` | | List available snapshots with name, date, and metadata |
 | `snapshot restore` | `<name>` | Restore local state (DB + JSON index) from a named snapshot |
+| `task-list` | `[--status] [--target] [--limit N]` | List all tasks with truncated ID, file path, status, target name. Supports prefix matching on task IDs. |
+| `task-findings` | `--task <id> [--type] [--limit N]` | List enrichment findings for a task. Supports prefix matching on task ID. |
+| `task-set-status` | `--task <id> --status <s> [--delete-findings] [--dry-run]` | Change a task's status; cascades deletion of findings, topic_links, and floating_links when resetting. Supports prefix matching. |
 
 The `--dry-run` flag on the `run` command enables simulation mode (see §5.8).
 

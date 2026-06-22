@@ -282,6 +282,50 @@ Cross-cutting operational capability for point-in-time save and restore of all l
 - [x] Verify: `mvn compile` — 155 sources compile with zero errors
 - [x] Manual: `scan` petclinic, `snapshot create`, `clean`, `snapshot restore`, `status` — confirm state matches pre-clean
 
+### Phase 15 — Task Inspection & Lifecycle Commands
+
+Cross-cutting developer diagnostics for inspecting and managing the task store.
+Depends on: TaskStore (Phase 1.2), ExecutionFindingStore + TopicLinkStore + FloatingLinkStore (Phase 12.1)
+
+#### 15.1 Task Commands
+
+| Command | Key | Parameters | Purpose |
+|---|---|---|---|
+| `task-list` | `task-list` | `--status`, `--target`, `--limit` (50) | List tasks with truncated ID, file path, status, target name |
+| `task-findings` | `task-findings` | `--task` (required, prefix OK), `--type`, `--limit` (20) | List findings for a task with type filter |
+| `task-set-status` | `task-set-status` | `--task` (required, prefix OK), `--status` (required), `--delete-findings` (true), `--dry-run` | Change task status with cascading cleanup |
+
+- [x] **Store changes:**
+  - `TaskStore.findByIdOrPrefix()` — exact match → prefix LIKE; error on 0/multiple
+  - `TaskStore.findByTargetPrefix()` — `WHERE target_name LIKE ?` for `--target` filter
+  - `TaskStore.findByStatusAndTargetPrefix()` — combined status + target filter
+  - `ExecutionFindingStore.findByTaskId()` / `findByTaskIdAndType()` — `queryForList`
+  - `ExecutionFindingStore.countByTaskId()` — total count for dry-run
+  - `TopicLinkStore.deleteByTaskId()` — `WHERE producer_task_id = ? OR consumer_task_id = ?`
+  - `TopicLinkStore.countByTaskId()` — count for dry-run
+  - `FloatingLinkStore.deleteByTaskId()` — `WHERE source_task_id = ?`
+  - `FloatingLinkStore.countByTaskId()` — count for dry-run
+- [x] **Key behaviors:**
+  - All task ID params support prefix matching — disambiguates with error listing matches
+  - `task-set-status --dry-run` shows counts without modifying DB
+  - Cascading delete: execution_findings → topic_links → floating_links
+- [x] **Verify:** `mvn compile` (0 errors)
+- [x] **Manual:** launch shell, `scan` petclinic, test all 3 commands
+
+#### 15.2 Resume Flags
+
+| Command | Change | Purpose |
+|---|---|---|
+| `scan --resume` | `ScanCommand` gains `--resume` flag; filters out already-INDEXED/ENRICHED files before pipeline execution | Resume interrupted Phase 1 scan |
+| `run --resume` | `RunCommand` gains `--resume` flag; recovers orphaned `ENRICHING` tasks to `INDEXED` with cascade delete before Phase 2 execution | Resume interrupted Phase 2+3 run |
+| `resume` command | `ResumeCommand` refactored to delegate to `ScanCommand.executeScan(manifest, true)` — zero code duplication | Backward-compatible, delegates to `scan --resume` |
+
+- [x] **Modified:** `ScanCommand` (extracted `executeScan()` shared method, added `filterCompleted()` / `isAlreadyCompleted()`)
+- [x] **Modified:** `ResumeCommand` (rewritten to 3-line delegating wrapper)
+- [x] **Modified:** `RunCommand` (injected 4 stores, added orphan recovery loop)
+- [x] **Verify:** `mvn compile` (0 errors)
+- [x] **Manual:** kill `run` mid-Phase-2, then `run --resume` and confirm orphans recovered
+
 ## Story Index (Extended)
 | Story | Feature | Priority | Phase |
 |-------|---------|----------|-------|
@@ -388,3 +432,5 @@ Phase 11c.1 (Template File Parsing) ── depends on Phase 4a + Phase 6.1 + Pha
 - 2026-06-16 — **Phase 12.1 F014** (Extended SQLite Schema): 4 new tables (`execution_findings`, `topic_links`, `floating_links`, `metrics`); `ExecutionFindingStore`, `TopicLinkStore`, `FloatingLinkStore`, `MetricsStore`, `FindingType`, `Metric`; persistence wired into `ScanPipeline` (per-file findings, topic/floating links, metrics) and `ScanCommand` (template findings); `CleanCommand` cleans all 5 tables; 15 new store+ schema tests — 335 total, all pass ✓
 - 2026-06-17 — **Phase 4a F003 — EndpointVisitor OCP Refactoring + Servlet Endpoint Detection**: `EndpointDetector` SPI interface, `SpringEndpointDetector` (extracted Spring logic), `ServletEndpointDetector` (doGet/doPost/..., @WebServlet, HttpServlet subclass, javax + jakarta), `WebXmlAnalyzer` (DOM-based web.xml parser), `EndpointVisitor` refactored to thin delegator; integrated into `ScanCommand`; all 17 existing tests pass unchanged; no changes to `EndpointInfo`, `IndexWriter`, `FindingType`, or `ScanPipeline` ✓
 - 2026-06-21 — **Phase 14 — Snapshot & Restore (E005/F025)** implemented: `SnapshotService` (VACUUM INTO, pool drain/restore, metadata), `SnapshotCommand` (snapshot/snapshot-list/restore), config in application.properties + .gitignore. `mvn compile` — 155 sources pass. ✓
+- 2026-06-22 — **Phase 15 — Task Inspection & Lifecycle Commands** implemented: `TaskCommands` (`task-list`, `task-findings`, `task-set-status`), 9 store methods across 4 stores. ✓
+- 2026-06-22 — **Phase 15.2 — Resume Flags** implemented: `scan --resume` (with shared `executeScan()` method), `run --resume` (orphan ENRICHING recovery), `ResumeCommand` refactored to thin delegating wrapper. Zero code duplication. ✓

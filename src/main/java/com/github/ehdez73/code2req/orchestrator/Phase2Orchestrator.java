@@ -107,6 +107,7 @@ public class Phase2Orchestrator {
             for (PlannerDecision decision : toSubmit) {
                 String hashKey = hashKey(decision);
                 if (dag.isVisited(hashKey)) {
+                    log.debug("Skipping task {} — file '{}' already processed in this run", decision.taskId(), decision.filePath());
                     continue;
                 }
                 dag.markVisited(hashKey);
@@ -292,7 +293,7 @@ public class Phase2Orchestrator {
     }
 
     private String hashKey(PlannerDecision decision) {
-        return decision.taskId() + "|" + decision.filePath();
+        return decision.filePath();
     }
 
     private String sha256(String input) {

@@ -130,7 +130,7 @@ class ScanCommandTest {
                 path: %s
             """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\")));
 
-        String result = command.scan(manifest.toString());
+        String result = command.scan(manifest.toString(), false);
 
         assertTrue(result.contains("Scan Complete"), "Expected scan completion message");
         assertTrue(result.contains("Phase 1/5 — Manifest: OK"), "Expected manifest phase OK");
@@ -144,7 +144,7 @@ class ScanCommandTest {
 
     @Test
     void scanWithManifestNotFound() {
-        String result = command.scan(tempDir.resolve("nonexistent.yaml").toString());
+        String result = command.scan(tempDir.resolve("nonexistent.yaml").toString(), false);
         assertTrue(result.contains("Error: Manifest file not found"));
     }
 
@@ -153,7 +153,7 @@ class ScanCommandTest {
         Path manifest = tempDir.resolve("bad-manifest.yaml");
         Files.writeString(manifest, "targets: []");
 
-        String result = command.scan(manifest.toString());
+        String result = command.scan(manifest.toString(), false);
         assertTrue(result.contains("FAILED"));
         assertTrue(result.contains("at least one target"));
     }
@@ -168,7 +168,7 @@ class ScanCommandTest {
                 path: %s
             """.formatted(targetDir.toAbsolutePath().toString().replace("\\", "\\\\")));
 
-        String result = command.scan(manifest.toString());
+        String result = command.scan(manifest.toString(), false);
         assertTrue(result.contains("no Java files found"));
     }
 
@@ -195,7 +195,7 @@ class ScanCommandTest {
                   - "**/Generated.java"
             """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\")));
 
-        String result = command.scan(manifest.toString());
+        String result = command.scan(manifest.toString(), false);
         assertTrue(result.contains("Scan Complete"));
         assertTrue(taskStore.count() > 0, "Expected tasks in store");
     }
@@ -227,7 +227,7 @@ class ScanCommandTest {
             """.formatted(modA.toAbsolutePath().toString().replace("\\", "\\\\"),
                            modB.toAbsolutePath().toString().replace("\\", "\\\\")));
 
-        String result = command.scan(manifest.toString());
+        String result = command.scan(manifest.toString(), false);
         assertTrue(result.contains("Scan Complete"));
         assertTrue(result.contains("2 target(s)"));
     }
@@ -250,7 +250,7 @@ class ScanCommandTest {
                 path: %s
             """.formatted(src.toAbsolutePath().toString().replace("\\", "\\\\")));
 
-        String result = command.scan(manifest.toString());
+        String result = command.scan(manifest.toString(), false);
         assertTrue(result.contains("Scan Complete"));
     }
 }

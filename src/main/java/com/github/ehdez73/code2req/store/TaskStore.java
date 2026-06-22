@@ -55,6 +55,38 @@ public class TaskStore {
             status.name(), LocalDateTime.now().toString(), taskId);
     }
 
+    public List<Task> findByTargetPrefix(String targetPrefix) {
+        return jdbc.query("SELECT * FROM tasks WHERE target_name LIKE ? ORDER BY created_at",
+            rowMapper, "%" + targetPrefix + "%");
+    }
+
+    public List<Task> findByStatusAndTargetPrefix(TaskStatus status, String targetPrefix) {
+        return jdbc.query("SELECT * FROM tasks WHERE status = ? AND target_name LIKE ? ORDER BY created_at",
+            rowMapper, status.name(), "%" + targetPrefix + "%");
+    }
+
+    public Task findByIdOrPrefix(String input) {
+        Optional<Task> exact = findById(input);
+        if (exact.isPresent()) return exact.get();
+        List<Task> matches = findByPrefix(input);
+        if (matches.isEmpty()) {
+            throw new IllegalArgumentException("No task found matching: " + input);
+        }
+        if (matches.size() > 1) {
+            var sb = new StringBuilder("Multiple tasks match prefix '").append(input).append("':\n");
+            for (Task t : matches) {
+                sb.append("  ").append(t.taskId()).append("  ").append(t.filePath()).append('\n');
+            }
+            throw new IllegalArgumentException(sb.toString());
+        }
+        return matches.get(0);
+    }
+
+    public List<Task> findByPrefix(String input) {
+        return jdbc.query("SELECT * FROM tasks WHERE task_id LIKE ? ORDER BY created_at",
+            rowMapper, input + "%");
+    }
+
     public void deleteAll() {
         jdbc.execute("DELETE FROM tasks");
     }

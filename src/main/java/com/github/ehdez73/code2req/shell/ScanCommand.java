@@ -29,12 +29,14 @@ import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellOption;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 @ShellComponent
@@ -85,9 +87,14 @@ public class ScanCommand {
     @ShellMethod(key = "scan", value = "Runs the full Phase 1 scan pipeline: manifest, dependencies, analysis, redaction, and index output")
     public String scan(
             @ShellOption(value = "--manifest", defaultValue = "project-manifest.yaml",
-                         help = "Path to the project manifest YAML file") String manifestPath) {
+                         help = "Path to the project manifest YAML file") String manifestPath,
+            @ShellOption(value = "--resume", defaultValue = "false",
+                         help = "Resume an interrupted scan, skipping already-completed files") boolean resume) {
+        return executeScan(manifestPath, resume);
+    }
 
-        var report = new StringBuilder("=== Scan Pipeline ===\n\n");
+    String executeScan(String manifestPath, boolean resume) {
+        var report = new StringBuilder(resume ? "=== Resume Pipeline ===\n\n" : "=== Scan Pipeline ===\n\n");
         var scanStart = Instant.now();
 
         var manifest = loadManifest(Path.of(manifestPath), report);
@@ -99,6 +106,10 @@ public class ScanCommand {
         if (batches == null) return report.toString();
 
         var allFiles = flattenBatches(batches);
+
+        if (resume) {
+            allFiles = filterCompleted(allFiles, manifest.targets(), report);
+        }
 
         report.append("Phase 4/5 — Analysis (Two-Pass):\n");
         var pipelineResult = pipeline.execute(allFiles, manifest.targets(), report);
@@ -288,9 +299,16 @@ public class ScanCommand {
     }
 
     private List<Path> flattenBatches(List<JavaFileBatch> batches) {
-        return batches.stream()
+        var allFiles = batches.stream()
             .flatMap(b -> b.files().stream())
+            .map(p -> p.toAbsolutePath().normalize())
             .toList();
+        var distinct = allFiles.stream().distinct().toList();
+        int skipped = allFiles.size() - distinct.size();
+        if (skipped > 0) {
+            log.info("Skipped {} duplicate file(s) found across multiple scan targets", skipped);
+        }
+        return distinct;
     }
 
     private void persistTemplateFindings(ScanPipelineResult pipelineResult,
@@ -353,9 +371,52 @@ public class ScanCommand {
     private void appendSummary(StringBuilder report, Instant scanStart) {
         long totalDuration = Duration.between(scanStart, Instant.now()).toSeconds();
         int totalTasks = taskStore.count();
-        report.append(String.format("=== Scan Complete (%ds) ===%n", totalDuration));
+        report.append(String.format("=== %s (%ds) ===%n", report.indexOf("Resume") >= 0 ? "Resume Complete" : "Scan Complete", totalDuration));
         report.append(String.format("  Tasks in store: %d%n", totalTasks));
         report.append("  Zero network calls — Phase 1 offline operation verified\n");
+    }
+
+    private List<Path> filterCompleted(List<Path> files, List<ScanTarget> targets, StringBuilder report) {
+        var phaseStart = Instant.now();
+        int skipped = 0;
+        List<Path> pending = new ArrayList<>();
+
+        for (Path file : files) {
+            if (isAlreadyCompleted(file, targets)) {
+                skipped++;
+            } else {
+                pending.add(file);
+            }
+        }
+
+        report.append(String.format("  Skipped (already INDEXED or ENRICHED): %d, Remaining: %d%n", skipped, pending.size()));
+        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
+        return pending;
+    }
+
+    private boolean isAlreadyCompleted(Path file, List<ScanTarget> targets) {
+        String fp = file.toString();
+        try {
+            String content = Files.readString(file, StandardCharsets.UTF_8);
+            String contentHash = sha256Hex(content);
+            String targetName = targetNameForFile(file, targets);
+            String taskId = taskIdHasher.hash(fp, contentHash, targetName);
+            Optional<Task> existing = taskStore.findById(taskId);
+            return existing.isPresent() && (existing.get().status() == TaskStatus.INDEXED || existing.get().status() == TaskStatus.ENRICHED);
+        } catch (IOException e) {
+            log.warn("Failed to check completion for {}: {}", fp, e.getMessage());
+            return false;
+        }
+    }
+
+    private static String sha256Hex(String input) {
+        try {
+            var digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(hash);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 
     private static long elapsedSeconds(Instant start) {

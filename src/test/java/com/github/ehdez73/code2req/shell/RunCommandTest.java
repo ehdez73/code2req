@@ -27,6 +27,7 @@ import com.github.ehdez73.code2req.store.MetricsStore;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
 import com.github.ehdez73.code2req.store.TaskStoreSchema;
+import com.github.ehdez73.code2req.store.TopicLinkStore;
 import com.github.ehdez73.code2req.synthesis.Phase3Orchestrator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,7 @@ class RunCommandTest {
         var findingStore = new ExecutionFindingStore(jdbc);
         metricsStore = new MetricsStore(jdbc);
         var floatingLinkStore = new FloatingLinkStore(jdbc);
+        var topicLinkStore = new TopicLinkStore(jdbc);
         var taskIdHasher = new TaskIdHasher();
         var budgetCalculator = new ContextBudgetCalculator();
         var simulationStub = new SimulationStub();
@@ -90,12 +92,13 @@ class RunCommandTest {
         var manifestValidator = new ManifestValidator(manifestLoader);
 
         command = new RunCommand(phase2Orchestrator, phase3Orchestrator,
-            manifestLoader, manifestValidator);
+            manifestValidator,
+            taskStore, findingStore, topicLinkStore, floatingLinkStore);
     }
 
     @Test
     void runWithEmptyQualifiedTasksCompletes() {
-        String result = command.run("project-manifest.yaml", true, null);
+        String result = command.run("project-manifest.yaml", true, false, null);
         assertTrue(result.contains("Completed: 0"));
         assertTrue(result.contains("Phase 2"));
         assertTrue(result.contains("Phase 3"));
@@ -107,7 +110,7 @@ class RunCommandTest {
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t1", "SCHEDULED_TASK", "{}", 1);
 
-        String result = command.run("project-manifest.yaml", true, null);
+        String result = command.run("project-manifest.yaml", true, false, null);
         assertTrue(result.contains("Completed: 1"));
         assertTrue(result.contains("DRY RUN"));
         assertTrue(result.contains("Phase 2"));
@@ -120,7 +123,7 @@ class RunCommandTest {
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t1", "SCHEDULED_TASK", "{}", 1);
 
-        String result = command.run("project-manifest.yaml", false, 0);
+        String result = command.run("project-manifest.yaml", false, false, 0);
         assertTrue(result.contains("skipping Phase 2"));
         assertTrue(result.contains("Phase 3"));
     }
@@ -137,14 +140,14 @@ class RunCommandTest {
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t3", "SCHEDULED_TASK", "{}", 1);
 
-        String result = command.run("project-manifest.yaml", true, null);
+        String result = command.run("project-manifest.yaml", true, false, null);
         assertTrue(result.contains("Completed: 3"));
         assertTrue(result.contains("Run Complete"));
     }
 
     @Test
     void runWithInvalidManifestReturnsError() {
-        String result = command.run("nonexistent.yaml", false, null);
+        String result = command.run("nonexistent.yaml", false, false, null);
         assertTrue(result.contains("Error: Manifest file not found"));
     }
 

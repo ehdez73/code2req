@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Map;
 
 @Repository
 public class ExecutionFindingStore {
@@ -59,10 +60,31 @@ public class ExecutionFindingStore {
         return count != null ? count : 0;
     }
 
+    public int countByTaskId(String taskId) {
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM execution_findings WHERE task_id = ?",
+            Integer.class, taskId);
+        return count != null ? count : 0;
+    }
+
     public int countByTaskIdAndType(String taskId, String findingType) {
         Integer count = jdbc.queryForObject(
             "SELECT COUNT(*) FROM execution_findings WHERE task_id = ? AND finding_type = ?",
             Integer.class, taskId, findingType);
         return count != null ? count : 0;
+    }
+
+    public List<Map<String, Object>> findByTaskId(String taskId) {
+        return jdbc.queryForList("""
+            SELECT id, task_id, finding_type, finding_json, resolved, schema_version, created_at
+            FROM execution_findings WHERE task_id = ? ORDER BY created_at
+        """, taskId);
+    }
+
+    public List<Map<String, Object>> findByTaskIdAndType(String taskId, String findingType) {
+        return jdbc.queryForList("""
+            SELECT id, task_id, finding_type, finding_json, resolved, schema_version, created_at
+            FROM execution_findings WHERE task_id = ? AND finding_type = ? ORDER BY created_at
+        """, taskId, findingType);
     }
 }

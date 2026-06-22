@@ -55,4 +55,15 @@ public class TopicLinkStore {
     public void deleteAll() {
         jdbc.execute("DELETE FROM topic_links");
     }
+
+    public void deleteByTaskId(String taskId) {
+        jdbc.update("DELETE FROM topic_links WHERE producer_task_id = ? OR consumer_task_id = ?", taskId, taskId);
+    }
+
+    public int countByTaskId(String taskId) {
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM topic_links WHERE producer_task_id = ? OR consumer_task_id = ?",
+            Integer.class, taskId, taskId);
+        return count != null ? count : 0;
+    }
 }
