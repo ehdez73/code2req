@@ -1,14 +1,18 @@
 package com.github.ehdez73.code2req.orchestrator;
 
+import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.executor.ContextBudgetCalculator;
 import com.github.ehdez73.code2req.executor.SemanticExecutor;
 import com.github.ehdez73.code2req.model.ExecutionConfig;
 import com.github.ehdez73.code2req.model.ExecutionFinding;
 import com.github.ehdez73.code2req.model.Metric;
 import com.github.ehdez73.code2req.model.PlannerDecision;
+import com.github.ehdez73.code2req.model.ProjectManifest;
+import com.github.ehdez73.code2req.model.ScanTarget;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.planner.Phase2Planner;
+import com.github.ehdez73.code2req.service.FilePathResolver;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.MetricsStore;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
@@ -22,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,6 +47,8 @@ public class Phase2Orchestrator {
     private final ExecutionConfig executionConfig;
     private final TaskIdHasher taskIdHasher;
     private final ContextBudgetCalculator budgetCalculator;
+    private final ManifestLoader manifestLoader;
+    private final FilePathResolver filePathResolver;
 
     public Phase2Orchestrator(Phase2Planner planner,
                               SemanticExecutor semanticExecutor,
@@ -50,7 +57,9 @@ public class Phase2Orchestrator {
                               MetricsStore metricsStore,
                               ExecutionConfig executionConfig,
                               TaskIdHasher taskIdHasher,
-                              ContextBudgetCalculator budgetCalculator) {
+                              ContextBudgetCalculator budgetCalculator,
+                              ManifestLoader manifestLoader,
+                              FilePathResolver filePathResolver) {
         this.planner = planner;
         this.semanticExecutor = semanticExecutor;
         this.taskStore = taskStore;
@@ -59,9 +68,13 @@ public class Phase2Orchestrator {
         this.executionConfig = executionConfig;
         this.taskIdHasher = taskIdHasher;
         this.budgetCalculator = budgetCalculator;
+        this.manifestLoader = manifestLoader;
+        this.filePathResolver = filePathResolver;
     }
 
-    public CompletionStatus executePhase2(boolean dryRun) {
+    public CompletionStatus executePhase2(String manifestPath, boolean dryRun) {
+        Collection<ScanTarget> targets = loadScanTargets(manifestPath);
+
         List<PlannerDecision> decisions = planner.plan();
         List<PlannerDecision> qualified = decisions.stream()
             .filter(PlannerDecision::qualified)
@@ -84,6 +97,7 @@ public class Phase2Orchestrator {
         int tasksCompleted = 0;
         int tasksFailed = 0;
         int depsDiscovered = 0;
+        int depsSkipped = 0;
         List<String> awaitingReview = new ArrayList<>();
         List<PlannerDecision> toSubmit = new ArrayList<>(qualified);
 
@@ -107,7 +121,16 @@ public class Phase2Orchestrator {
                     task = taskOpt.get();
                 }
 
-                String sourceContent = readFileContent(task.filePath());
+                String resolvedPath = resolveTaskFilePath(task.filePath(), targets);
+                if (resolvedPath == null) {
+                    log.warn("Skipping task {} — file path '{}' does not exist under any scan target",
+                        task.taskId(), task.filePath());
+                    taskStore.updateStatus(task.taskId(), TaskStatus.FAILED);
+                    tasksFailed++;
+                    continue;
+                }
+
+                String sourceContent = readFileContent(resolvedPath);
                 taskStore.updateStatus(task.taskId(), TaskStatus.ENRICHING);
 
                 CompletableFuture<ExecutionFinding> future = semanticExecutor.enrich(
@@ -143,41 +166,50 @@ public class Phase2Orchestrator {
                         && !result.discoveredDependencies().isEmpty()) {
 
                         for (ExecutionFinding.DiscoveredDependency dep : result.discoveredDependencies()) {
-                            depsDiscovered++;
+                            Optional<Path> resolved = filePathResolver.resolve(dep.filePath(), targets);
+                            if (resolved.isEmpty()) {
+                                log.info("Skipping discovered dependency '{}' from task {} — not resolvable under any scan target (likely external library)",
+                                    dep.filePath(), entry.decision.taskId());
+                                depsSkipped++;
+                                continue;
+                            }
 
-                            String depHash = sha256(dep.filePath());
+                            String resolvedDepPath = resolved.get().toString();
+
+                            String depHash = sha256(resolvedDepPath);
                             if (dag.isVisited(depHash)) {
-                                log.warn("Discovered dependency {} already visited, skipping", dep.filePath());
+                                log.debug("Discovered dependency {} already visited, skipping", resolvedDepPath);
                                 continue;
                             }
                             dag.markVisited(depHash);
+                            depsDiscovered++;
 
                             String depTargetName = entry.task.targetName();
 
                             BranchState branch = dag.getBranch(entry.decision.taskId());
                             if (branch != null && branch.incrementDepth()) {
                                 log.warn("Max hop depth exceeded for dependency {} (depth={}, max={})",
-                                    dep.filePath(), branch.currentDepth(), maxDepth);
+                                    resolvedDepPath, branch.currentDepth(), maxDepth);
 
-                                String depTaskId = taskIdHasher.hash(dep.filePath(), depHash, depTargetName);
+                                String depTaskId = taskIdHasher.hash(resolvedDepPath, depHash, depTargetName);
                                 taskStore.updateStatus(depTaskId, TaskStatus.AWAITING_HUMAN_REVIEW);
-                                awaitingReview.add(dep.filePath());
+                                awaitingReview.add(resolvedDepPath);
                                 continue;
                             }
 
                             String childTaskId = dag.registerDiscoveredDependency(
-                                entry.decision.taskId(), dep.filePath());
+                                entry.decision.taskId(), resolvedDepPath);
                             if (childTaskId == null) {
-                                childTaskId = taskIdHasher.hash(dep.filePath(), depHash, depTargetName);
+                                childTaskId = taskIdHasher.hash(resolvedDepPath, depHash, depTargetName);
                             }
 
-                            String taskHash = sha256(dep.filePath() + "|" + System.nanoTime());
-                            Task newTask = new Task(childTaskId, dep.filePath(),
+                            String taskHash = sha256(resolvedDepPath + "|" + System.nanoTime());
+                            Task newTask = new Task(childTaskId, resolvedDepPath,
                                 TaskStatus.PENDING, entry.task.contentType(), taskHash, depTargetName);
                             taskStore.save(newTask);
 
                             PlannerDecision newDecision = PlannerDecision.qualified(
-                                childTaskId, dep.filePath(), depTargetName, entry.decision.reasons());
+                                childTaskId, resolvedDepPath, depTargetName, entry.decision.reasons());
                             dag.enqueue(newDecision);
                             nextBatch.add(newDecision);
                         }
@@ -208,8 +240,8 @@ public class Phase2Orchestrator {
         );
         metricsStore.save(metric);
 
-        log.info("Phase 2 complete: {} tasks completed, {} failed, {} deps discovered, {} tokens consumed, ${} estimated",
-            tasksCompleted, tasksFailed, depsDiscovered, totalTokens, String.format("%.6f", costEstimate));
+        log.info("Phase 2 complete: {} tasks completed, {} failed, {} deps discovered, {} deps skipped (external/unresolvable), {} tokens consumed, ${} estimated",
+            tasksCompleted, tasksFailed, depsDiscovered, depsSkipped, totalTokens, String.format("%.6f", costEstimate));
 
         return new CompletionStatus(
             qualified.size() + depsDiscovered,
@@ -220,6 +252,31 @@ public class Phase2Orchestrator {
             costEstimate,
             awaitingReview
         );
+    }
+
+    private Collection<ScanTarget> loadScanTargets(String manifestPath) {
+        try {
+            ProjectManifest manifest = manifestLoader.load(Path.of(manifestPath));
+            return manifest.targets();
+        } catch (IOException e) {
+            log.warn("Could not load manifest from {}: {} — dependency resolution will be limited", manifestPath, e.getMessage());
+            return List.of();
+        }
+    }
+
+    private String resolveTaskFilePath(String filePath, Collection<ScanTarget> targets) {
+        Path p = Path.of(filePath);
+        if (Files.isRegularFile(p)) {
+            return p.toAbsolutePath().normalize().toString();
+        }
+        if (!targets.isEmpty()) {
+            Optional<Path> resolved = filePathResolver.resolve(filePath, targets);
+            if (resolved.isPresent()) {
+                return resolved.get().toString();
+            }
+            log.debug("File '{}' not found at direct path and not resolved against scan targets — will use as-is", filePath);
+        }
+        return filePath;
     }
 
     private String readFileContent(String filePath) {

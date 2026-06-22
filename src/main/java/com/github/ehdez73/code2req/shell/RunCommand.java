@@ -83,7 +83,7 @@ public class RunCommand {
                 sb.append("  Mode: DRY RUN (simulation stubs, no API calls)\n");
             }
 
-            phase2Status = phase2Orchestrator.executePhase2(dryRun);
+            phase2Status = phase2Orchestrator.executePhase2(manifestPath, dryRun);
             long p2Elapsed = Duration.between(phase2Start, Instant.now()).toSeconds();
 
             sb.append(String.format("  Submitted: %d%n", phase2Status.tasksSubmitted()));

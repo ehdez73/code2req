@@ -228,7 +228,7 @@ public class ScanPipeline {
     private int runPass1(List<Path> files, List<ScanTarget> targets, GlobalDeclarationRegistry registry, StringBuilder report) {
         int failed = 0;
         for (Path file : files) {
-            String fp = file.toString();
+            String fp = file.toAbsolutePath().normalize().toString();
             try {
                 String content = Files.readString(file, StandardCharsets.UTF_8);
                 String redacted = secretRedactor.redact(content);
@@ -244,7 +244,7 @@ public class ScanPipeline {
     }
 
     private AnalysisResult analyzeSingleFile(Path file, GlobalDeclarationRegistry registry, String targetName) {
-        String fp = file.toString();
+        String fp = file.toAbsolutePath().normalize().toString();
         String content;
         try {
             content = Files.readString(file, StandardCharsets.UTF_8);

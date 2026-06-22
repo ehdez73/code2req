@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.orchestrator;
 
+import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.executor.ContextBudgetCalculator;
 import com.github.ehdez73.code2req.executor.SemanticExecutor;
 import com.github.ehdez73.code2req.executor.SimulationStub;
@@ -20,6 +21,7 @@ import com.github.ehdez73.code2req.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.planner.rule.UnresolvedFloatingLinkRule;
 import com.github.ehdez73.code2req.planner.rule.UnresolvedSignaturesRule;
+import com.github.ehdez73.code2req.service.FilePathResolver;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.FloatingLinkStore;
 import com.github.ehdez73.code2req.store.MetricsStore;
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -95,12 +98,28 @@ class Phase2OrchestratorTest {
         planner = new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
         var executor = new SemanticExecutor(null, findingStore, taskStore,
             budgetCalculator, simulationStub, null, null);
+        var manifestLoader = new ManifestLoader();
+        var filePathResolver = new FilePathResolver();
         return new Phase2Orchestrator(planner, executor, taskStore, findingStore,
-            metricsStore, executionConfig, taskIdHasher, budgetCalculator);
+            metricsStore, executionConfig, taskIdHasher, budgetCalculator,
+            manifestLoader, filePathResolver);
     }
 
     private void insertTask(String taskId, String filePath) {
         taskStore.save(new Task(taskId, filePath, TaskStatus.INDEXED, "java", "hash-" + taskId, "test"));
+    }
+
+    private Path createTestFile(String relativePath) throws IOException {
+        Path file = tempDir.resolve(relativePath);
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, "public class " + file.getFileName().toString().replace(".java", "") + " {}");
+        return file;
+    }
+
+    private Path createTestManifest(Path targetRoot) throws IOException {
+        Path manifest = tempDir.resolve("test-manifest.yaml");
+        Files.writeString(manifest, "targets:\n  - name: test-target\n    path: " + targetRoot.toAbsolutePath().normalize() + "\n    layer: test\n    tech_profile: java\n");
+        return manifest;
     }
 
     @Nested
@@ -110,7 +129,7 @@ class Phase2OrchestratorTest {
         void returnsEmptyWhenNoQualifiedTasks() {
             insertTask("t1", "/src/Foo.java");
             var orchestrator = createOrchestrator();
-            CompletionStatus status = orchestrator.executePhase2(true);
+            CompletionStatus status = orchestrator.executePhase2("project-manifest.yaml", true);
             assertEquals(0, status.tasksSubmitted());
             assertEquals(0, status.tasksCompleted());
             assertTrue(status.allSucceeded());
@@ -123,7 +142,7 @@ class Phase2OrchestratorTest {
                 "t1", "SCHEDULED_TASK", "{}", 1);
 
             var orchestrator = createOrchestrator();
-            CompletionStatus status = orchestrator.executePhase2(true);
+            CompletionStatus status = orchestrator.executePhase2("project-manifest.yaml", true);
 
             assertEquals(1, status.tasksSubmitted());
             assertEquals(1, status.tasksCompleted());
@@ -141,7 +160,7 @@ class Phase2OrchestratorTest {
                 "t2", "SPRING_DATA_INTERFACE", "{}", 1);
 
             var orchestrator = createOrchestrator();
-            CompletionStatus status = orchestrator.executePhase2(true);
+            CompletionStatus status = orchestrator.executePhase2("project-manifest.yaml", true);
 
             assertEquals(2, status.tasksCompleted());
             assertEquals(TaskStatus.ENRICHED, taskStore.findById("t1").get().status());
@@ -149,17 +168,29 @@ class Phase2OrchestratorTest {
         }
 
         @Test
-        void respectsMaxHopDepth() {
-            insertTask("root", "/src/Root.java");
+        void respectsMaxHopDepth() throws IOException {
+            Path rootFile = createTestFile("src/Root.java");
+            createTestFile("src/Dep1.java");
+            createTestFile("src/Dep2.java");
+            createTestFile("src/Dep3.java");
+            createTestFile("src/Dep4.java");
+            Path manifestPath = createTestManifest(tempDir);
+
+            insertTask("root", rootFile.toAbsolutePath().normalize().toString());
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
                 "root", "SCHEDULED_TASK", "{}", 1);
 
+            String rootPath = rootFile.toAbsolutePath().normalize().toString();
             var depPaths = Map.of(
-                "/src/Root.java", List.of(
-                    new ExecutionFinding.DiscoveredDependency("/src/Dep1.java", "discovered", 1),
-                    new ExecutionFinding.DiscoveredDependency("/src/Dep2.java", "discovered", 2),
-                    new ExecutionFinding.DiscoveredDependency("/src/Dep3.java", "discovered", 3),
-                    new ExecutionFinding.DiscoveredDependency("/src/Dep4.java", "discovered", 4)
+                rootPath, List.of(
+                    new ExecutionFinding.DiscoveredDependency(
+                        tempDir.resolve("src/Dep1.java").toAbsolutePath().normalize().toString(), "discovered", 1),
+                    new ExecutionFinding.DiscoveredDependency(
+                        tempDir.resolve("src/Dep2.java").toAbsolutePath().normalize().toString(), "discovered", 2),
+                    new ExecutionFinding.DiscoveredDependency(
+                        tempDir.resolve("src/Dep3.java").toAbsolutePath().normalize().toString(), "discovered", 3),
+                    new ExecutionFinding.DiscoveredDependency(
+                        tempDir.resolve("src/Dep4.java").toAbsolutePath().normalize().toString(), "discovered", 4)
                 )
             );
 
@@ -170,22 +201,29 @@ class Phase2OrchestratorTest {
             var orchestratorWithDeps = new Phase2Orchestrator(planner, executor, taskStore,
                 findingStore, metricsStore,
                 new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7),
-                taskIdHasher, budgetCalculator);
+                taskIdHasher, budgetCalculator, new ManifestLoader(),
+                new FilePathResolver());
 
-            CompletionStatus status = orchestratorWithDeps.executePhase2(true);
+            CompletionStatus status = orchestratorWithDeps.executePhase2(manifestPath.toString(), true);
 
             assertEquals(TaskStatus.ENRICHED, taskStore.findById("root").get().status());
         }
 
         @Test
-        void handlesDynamicReplanning() {
-            insertTask("root", "/src/Root.java");
+        void handlesDynamicReplanning() throws IOException {
+            Path rootFile = createTestFile("src/Root.java");
+            createTestFile("src/DiscoveredService.java");
+            Path manifestPath = createTestManifest(tempDir);
+
+            insertTask("root", rootFile.toAbsolutePath().normalize().toString());
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
                 "root", "SCHEDULED_TASK", "{}", 1);
 
             var depPaths = Map.of(
-                "/src/Root.java", List.of(
-                    new ExecutionFinding.DiscoveredDependency("/src/DiscoveredService.java", "runtime reflection", 1)
+                rootFile.toAbsolutePath().normalize().toString(), List.of(
+                    new ExecutionFinding.DiscoveredDependency(
+                        tempDir.resolve("src/DiscoveredService.java").toAbsolutePath().normalize().toString(),
+                        "runtime reflection", 1)
                 )
             );
 
@@ -194,9 +232,10 @@ class Phase2OrchestratorTest {
             var executor = new SemanticExecutor(null, findingStore, taskStore,
                 budgetCalculator, controlledStub, null, null);
             var orchestratorWithDeps = new Phase2Orchestrator(planner, executor, taskStore,
-                findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator);
+                findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator,
+                new ManifestLoader(), new FilePathResolver());
 
-            CompletionStatus status = orchestratorWithDeps.executePhase2(true);
+            CompletionStatus status = orchestratorWithDeps.executePhase2(manifestPath.toString(), true);
 
             assertEquals(2, status.tasksCompleted());
             assertEquals(1, status.dependenciesDiscovered());
@@ -224,7 +263,7 @@ class Phase2OrchestratorTest {
                 "t1", "SCHEDULED_TASK", "{}", 1);
 
             var orchestrator = createOrchestrator();
-            orchestrator.executePhase2(true);
+            orchestrator.executePhase2("project-manifest.yaml", true);
 
             Metric metric = metricsStore.getLatestForPhase(2);
             assertNotNull(metric);
@@ -247,7 +286,7 @@ class Phase2OrchestratorTest {
                 "t3", "NATIVE_SQL_QUERY", "{}", 1);
 
             var orchestrator = createOrchestrator();
-            CompletionStatus status = orchestrator.executePhase2(true);
+            CompletionStatus status = orchestrator.executePhase2("project-manifest.yaml", true);
 
             assertEquals(3, status.tasksSubmitted());
             assertEquals(3, status.tasksCompleted());

@@ -20,6 +20,7 @@ import com.github.ehdez73.code2req.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.planner.rule.UnresolvedFloatingLinkRule;
 import com.github.ehdez73.code2req.planner.rule.UnresolvedSignaturesRule;
+import com.github.ehdez73.code2req.service.FilePathResolver;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.FloatingLinkStore;
 import com.github.ehdez73.code2req.store.MetricsStore;
@@ -81,7 +82,8 @@ class RunCommandTest {
         var executor = new SemanticExecutor(null, findingStore, taskStore,
             budgetCalculator, simulationStub, null, null);
         var phase2Orchestrator = new Phase2Orchestrator(planner, executor, taskStore,
-            findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator);
+            findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator,
+            new ManifestLoader(), new FilePathResolver());
 
         var phase3Orchestrator = new Phase3Orchestrator(metricsStore);
         var manifestLoader = new ManifestLoader();
