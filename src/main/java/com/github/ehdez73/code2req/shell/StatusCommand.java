@@ -71,26 +71,8 @@ public class StatusCommand {
             sb.append("  No Phase 3 run data available\n");
         }
 
-        int pendingCount = taskStore.countByStatus(TaskStatus.PENDING);
-        int enrichPendingCount = taskStore.countByStatus(TaskStatus.ENRICH_PENDING);
-        int enrichingCount = taskStore.countByStatus(TaskStatus.ENRICHING);
-        int indexedCount = taskStore.countByStatus(TaskStatus.INDEXED);
-        int enrichedCount = taskStore.countByStatus(TaskStatus.ENRICHED);
-        int failedCount = taskStore.countByStatus(TaskStatus.FAILED);
-        int enrichFailedCount = taskStore.countByStatus(TaskStatus.ENRICH_FAILED);
-
         if (hasFilter) {
             return sb.toString();
-        }
-
-        int total = taskStore.count();
-        if (total == 0) {
-            sb.append("\n=== Suggested Next Steps ===\n");
-            sb.append("  No tasks found. Start by scanning a project:\n");
-            sb.append("    scan\n");
-        } else {
-            appendSuggestions(sb, pendingCount, enrichPendingCount, enrichingCount,
-                indexedCount, enrichedCount, failedCount, enrichFailedCount, p3);
         }
 
         return sb.toString();
@@ -103,55 +85,6 @@ public class StatusCommand {
             for (Task task : tasks) {
                 sb.append(String.format("    - %s%n", task.filePath()));
             }
-        }
-    }
-
-    private void appendSuggestions(StringBuilder sb, int pendingCount, int enrichPendingCount,
-                                    int enrichingCount, int indexedCount, int enrichedCount,
-                                    int failedCount, int enrichFailedCount, Metric p3) {
-        sb.append("\n=== Suggested Next Steps ===\n");
-
-        boolean hasPhase1Failures = failedCount > 0;
-        boolean hasPhase2Failures = enrichFailedCount > 0;
-        boolean hasEnriching = enrichingCount > 0;
-        boolean hasPending = pendingCount > 0;
-        boolean hasReady = enrichPendingCount > 0;
-        boolean hasIndexed = indexedCount > 0;
-
-        if (hasPhase1Failures) {
-            sb.append("  ").append(failedCount).append(" FAILED task(s) — file unreadable during Phase 1:\n");
-            sb.append("    scan --resume\n");
-        }
-
-        if (hasPhase2Failures || hasEnriching || hasPending) {
-            String detail = (hasPhase2Failures ? "ENRICH_FAILED=" + enrichFailedCount + ", " : "")
-                + (hasEnriching ? "ENRICHING=" + enrichingCount + ", " : "")
-                + (hasPending ? "PENDING=" + pendingCount : "");
-            if (detail.endsWith(", ")) detail = detail.substring(0, detail.length() - 2);
-            sb.append("  Tasks need recovery (").append(detail).append("):\n");
-            sb.append("    run --resume\n");
-        }
-
-        if (hasIndexed) {
-            sb.append("  ").append(indexedCount).append(" INDEXED task(s) ready for qualification:\n");
-            sb.append("    plan\n");
-        }
-
-        if (hasReady && !hasEnriching && !hasPending && !hasPhase2Failures) {
-            sb.append("  ").append(enrichPendingCount).append(" task(s) waiting for enrichment:\n");
-            sb.append("    run\n");
-        }
-
-        boolean allEnriched = !hasPhase1Failures && !hasPhase2Failures && !hasEnriching
-            && !hasPending && !hasIndexed && !hasReady && enrichedCount > 0;
-        if (allEnriched && p3 == null) {
-            sb.append("  All tasks enriched. Proceed to Phase 3 extraction:\n");
-            sb.append("    run\n");
-        }
-
-        if (!hasPhase1Failures && !hasPhase2Failures && !hasEnriching && !hasPending
-            && !hasIndexed && !hasReady && !allEnriched) {
-            sb.append("  No actionable tasks. Nothing to do.\n");
         }
     }
 }
