@@ -98,7 +98,8 @@ class RunCommandTest {
             findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator,
             new ManifestLoader(), new FilePathResolver(), per);
 
-        var phase3Orchestrator = new Phase3Orchestrator(metricsStore);
+        var phase3Orchestrator = new Phase3Orchestrator(
+            taskStore, findingStore, floatingLinkStore, topicLinkStore, metricsStore);
         var manifestLoader = new ManifestLoader();
         var manifestValidator = new ManifestValidator(manifestLoader);
 

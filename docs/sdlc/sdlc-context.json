@@ -682,7 +682,9 @@
       "description": "Uncomment and configure the Embabel dependency in pom.xml. Embabel provides the GOAP (Goal-Oriented Action Planning) engine for Phase 3's agentic functional requirement extraction.",
       "background": "Embabel repository accessible. Phase 2 completion not required for setup.",
       "business_rules": [
-        "Embabel dependency must be resolvable from configured Maven repositories",
+        "Embabel dependencies must be resolvable from configured Maven repositories",
+        "`embabel-agent-starter` provides the core GOAP engine; `embabel-agent-starter-dockermodels` enables Docker-based model support",
+        "`embabel.models.default-llm`, `embabel.models.llms.cheapest`, and `embabel.models.llms.best` must be configured in application.properties",
         "Embabel framework must initialize at application startup without errors",
         "If Embabel repo is unreachable, Phase 3 cannot proceed"
       ],

@@ -89,6 +89,13 @@ public class ExecutionFindingStore {
         """, taskId, findingType);
     }
 
+    public List<Map<String, Object>> findAllByType(String findingType) {
+        return jdbc.queryForList("""
+            SELECT id, task_id, finding_type, finding_json, resolved, schema_version, created_at
+            FROM execution_findings WHERE finding_type = ? ORDER BY created_at
+        """, findingType);
+    }
+
     public int deleteOrphanedSemanticEnrichment() {
         return jdbc.update("""
             DELETE FROM execution_findings

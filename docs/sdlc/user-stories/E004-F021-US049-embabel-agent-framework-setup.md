@@ -10,6 +10,8 @@
 ### Acceptance Criteria
 
 - [x] `embabel-agent-starter` dependency is uncommented in pom.xml
+- [x] `embabel-agent-starter-dockermodels` dependency is added in pom.xml
+- [x] `embabel.models.default-llm`, `embabel.models.llms.cheapest`, and `embabel.models.llms.best` properties are configured in application.properties
 - [x] `mvn compile` succeeds with Embabel on classpath
 - [ ] Embabel initializes at application startup without errors
 - [ ] The `AgentPlatform` is available for Phase 3 invocation

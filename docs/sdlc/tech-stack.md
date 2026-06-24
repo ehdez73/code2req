@@ -18,6 +18,8 @@
 | Spring Boot | 3.4.x | Application framework | — |
 | Spring JDBC (JdbcTemplate) | 3.4.x | Database access (no ORM) | ADR-002 |
 | JavaParser | latest | Java source AST analysis | ADR-001 |
+| Embabel (embabel-agent-starter) | 0.5.0 | GOAP agentic engine for Phase 3 | — |
+| Embabel (embabel-agent-starter-dockermodels) | 0.5.0 | Docker-based model support for Embabel | — |
 
 ## Data & Persistence
 

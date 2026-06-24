@@ -39,6 +39,10 @@ public class TopicLinkStore {
         }
     }
 
+    public List<TopicLink> findAll() {
+        return jdbc.query("SELECT * FROM topic_links", rowMapper);
+    }
+
     public List<TopicLink> findByBroker(String broker) {
         return jdbc.query("SELECT * FROM topic_links WHERE broker = ?", rowMapper, broker);
     }

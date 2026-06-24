@@ -194,12 +194,13 @@ Pure-Java services that prepare data for the Embabel agent and handle output aft
 
 **No fallback needed** — Embabel is the agent framework (decision-making), not a data-processing pipeline. If Embabel repo is unavailable, Phase 3 cannot run.
 
-- **US050** (must): Phase3Orchestrator aggregates Phase 1 (structural) + Phase 2 (enriched) data into CodebaseKnowledge with query methods (getFlowCandidates, getCallersOf, getCalleesOf, findUnresolvedLinks)
+- [x] **US050** (must): Phase3Orchestrator aggregates Phase 1 (structural) + Phase 2 (enriched) data into CodebaseKnowledge with query methods (getFlowCandidates, getCallersOf, getCalleesOf, findUnresolvedLinks)
 - [x] Gherkin: `docs/sdlc/features/E004-F022-codebase-knowledge.feature`
-- [ ] Depends on: F021 (Embabel integration), Phase 2 enriched data in SQLite
-- [ ] Classes: `Phase3Orchestrator`, `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry`
-- [ ] Verify: `mvn test` — CodebaseKnowledge correctly aggregates Phase 1 + Phase 2 data
-- [ ] Manual: `run --dry-run --manifest ...` — verify orchestrator loads data and invokes agent
+- [x] Depends on: F021 (Embabel integration), Phase 2 enriched data in SQLite
+- [x] Classes: `Phase3Orchestrator`, `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry`
+- [x] Verify: `mvn test` — 501 tests pass (11 new Phase3Orchestrator tests covering CodebaseKnowledge aggregation from empty store, call graph edges, endpoints, DB access, components, semantic enrichment, floating/topic links, query methods, analyzeKnowledge counts, dry-run)
+- [x] Modified: `ExecutionFindingStore` (+findAllByType), `TopicLinkStore` (+findAll), `RunCommandTest` (updated Phase3Orchestrator constructor)
+- [x] Manual: `run --dry-run --manifest ...` — verify orchestrator loads data and invokes agent
 
 #### F023: Embabel Agent — Goals, Actions, Output (US051, PRD §2.3)
 
@@ -268,7 +269,7 @@ Post-agent validation pass (pure Java, not part of the Embabel agent):
 | US047 ✓ | F019 | must | E003 — `run` command |
 | US048 ✓ | F020 | should | E003 — Test Suite Mining |
 | US049 ✓ | F021 | must | E004 — Embabel Agent Framework Setup |
-| US050 | F022 | must | E004 — CodebaseKnowledge + Orchestrator |
+| US050 ✓ | F022 | must | E004 — CodebaseKnowledge + Orchestrator |
 | US051 | F023 | must | E004 — Embabel Agent (Goals, Actions, Output) |
 | US052 | F024 | should | E004 — Quality Audit |
 
@@ -307,7 +308,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 
 ## Modified / New Files Summary
 
-### Modified (existing files changed, F016-related additions in *italic*, completed items prefixed with ✓):
+### Modified (existing files changed, F016-related additions in *italic*, F022 additions in **bold**, completed items prefixed with ✓):
 | File | Change |
 |------|--------|
 | ✓ `Application.java` | Add `@EnableAsync` |
@@ -316,7 +317,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `model/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
 | ✓ `model/AnalysisFinding.java` | Add `default boolean isResolved() { return true; }` |
 | ✓ `analyzer/callgraph/CallGraphEdge.java` | Override `isResolved()` to return `STATUS_RESOLVED.equals(resolvedStatus)` |
-| ✓ `store/ExecutionFindingStore.java` | `saveAllForTask` uses `finding.isResolved()` instead of hardcoded `true`. Added `countByTaskIdAndType()` query for planner. |
+| ✓ `store/ExecutionFindingStore.java` | `saveAllForTask` uses `finding.isResolved()` instead of hardcoded `true`. Added `countByTaskIdAndType()` query for planner. **Added `findAllByType()` query for Phase 3 CodebaseKnowledge aggregation.** |
 | ✓ `store/FindingType.java` | Add `SPRING_DATA_INTERFACE`, `DATABASE_PROCEDURE_CALL`, `CONSTRAINT_VALIDATOR`, `NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY`, `SEMANTIC_ENRICHMENT` |
 | ✓ `pipeline/ScanPipeline.java` | Add re-classification step after `persistFindings()` to create granular FindingType rows (now 5 mapping cases) |
 | ✓ `store/FloatingLinkStore.java` | Add `findSourceFilePathsByResolvedStatus(String)` query for planner |
@@ -350,14 +351,15 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `resources/schema/` | `execution-finding-schema.json` (embedded §4 JSON Schema) |
 | ✓ `orchestrator/` | `Phase2Orchestrator`, `EnrichmentDag`, `BranchState`, `CompletionStatus` |
 | ✓ `executor/testmining/` | `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver` |
-| `synthesis/` | `Phase3Orchestrator`, `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry` |
 | `synthesis/agent/` | `FunctionalRequirementAgent`, `AnalyzeFindingsAction`, `ResolveAmbiguityAction`, `CrossReferenceLinksAction`, `SynthesizeSpecAction`, `QuarantineAction` |
 | `synthesis/domain/` | `FunctionalFlow`, `BusinessRule`, `EndpointSpec`, `CodePattern`, `AmbiguityGap`, `FlowStep`, `TraceabilityEntry` |
 | `synthesis/output/` | `MarkdownSpecWriter`, `SemanticManifestWriter` |
 | `synthesis/audit/` | `Phase3QualityAudit`, `AuditSample`, `AuditReport` |
 | ✓ `shell/` | `PlanCommand`, `RunCommand` |
-| ✓ `synthesis/` | `Phase3Result`, `Phase3Orchestrator` (E004 placeholder) |
-
+| ✓ `synthesis/` | `Phase3Result`, `Phase3Orchestrator` (now implemented), `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry` |
+| ✓ `store/TopicLinkStore.java` | **Added `findAll()` query for Phase 3 LinkRegistry** |
+| ✓ `shell/RunCommandTest.java` | **Updated `Phase3Orchestrator` constructor to pass all 5 stores** |
+ 
 ## Verification Guide
 
 - Unit: `mvn test`

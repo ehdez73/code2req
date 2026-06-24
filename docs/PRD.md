@@ -462,7 +462,7 @@ The structural trace produced by Phase 1 resolves all deterministic call paths (
 
 ### 2.3 Phase 3: Agentic Functional Requirement Extraction (Embabel)
 
-Phase 3 takes the complete set of enriched `ExecutionFinding` records (produced by Phase 2) alongside the structural call graph, topic links, and floating links (produced by Phase 1), and employs an **Embabel goal-oriented agent** to extract holistic functional requirements. Unlike a fixed pipeline, this phase uses dynamic planning to resolve ambiguity by investigating the codebase on demand.
+Phase 3 takes the complete set of enriched `ExecutionFinding` records (produced by Phase 2) alongside the structural call graph, topic links, and floating links (produced by Phase 1), and employs an **Embabel goal-oriented agent** to extract holistic functional requirements. Unlike a fixed pipeline, this phase uses dynamic planning to resolve ambiguity by investigating the codebase on demand. The agent requires `embabel-agent-starter` (core GOAP engine) and `embabel-agent-starter-dockermodels` (Docker-based model support) on the classpath.
 
 **The Embabel Agent:**
 
@@ -484,7 +484,10 @@ Phase 3 takes the complete set of enriched `ExecutionFinding` records (produced 
 
 4. **Dynamic Re-Planning (GOAP):** After each action, the Embabel planner reassesses goal completion. If ambiguity remains, it replans the next action sequence — this is an OODA loop, not a fixed pipeline. The planner uses a non-LLM GOAP algorithm for planning; LLM calls are reserved for individual actions that require semantic analysis.
 
-5. **Guardrails (configurable via `application.properties`):**
+5. **Guardrails & Model Configuration (via `application.properties`):**
+   - `embabel.models.default-llm` — Default model for Embabel agent actions.
+   - `embabel.models.llms.cheapest` — Budget model for cost-sensitive actions.
+   - `embabel.models.llms.best` — High-quality model for critical synthesis steps.
    - `max-investigation-steps-per-flow` (default: 5) — Caps the number of investigation actions per functional flow. Prevents runaway exploration on deeply ambiguous code.
    - `max-tokens-per-run` (default: 500000) — Hard token budget for Phase 3 LLM calls.
    - `ambiguity-confidence-threshold` (default: 0.7) — Below this threshold, the flow is marked `AWAITING_HUMAN_REVIEW` instead of continuing investigation.

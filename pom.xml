@@ -128,6 +128,11 @@
             <artifactId>embabel-agent-starter</artifactId>
             <version>${embabel-agent.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-starter-dockermodels</artifactId>
+            <version>${embabel-agent.version}</version>
+        </dependency>
 
         <!-- Testing Infrastructure -->
         <dependency>
