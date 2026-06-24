@@ -1097,22 +1097,10 @@ A CLI run is considered successful when all of the following conditions are met.
         <spring-shell.version>3.4.2</spring-shell.version>
         <sqlite-jdbc.version>3.45.1.0</sqlite-jdbc.version>
         <javaparser.version>3.25.9</javaparser.version>
-        <embabel-agent.version>0.1.0-SNAPSHOT</embabel-agent.version>
+        <embabel-agent.version>0.5.0</embabel-agent.version>
     </properties>
 
     <repositories>
-        <repository>
-            <id>embabel-releases</id>
-            <url>https://repo.embabel.com/artifactory/libs-release</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>false</enabled></snapshots>
-        </repository>
-        <repository>
-            <id>embabel-snapshots</id>
-            <url>https://repo.embabel.com/artifactory/libs-snapshot</url>
-            <releases><enabled>false</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
-        </repository>
         <repository>
             <id>spring-milestones</id>
             <url>https://repo.spring.io/milestone</url>

@@ -9,8 +9,8 @@
 
 ### Acceptance Criteria
 
-- [ ] `embabel-agent-starter` dependency is uncommented in pom.xml
-- [ ] `mvn compile` succeeds with Embabel on classpath
+- [x] `embabel-agent-starter` dependency is uncommented in pom.xml
+- [x] `mvn compile` succeeds with Embabel on classpath
 - [ ] Embabel initializes at application startup without errors
 - [ ] The `AgentPlatform` is available for Phase 3 invocation
 - [ ] If the Embabel repo is unreachable, the build fails with a clear Maven error

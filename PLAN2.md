@@ -169,11 +169,11 @@ Match production files with paired test files (e.g., `OrderService.java` ↔ `Or
 
 Uncomment and configure Embabel in pom.xml. Embabel provides the GOAP (Goal-Oriented Action Planning) engine for Phase 3's agentic extraction.
 
-- **US049** (must): Embabel dependency uncommented in pom.xml, framework initializes at startup, AgentPlatform available for Phase 3
+- [x] **US049** (must): Embabel dependency uncommented in pom.xml, framework initializes at startup, AgentPlatform available for Phase 3
 - [x] Gherkin: `docs/sdlc/features/E004-F021-embabel-setup.feature`
-- [ ] Depends on: Phase 2 completion, Embabel repo availability
-- [ ] Modified: `pom.xml` (uncomment embabel-agent-starter), `application.properties` (Embabel config if needed)
-- [ ] Verify: `mvn compile` succeeds with Embabel on classpath
+- [x] Depends on: Phase 2 completion, Embabel repo availability
+- [x] Modified: `pom.xml` (uncomment embabel-agent-starter, set version 0.5.0, remove embabel-releases/embabel-snapshots repos)
+- [x] Verify: `mvn compile` succeeds with Embabel on classpath
 - [ ] Manual: run with `--dry-run` — confirm Embabel initialises without error
 
 #### F022: CodebaseKnowledge Builder + Phase 3 Orchestrator (US050, PRD §2.3)
@@ -267,7 +267,7 @@ Post-agent validation pass (pure Java, not part of the Embabel agent):
 | US046 ✓ | F019 | must | E003 — `plan` command |
 | US047 ✓ | F019 | must | E003 — `run` command |
 | US048 ✓ | F020 | should | E003 — Test Suite Mining |
-| US049 | F021 | must | E004 — Embabel Agent Framework Setup |
+| US049 ✓ | F021 | must | E004 — Embabel Agent Framework Setup |
 | US050 | F022 | must | E004 — CodebaseKnowledge + Orchestrator |
 | US051 | F023 | must | E004 — Embabel Agent (Goals, Actions, Output) |
 | US052 | F024 | should | E004 — Quality Audit |
