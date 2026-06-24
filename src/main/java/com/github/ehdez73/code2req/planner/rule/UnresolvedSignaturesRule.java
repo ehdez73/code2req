@@ -10,6 +10,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+/**
+ * Qualifies a task when the file has more unresolved call graph signatures
+ * than the configured {@code llm-unresolved-threshold} (default: 5).
+ * A high number of unresolved references indicates the file likely depends
+ * on external types whose role requires LLM enrichment to explain.
+ */
 @Component
 public class UnresolvedSignaturesRule implements QualificationRule {
 

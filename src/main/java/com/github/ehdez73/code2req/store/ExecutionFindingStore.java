@@ -1,6 +1,7 @@
 package com.github.ehdez73.code2req.store;
 
 import com.github.ehdez73.code2req.analyzer.AnalysisFinding;
+import com.github.ehdez73.code2req.model.TaskStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -86,5 +87,14 @@ public class ExecutionFindingStore {
             SELECT id, task_id, finding_type, finding_json, resolved, schema_version, created_at
             FROM execution_findings WHERE task_id = ? AND finding_type = ? ORDER BY created_at
         """, taskId, findingType);
+    }
+
+    public int deleteOrphanedSemanticEnrichment() {
+        return jdbc.update("""
+            DELETE FROM execution_findings
+            WHERE finding_type = ? AND task_id IN (
+                SELECT task_id FROM tasks WHERE status = ?
+            )
+        """, FindingType.SEMANTIC_ENRICHMENT, TaskStatus.INDEXED.name());
     }
 }

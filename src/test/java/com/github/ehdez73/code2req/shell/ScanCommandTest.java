@@ -20,11 +20,15 @@ import com.github.ehdez73.code2req.analyzer.web.template.TemplateAnalyzer;
 import com.github.ehdez73.code2req.analyzer.web.template.TemplateLinkResolver;
 import com.github.ehdez73.code2req.shell.ScanCommand;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
+import com.github.ehdez73.code2req.store.FloatingLinkStore;
 import com.github.ehdez73.code2req.store.TaskIdHasher;
 import com.github.ehdez73.code2req.store.TaskStore;
+import com.github.ehdez73.code2req.store.TopicLinkStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -86,16 +90,18 @@ class ScanCommandTest {
         astAnalyzer = new JavaAstAnalyzer(visitors);
 
         indexWriter = new IndexWriter(new com.github.ehdez73.code2req.model.OutputConfig(tempDir.toString(), "code-graph-index.json", null));
-        orphanRecovery = new OrphanRecovery(taskStore);
+        var txManager = new DataSourceTransactionManager(ds);
+        var txTemplate = new TransactionTemplate(txManager);
+        var executionFindingStore = new ExecutionFindingStore(jdbc);
+        var topicLinkStore = new TopicLinkStore(jdbc);
+        var floatingLinkStore = new FloatingLinkStore(jdbc);
+        orphanRecovery = new OrphanRecovery(taskStore, executionFindingStore, topicLinkStore, floatingLinkStore);
 
         var pass1Collector = new Pass1DeclarationCollector();
-        var executionFindingStore = new ExecutionFindingStore(jdbc);
-        var topicLinkStore = new com.github.ehdez73.code2req.store.TopicLinkStore(jdbc);
-        var floatingLinkStore = new com.github.ehdez73.code2req.store.FloatingLinkStore(jdbc);
         var metricsStore = new com.github.ehdez73.code2req.store.MetricsStore(jdbc);
         var pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher,
             topicLinkResolver, new FloatingLinkResolver(),
-            executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore);
+            executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore, txTemplate);
 
         var templateAnalyzer = new TemplateAnalyzer(List.of(new com.github.ehdez73.code2req.analyzer.web.template.JspTemplateParser(), new com.github.ehdez73.code2req.analyzer.web.template.ThymeleafTemplateParser()));
         var templateLinkResolver = new TemplateLinkResolver();

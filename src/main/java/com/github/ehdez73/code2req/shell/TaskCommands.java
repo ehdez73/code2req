@@ -39,7 +39,7 @@ public class TaskCommands {
             @ShellOption(value = "--task", defaultValue = ShellOption.NULL,
                          help = "Filter by full or partial task ID") String taskPrefix,
             @ShellOption(value = "--status", defaultValue = ShellOption.NULL,
-                         help = "Filter by status: PENDING, ENRICHING, INDEXED, ENRICHED, FAILED, AWAITING_HUMAN_REVIEW") String statusFilter,
+                          help = "Filter by status: PENDING, ENRICH_PENDING, ENRICHING, INDEXED, ENRICHED, FAILED, ENRICH_FAILED, AWAITING_HUMAN_REVIEW") String statusFilter,
             @ShellOption(value = "--target", defaultValue = ShellOption.NULL,
                          help = "Filter by target name (partial match)") String targetFilter,
             @ShellOption(value = "--verbose", defaultValue = "false",
@@ -52,7 +52,7 @@ public class TaskCommands {
             try {
                 status = TaskStatus.valueOf(statusFilter.toUpperCase());
             } catch (IllegalArgumentException e) {
-                return "Error: Invalid status '" + statusFilter + "'. Valid values: PENDING, ENRICHING, INDEXED, ENRICHED, FAILED, AWAITING_HUMAN_REVIEW";
+                return "Error: Invalid status '" + statusFilter + "'. Valid values: PENDING, ENRICH_PENDING, ENRICHING, INDEXED, ENRICHED, FAILED, ENRICH_FAILED, AWAITING_HUMAN_REVIEW";
             }
         }
 
@@ -95,7 +95,7 @@ public class TaskCommands {
             Task t = tasks.get(i);
             String taskId = verbose ? truncate(t.taskId(), idWidth) : (t.taskId().length() > 12 ? t.taskId().substring(0, 12) + "..." : t.taskId());
             sb.append(String.format(headerFmt,
-                taskId, truncate(t.filePath(), pathWidth - 2), t.status(), t.targetName()));
+                taskId, truncateStart(t.filePath(), pathWidth - 2), t.status(), t.targetName()));
         }
 
         sb.append(String.format("%n%d row(s) (--limit %d)", tasks.size(), limit));
@@ -158,14 +158,36 @@ public class TaskCommands {
         return sb.toString();
     }
 
-    @ShellMethod(key = "task set-status", value = "Change a task's status, optionally deleting its findings and linked rows")
+    @ShellMethod(key = "task set-status", value = "Change task status by --task or in batch by current status (--from)")
     public String setStatus(
-            @ShellOption(value = "--task", help = "Full or partial task ID") String taskPrefix,
-            @ShellOption(value = "--status", help = "New status: PENDING, INDEXED, ENRICHED, FAILED, AWAITING_HUMAN_REVIEW") String newStatus,
+            @ShellOption(value = "--task", defaultValue = ShellOption.NULL,
+                         help = "Full or partial task ID") String taskPrefix,
+            @ShellOption(value = "--from", defaultValue = ShellOption.NULL,
+                          help = "Batch mode: current status to match (e.g. FAILED, ENRICH_FAILED)") String fromStatus,
+            @ShellOption(value = "--status", help = "New status: PENDING, ENRICH_PENDING, INDEXED, ENRICHED, FAILED, ENRICH_FAILED, AWAITING_HUMAN_REVIEW") String newStatus,
             @ShellOption(value = "--delete-findings", defaultValue = "true",
-                         help = "Also delete execution findings, topic links, and floating links for this task") boolean deleteFindings,
+                         help = "Also delete execution findings, topic links, and floating links") boolean deleteFindings,
             @ShellOption(value = "--dry-run", defaultValue = "false",
                          help = "Show what would be done without modifying anything") boolean dryRun) {
+
+        TaskStatus status;
+        try {
+            status = TaskStatus.valueOf(newStatus.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return "Error: Invalid status '" + newStatus + "'. Valid values: PENDING, ENRICH_PENDING, ENRICHING, INDEXED, ENRICHED, FAILED, ENRICH_FAILED, AWAITING_HUMAN_REVIEW";
+        }
+
+        if (taskPrefix != null && fromStatus != null) {
+            return "Error: Provide either --task or --from, not both.";
+        }
+
+        if (fromStatus != null) {
+            return setStatusBatch(fromStatus, status, deleteFindings, dryRun);
+        }
+
+        if (taskPrefix == null) {
+            return "Error: Provide either --task or --from.";
+        }
 
         List<Task> tasks;
         Optional<Task> exact = taskStore.findById(taskPrefix);
@@ -176,13 +198,6 @@ public class TaskCommands {
             if (tasks.isEmpty()) {
                 return "No task found matching: " + taskPrefix;
             }
-        }
-
-        TaskStatus status;
-        try {
-            status = TaskStatus.valueOf(newStatus.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return "Error: Invalid status '" + newStatus + "'. Valid values: PENDING, ENRICHING, INDEXED, ENRICHED, FAILED, AWAITING_HUMAN_REVIEW";
         }
 
         var sb = new StringBuilder();
@@ -238,8 +253,78 @@ public class TaskCommands {
         return sb.toString();
     }
 
+    private String setStatusBatch(String fromStatusStr, TaskStatus newStatus, boolean deleteFindings, boolean dryRun) {
+        TaskStatus fromStatus;
+        try {
+            fromStatus = TaskStatus.valueOf(fromStatusStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return "Error: Invalid status '" + fromStatusStr + "'. Valid values: PENDING, ENRICH_PENDING, ENRICHING, INDEXED, ENRICHED, FAILED, ENRICH_FAILED, AWAITING_HUMAN_REVIEW";
+        }
+
+        List<Task> tasks = taskStore.findByStatus(fromStatus);
+        if (tasks.isEmpty()) {
+            return "No tasks found with status " + fromStatus + ".";
+        }
+
+        int totalFindings = 0;
+        int totalTopicLinks = 0;
+        int totalFloatingLinks = 0;
+
+        int maxPreview = 3;
+        var sb = new StringBuilder();
+        sb.append(String.format("Batch update: %d task(s) from %s to %s%n", tasks.size(), fromStatus, newStatus));
+
+        for (int i = 0; i < tasks.size(); i++) {
+            Task task = tasks.get(i);
+            int fc = executionFindingStore.countByTaskId(task.taskId());
+            int tc = topicLinkStore.countByTaskId(task.taskId());
+            int flc = floatingLinkStore.countByTaskId(task.taskId());
+            totalFindings += fc;
+            totalTopicLinks += tc;
+            totalFloatingLinks += flc;
+
+            if (i < maxPreview) {
+                sb.append(String.format("  %s (%s)%n", truncateStart(task.filePath(), 50), task.targetName()));
+                if (deleteFindings) {
+                    sb.append(String.format("    findings=%d topicLinks=%d floatingLinks=%d%n", fc, tc, flc));
+                }
+            }
+        }
+
+        int remaining = tasks.size() - maxPreview;
+        if (remaining > 0) {
+            sb.append(String.format("  ... and %d more task(s)%n", remaining));
+        }
+
+        if (dryRun) {
+            sb.append("  --dry-run: no changes made.");
+            return sb.toString();
+        }
+
+        if (deleteFindings) {
+            for (Task task : tasks) {
+                executionFindingStore.deleteByTaskId(task.taskId());
+                topicLinkStore.deleteByTaskId(task.taskId());
+                floatingLinkStore.deleteByTaskId(task.taskId());
+            }
+        }
+
+        int updated = taskStore.updateStatusByOldStatus(fromStatus, newStatus);
+        sb.append(String.format("  Updated %d task(s) from %s to %s.", updated, fromStatus, newStatus));
+        if (deleteFindings) {
+            sb.append(String.format(" Deleted %d findings, %d topic links, %d floating links.",
+                totalFindings, totalTopicLinks, totalFloatingLinks));
+        }
+        return sb.toString();
+    }
+
     private static String truncate(String s, int maxLen) {
         if (s == null) return "";
         return s.length() <= maxLen ? s : s.substring(0, maxLen - 3) + "...";
+    }
+
+    private static String truncateStart(String s, int maxLen) {
+        if (s == null) return "";
+        return s.length() <= maxLen ? s : "..." + s.substring(s.length() - maxLen + 3);
     }
 }

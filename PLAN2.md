@@ -8,8 +8,7 @@
   - `run --manifest project-manifest.yaml` — Phase 2 + Phase 3 (via OpenRouter, model from `OPENROUTER_MODEL` env var)
   - `run --manifest ... --llm-threshold 0` — run without LLM enrichment
   - `run --manifest ... --dry-run` — simulation mode (no API calls, no key required)
-  - `retry-failed` — reset FAILED tasks to INDEXED for re-enrichment on next run
-
+  
 ## Prerequisites (Already Done in Phase 1)
 - SQLite store with `tasks`, `execution_findings`, `topic_links`, `floating_links`, `metrics` tables
 - `TaskStore` with `PENDING`/`ENRICHING`/`INDEXED`/`ENRICHED`/`FAILED` status queries (`findByStatus`)
@@ -113,7 +112,7 @@ Key behaviors:
   - Process the new task, wait for completion, resume original branch
 - **Max Hop Depth**: configurable (default: 3). Exceeded → `AWAITING_HUMAN_REVIEW` (PRD §5.2)
 - **Visited Registry**: thread-safe set of hashes to prevent redundant evaluation (PRD §5.2)
-- **FAILED Task Recovery**: tasks that exhaust retries and transition to FAILED can be recovered via the `retry-failed` CLI command, which resets FAILED → INDEXED. On re-run, the planner skips tasks with existing SEMANTIC_ENRICHMENT findings (see F016) so only genuinely failed tasks are re-processed.
+- **FAILED Task Recovery**: tasks that exhaust retries and transition to FAILED can be recovered via `task-set-status --task <id> --status INDEXED --delete-findings true` (single task) or `run --resume` (all interruptible states). On re-run, the planner skips tasks with existing SEMANTIC_ENRICHMENT findings (see F016) so only genuinely failed tasks are re-processed.
 - Writes `metrics` after Phase 2 completes (tokens consumed, cost estimate)
 
 - [x] **US045** (must): Orchestrator manages enrichment DAG, submits tasks async, implements Phase 2→3 barrier via CompletableFuture.allOf(), handles dynamic re-planning with branch isolation, enforces max-hop-depth
@@ -132,7 +131,6 @@ Key behaviors:
   - Phase 3: Synthesis (delegates to E004)
   - `--llm-threshold 0` skips Phase 2 entirely (degenerate case)
   - `--dry-run` simulation mode (deterministic stubs, no API spend)
-- `retry-failed` — reset all FAILED tasks to INDEXED. Planner skips tasks that already have a SEMANTIC_ENRICHMENT finding, so only truly failed tasks are re-processed. Safe to run multiple times — already-enriched tasks are never duplicated.
 - `status` — extend existing command to show Phase 2 metrics (enriched tasks, tokens consumed, estimated cost, pending/complete counts)
 
 - **US046** (must): `plan` command displays qualified tasks grouped by target with qualification reasons — zero LLM calls, zero SQLite mutations
@@ -154,11 +152,13 @@ Match production files with paired test files (e.g., `OrderService.java` ↔ `Or
 - Both test and production file sent to the same executor for concurrent processing
 - Merged into the `test_insights` array in the `ExecutionFinding` JSON schema (§4)
 
-- **US048** (should): Test file paired by naming convention (strip Test suffix); assertEquals/assertThrows extracted into test_insights array
+- [x] **US048** (should): Test file paired by naming convention (strip Test suffix); assertEquals/assertThrows extracted into test_insights array
 - [x] Gherkin: `docs/sdlc/features/E003-F020-test-suite-mining.feature`
-- [ ] Depends on: F017 (executor framework)
-- [ ] Classes: `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver`
-- [ ] Verify: `mvn test` — paired test files produce `test_insights` with extracted scenarios
+- [x] Depends on: F017 (executor framework)
+- [x] Classes: `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver`
+- [x] New: `code2req.execution.test-suffixes` in `ExecutionConfig` / `application.properties` (configurable suffix list, default: `Test,IT`)
+- [x] Modified: `Phase2Orchestrator` (test content resolution), `Task` (+pairedTestPath field), `TaskStoreSchema` (+paired_test_path column), `TaskStore` (+new column), `TestAssertionsPresentRule` (delegates to `TestFileMatcher`), `SemanticExecutor` (+structured `EXTRACTED TEST ASSERTIONS` section in prompt), `ExecutionConfig` (+testSuffixes)
+- [x] Verify: `mvn test` — 440 tests pass (27 new: 12 TestFileMatcher, 11 TestAssertionExtractor, 4 PairedExecutionResolver)
 - [ ] Manual: run with `--dry-run` on petclinic — verify test files paired and assertions extracted
 
 ---
@@ -266,7 +266,7 @@ Post-agent validation pass (pure Java, not part of the Embabel agent):
 | US045 ✓ | F018 | must | E003 — Orchestrator |
 | US046 ✓ | F019 | must | E003 — `plan` command |
 | US047 ✓ | F019 | must | E003 — `run` command |
-| US048 | F020 | should | E003 — Test Suite Mining |
+| US048 ✓ | F020 | should | E003 — Test Suite Mining |
 | US049 | F021 | must | E004 — Embabel Agent Framework Setup |
 | US050 | F022 | must | E004 — CodebaseKnowledge + Orchestrator |
 | US051 | F023 | must | E004 — Embabel Agent (Goals, Actions, Output) |
@@ -320,7 +320,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `store/FindingType.java` | Add `SPRING_DATA_INTERFACE`, `DATABASE_PROCEDURE_CALL`, `CONSTRAINT_VALIDATOR`, `NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY`, `SEMANTIC_ENRICHMENT` |
 | ✓ `pipeline/ScanPipeline.java` | Add re-classification step after `persistFindings()` to create granular FindingType rows (now 5 mapping cases) |
 | ✓ `store/FloatingLinkStore.java` | Add `findSourceFilePathsByResolvedStatus(String)` query for planner |
-| ✓ `planner/Phase2Planner.java` | Refactored with Strategy Pattern — delegates to 9 `QualificationRule` components. Extended with `ExecutionFindingStore` check to skip tasks that already have SEMANTIC_ENRICHMENT findings (prevents re-enrichment after `retry-failed`). |
+| ✓ `planner/Phase2Planner.java` | Refactored with Strategy Pattern — delegates to 9 `QualificationRule` components. Extended with `ExecutionFindingStore` check to skip tasks that already have SEMANTIC_ENRICHMENT findings (prevents re-enrichment after reset). |
 | ✓ `shell/StatusCommand.java` | Add Phase 2 metrics (tokens, cost, enriched count) + Phase 3 metrics (flow extraction rate, ambiguity gaps) |
 | ✓ `pom.xml` | Add `spring-ai-client-chat`, `spring-ai-autoconfigure-model-chat-client` dependencies |
 | ✓ `model/ExecutionConfig.java` | Converted to `@ConfigurationProperties(prefix="code2req.execution")`; defaults in `application.properties`; removed `defaultConfig()`; removed from `ProjectManifest` |
@@ -332,6 +332,13 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `shell/CleanCommand.java` | `OutputConfig` injected via constructor; removed `resolveOutputConfig()` |
 | ✓ `config/AppConfig.java` | Added `OutputConfig.class` to `@EnableConfigurationProperties` |
 | ✓ `project-manifest.yaml` | Removed `output:` block — config now in `application.properties` |
+| ✓ `model/Task.java` | Added `String pairedTestPath` field |
+| ✓ `store/TaskStoreSchema.java` | Added `paired_test_path TEXT` column |
+| ✓ `store/TaskStore.java` | Updated `save()` and `rowMapper` for new column |
+| ✓ `orchestrator/Phase2Orchestrator.java` | Inject `PairedExecutionResolver`; resolve and pass test content to executor |
+| ✓ `executor/SemanticExecutor.java` | Inject `TestAssertionExtractor`; add `EXTRACTED TEST ASSERTIONS` structured section to prompt |
+| ✓ `planner/rule/TestAssertionsPresentRule.java` | Refactored to delegate to `TestFileMatcher` |
+| ✓ `model/ExecutionConfig.java` | Added `List<String> testSuffixes` with `resolvedTestSuffixes()` defaulting to `["Test", "IT"]` |
 
 ### New files:
 | Package | Files |
@@ -342,14 +349,13 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `model/` | `ExecutionFinding` (nested record hierarchy matching §4 schema) |
 | ✓ `resources/schema/` | `execution-finding-schema.json` (embedded §4 JSON Schema) |
 | ✓ `orchestrator/` | `Phase2Orchestrator`, `EnrichmentDag`, `BranchState`, `CompletionStatus` |
-| `executor/testmining/` | `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver` |
+| ✓ `executor/testmining/` | `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver` |
 | `synthesis/` | `Phase3Orchestrator`, `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry` |
 | `synthesis/agent/` | `FunctionalRequirementAgent`, `AnalyzeFindingsAction`, `ResolveAmbiguityAction`, `CrossReferenceLinksAction`, `SynthesizeSpecAction`, `QuarantineAction` |
 | `synthesis/domain/` | `FunctionalFlow`, `BusinessRule`, `EndpointSpec`, `CodePattern`, `AmbiguityGap`, `FlowStep`, `TraceabilityEntry` |
 | `synthesis/output/` | `MarkdownSpecWriter`, `SemanticManifestWriter` |
 | `synthesis/audit/` | `Phase3QualityAudit`, `AuditSample`, `AuditReport` |
 | ✓ `shell/` | `PlanCommand`, `RunCommand` |
-| `shell/` | `RetryFailedCommand` (FAILED → INDEXED recovery) |
 | ✓ `synthesis/` | `Phase3Result`, `Phase3Orchestrator` (E004 placeholder) |
 
 ## Verification Guide

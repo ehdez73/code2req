@@ -1,5 +1,7 @@
 package com.github.ehdez73.code2req.executor;
 
+import com.github.ehdez73.code2req.executor.testmining.TestAssertionExtractor;
+import com.github.ehdez73.code2req.model.ExecutionConfig;
 import com.github.ehdez73.code2req.model.ExecutionFinding;
 import com.github.ehdez73.code2req.model.PlannerDecision;
 import com.github.ehdez73.code2req.model.QualificationReason;
@@ -14,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -46,8 +50,12 @@ class SemanticExecutorTest {
         var budgetCalculator = new ContextBudgetCalculator();
         var simulationStub = new SimulationStub();
 
+        var executionConfig = new ExecutionConfig(null, null, null, null, null, null, null, null, null);
+        var txManager = new DataSourceTransactionManager(ds);
+        var txTemplate = new TransactionTemplate(txManager);
         executor = new SemanticExecutor(null, findingStore, taskStore,
-            budgetCalculator, simulationStub, null, null);
+            budgetCalculator, simulationStub, null, null, new TestAssertionExtractor(),
+            executionConfig, null, txTemplate);
     }
 
     @Test

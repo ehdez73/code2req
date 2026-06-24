@@ -7,13 +7,3 @@ targets:
     exclude_patterns:
       - "**/generated/**"
       - "**/*Pb.java"
-
-execution:
-  max-concurrent-llm-calls: 5
-  max-discovery-depth: 3
-  semantic-validation-sample-rate: 0.20
-  llm-unresolved-threshold: 5
-output:
-  spec-dir: ./target/spec-output
-  index-file: code-graph-index.json
-  db-path: ./target/spec-output/sqlite.db

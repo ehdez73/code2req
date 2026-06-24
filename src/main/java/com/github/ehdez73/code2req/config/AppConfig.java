@@ -37,6 +37,7 @@ public class AppConfig {
     @Primary
     public RefreshableDataSource dataSource(
             @Value("${spring.datasource.url}") String url) {
+        logger.info("Using SQLite database URL: {}", url);
         var hds = new HikariDataSource();
         hds.setJdbcUrl(url);
         hds.setDriverClassName("org.sqlite.JDBC");

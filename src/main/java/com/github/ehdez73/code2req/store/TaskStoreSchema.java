@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import java.util.List;
 
 @Repository
 public class TaskStoreSchema {
@@ -29,6 +30,7 @@ public class TaskStoreSchema {
                 content_type TEXT,
                 content_hash TEXT NOT NULL,
                 target_name TEXT NOT NULL DEFAULT '',
+                paired_test_path TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
@@ -86,7 +88,21 @@ public class TaskStoreSchema {
                 recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """);
+        migrateSchema();
         log.info("Task store schema initialized with 5 tables");
+    }
+
+    private void migrateSchema() {
+        List<String> columns = jdbc.queryForList(
+            "SELECT name FROM pragma_table_info('tasks')", String.class);
+        if (!columns.contains("paired_test_path")) {
+            jdbc.execute("ALTER TABLE tasks ADD COLUMN paired_test_path TEXT");
+            log.info("Migration: added paired_test_path column to tasks table");
+        }
+    }
+
+    public void setSchemaVersion(int version) {
+        // reserved for future migrations
     }
 
     public void dropAllTables() {

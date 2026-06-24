@@ -1,8 +1,6 @@
 package com.github.ehdez73.code2req.shell;
 
-import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
-import com.github.ehdez73.code2req.model.ProjectManifest;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.orchestrator.CompletionStatus;
@@ -62,7 +60,7 @@ public class RunCommand {
             @ShellOption(value = "--dry-run", defaultValue = "false",
                          help = "Simulation mode: stubs instead of LLM calls") boolean dryRun,
             @ShellOption(value = "--resume", defaultValue = "false",
-                         help = "Recover orphaned ENRICHING tasks before Phase 2 (use after interrupted run)") boolean resume,
+                          help = "Recover orphaned tasks (ENRICH_FAILED, ENRICHING, ENRICH_PENDING, PENDING) before Phase 2 (use after interrupted run). ENRICH_PENDING orphans self-heal automatically.") boolean resume,
             @ShellOption(value = "--llm-threshold", defaultValue = ShellOption.NULL,
                          help = "Override unresolved signatures threshold (0 to skip Phase 2)") Integer llmThreshold) {
 
@@ -70,10 +68,35 @@ public class RunCommand {
         var start = Instant.now();
 
         Path manifestFile = Path.of(manifestPath);
-        if (!Files.exists(manifestFile)) {
-            return "Error: Manifest file not found: " + manifestFile;
+        if (!validateManifest(manifestFile, sb)) {
+            return sb.toString();
         }
 
+        if (resume) {
+            recoverOrphanedTasks(sb);
+        }
+
+        boolean skipPhase2 = (llmThreshold != null && llmThreshold == 0);
+        CompletionStatus phase2Status = runPhase2(manifestPath, dryRun, skipPhase2, sb);
+        runPhase3(phase2Status, dryRun, sb);
+
+        long totalElapsed = Duration.between(start, Instant.now()).toSeconds();
+        sb.append(String.format("=== Run Complete (%ds) ===%n", totalElapsed));
+        if (dryRun) {
+            sb.append("  Dry-run mode: no API calls made, no credentials required.\n");
+        }
+        if (resume) {
+            sb.append("  Resume mode: orphaned tasks were recovered.\n");
+        }
+
+        return sb.toString();
+    }
+
+    private boolean validateManifest(Path manifestFile, StringBuilder sb) {
+        if (!Files.exists(manifestFile)) {
+            sb.append("Error: Manifest file not found: ").append(manifestFile);
+            return false;
+        }
         try {
             var validation = manifestValidator.validate(manifestFile);
             if (validation.hasErrors()) {
@@ -81,89 +104,129 @@ public class RunCommand {
                 for (var err : validation.getErrors()) {
                     sb.append("  - ").append(err).append("\n");
                 }
-                return sb.toString();
+                return false;
             }
+            return true;
         } catch (IOException e) {
-            return "Error: Failed to read manifest: " + e.getMessage();
+            sb.append("Error: Failed to read manifest: ").append(e.getMessage());
+            return false;
         }
+    }
 
-        if (resume) {
-            sb.append("=== Phase 2 Orphan Recovery ===\n");
-            List<Task> orphans = taskStore.findByStatus(TaskStatus.ENRICHING);
-            if (orphans.isEmpty()) {
-                sb.append("  No orphaned ENRICHING tasks found.\n\n");
+    private void recoverOrphanedTasks(StringBuilder sb) {
+        sb.append("=== Phase 2 Orphan Recovery ===\n");
+        int total = 0;
+
+        List<Task> failed = taskStore.findByStatus(TaskStatus.FAILED);
+        for (Task task : failed) {
+            boolean hasFindings = executionFindingStore.countByTaskId(task.taskId()) > 0;
+            if (hasFindings) {
+                taskStore.updateStatus(task.taskId(), TaskStatus.ENRICHED);
+                log.info("Recovered failed task {} ({}) from FAILED to ENRICHED (findings exist)", task.taskId(), task.filePath());
             } else {
-                int recovered = 0;
-                for (Task task : orphans) {
-                    executionFindingStore.deleteByTaskId(task.taskId());
-                    topicLinkStore.deleteByTaskId(task.taskId());
-                    floatingLinkStore.deleteByTaskId(task.taskId());
-                    taskStore.updateStatus(task.taskId(), TaskStatus.INDEXED);
-                    recovered++;
-                    log.info("Recovered orphaned task {} ({}) from ENRICHING to INDEXED", task.taskId(), task.filePath());
-                }
-                sb.append(String.format("  Recovered %d orphaned ENRICHING task(s) to INDEXED%n%n", recovered));
+                taskStore.updateStatus(task.taskId(), TaskStatus.INDEXED);
+                log.info("Recovered failed task {} ({}) from FAILED to INDEXED (no findings)", task.taskId(), task.filePath());
             }
+            total++;
         }
 
-        boolean skipPhase2 = (llmThreshold != null && llmThreshold == 0);
+        List<Task> enriching = taskStore.findByStatus(TaskStatus.ENRICHING);
+        for (Task task : enriching) {
+            executionFindingStore.deleteByTaskId(task.taskId());
+            topicLinkStore.deleteByTaskId(task.taskId());
+            floatingLinkStore.deleteByTaskId(task.taskId());
+            taskStore.updateStatus(task.taskId(), TaskStatus.ENRICH_PENDING);
+            total++;
+            log.info("Recovered orphaned task {} ({}) from ENRICHING to ENRICH_PENDING", task.taskId(), task.filePath());
+        }
 
-        CompletionStatus phase2Status;
+        List<Task> enrichPending = taskStore.findByStatus(TaskStatus.ENRICH_PENDING);
+        for (Task task : enrichPending) {
+            executionFindingStore.deleteByTaskId(task.taskId());
+            topicLinkStore.deleteByTaskId(task.taskId());
+            floatingLinkStore.deleteByTaskId(task.taskId());
+            taskStore.updateStatus(task.taskId(), TaskStatus.INDEXED);
+            total++;
+            log.info("Recovered orphaned task {} ({}) from ENRICH_PENDING to INDEXED", task.taskId(), task.filePath());
+        }
+
+        List<Task> pending = taskStore.findByStatus(TaskStatus.PENDING);
+        for (Task task : pending) {
+            taskStore.updateStatus(task.taskId(), TaskStatus.INDEXED);
+            total++;
+            log.info("Recovered orphaned dependency task {} ({}) from PENDING to INDEXED", task.taskId(), task.filePath());
+        }
+
+        List<Task> enrichFailed = taskStore.findByStatus(TaskStatus.ENRICH_FAILED);
+        for (Task task : enrichFailed) {
+            executionFindingStore.deleteByTaskId(task.taskId());
+            topicLinkStore.deleteByTaskId(task.taskId());
+            floatingLinkStore.deleteByTaskId(task.taskId());
+            taskStore.updateStatus(task.taskId(), TaskStatus.ENRICH_PENDING);
+            total++;
+            log.info("Recovered enrichment-failed task {} ({}) from ENRICH_FAILED to ENRICH_PENDING", task.taskId(), task.filePath());
+        }
+
+        int staleCleaned = executionFindingStore.deleteOrphanedSemanticEnrichment();
+        if (staleCleaned > 0) {
+            log.info("Cleaned {} stale SEMANTIC_ENRICHMENT finding(s) from INDEXED tasks", staleCleaned);
+        }
+
+        sb.append(String.format("  Recovered: %d FAILED, %d ENRICHING, %d ENRICH_PENDING, %d ENRICH_FAILED, %d PENDING; cleaned %d stale finding(s)%n%n",
+            failed.size(), enriching.size(), enrichPending.size(), enrichFailed.size(), pending.size(), staleCleaned));
+    }
+
+    private CompletionStatus runPhase2(String manifestPath, boolean dryRun, boolean skipPhase2, StringBuilder sb) {
         if (skipPhase2) {
             sb.append("--llm-threshold is 0: skipping Phase 2 entirely\n\n");
-            phase2Status = new CompletionStatus(0, 0, 0, 0, 0, 0.0, java.util.List.of());
-        } else {
-            sb.append("=== Phase 2: Semantic Enrichment ===\n");
-            var phase2Start = Instant.now();
-
-            if (dryRun) {
-                sb.append("  Mode: DRY RUN (simulation stubs, no API calls)\n");
-            }
-
-            phase2Status = phase2Orchestrator.executePhase2(manifestPath, dryRun);
-            long p2Elapsed = Duration.between(phase2Start, Instant.now()).toSeconds();
-
-            sb.append(String.format("  Submitted: %d%n", phase2Status.tasksSubmitted()));
-            sb.append(String.format("  Completed: %d%n", phase2Status.tasksCompleted()));
-            sb.append(String.format("  Failed: %d%n", phase2Status.tasksFailed()));
-            sb.append(String.format("  Dependencies discovered: %d%n", phase2Status.dependenciesDiscovered()));
-            sb.append(String.format("  Tokens consumed: %d%n", phase2Status.tokensConsumed()));
-            sb.append(String.format("  Estimated cost: $%.6f%n", phase2Status.apiCostEstimated()));
-            if (!phase2Status.awaitingHumanReview().isEmpty()) {
-                sb.append("  Awaiting human review:\n");
-                for (String path : phase2Status.awaitingHumanReview()) {
-                    sb.append(String.format("    - %s%n", path));
-                }
-            }
-            sb.append(String.format("  Phase 2 elapsed: %ds%n%n", p2Elapsed));
+            return new CompletionStatus(0, 0, 0, 0, 0, 0.0, List.of());
         }
 
+        sb.append("=== Phase 2: Semantic Enrichment ===\n");
+        var phase2Start = Instant.now();
+
+        if (dryRun) {
+            sb.append("  Mode: DRY RUN (simulation stubs, no API calls)\n");
+        }
+
+        CompletionStatus status = phase2Orchestrator.executePhase2(manifestPath, dryRun);
+        long p2Elapsed = Duration.between(phase2Start, Instant.now()).toSeconds();
+
+        appendPhase2Summary(sb, status);
+        sb.append(String.format("  Phase 2 elapsed: %ds%n%n", p2Elapsed));
+
+        return status;
+    }
+
+    private void appendPhase2Summary(StringBuilder sb, CompletionStatus status) {
+        sb.append(String.format("  Submitted: %d%n", status.tasksSubmitted()));
+        sb.append(String.format("  Completed: %d%n", status.tasksCompleted()));
+        sb.append(String.format("  Failed: %d%n", status.tasksFailed()));
+        sb.append(String.format("  Dependencies discovered: %d%n", status.dependenciesDiscovered()));
+        sb.append(String.format("  Tokens consumed: %d%n", status.tokensConsumed()));
+        sb.append(String.format("  Estimated cost: $%.6f%n", status.apiCostEstimated()));
+        if (!status.awaitingHumanReview().isEmpty()) {
+            sb.append("  Awaiting human review:\n");
+            for (String path : status.awaitingHumanReview()) {
+                sb.append(String.format("    - %s%n", path));
+            }
+        }
+    }
+
+    private void runPhase3(CompletionStatus phase2Status, boolean dryRun, StringBuilder sb) {
         sb.append("=== Phase 3: Functional Requirement Extraction ===\n");
         var phase3Start = Instant.now();
-        Phase3Result phase3Result;
 
         if (dryRun) {
             sb.append("  Mode: DRY RUN (simulation, no actual synthesis)\n");
         }
 
-        phase3Result = phase3Orchestrator.execute(phase2Status, dryRun);
+        Phase3Result result = phase3Orchestrator.execute(phase2Status, dryRun);
         long p3Elapsed = Duration.between(phase3Start, Instant.now()).toSeconds();
 
-        sb.append(String.format("  Flows extracted: %d%n", phase3Result.flowsExtracted()));
-        sb.append(String.format("  Ambiguity gaps: %d%n", phase3Result.ambiguityGaps()));
-        sb.append(String.format("  Awaiting review: %d%n", phase3Result.awaitingReview()));
+        sb.append(String.format("  Flows extracted: %d%n", result.flowsExtracted()));
+        sb.append(String.format("  Ambiguity gaps: %d%n", result.ambiguityGaps()));
+        sb.append(String.format("  Awaiting review: %d%n", result.awaitingReview()));
         sb.append(String.format("  Phase 3 elapsed: %ds%n%n", p3Elapsed));
-
-        long totalElapsed = Duration.between(start, Instant.now()).toSeconds();
-        sb.append(String.format("=== Run Complete (%ds) ===%n", totalElapsed));
-
-        if (dryRun) {
-            sb.append("  Dry-run mode: no API calls made, no credentials required.\n");
-        }
-        if (resume) {
-            sb.append("  Resume mode: orphaned ENRICHING tasks were recovered.\n");
-        }
-
-        return sb.toString();
     }
 }

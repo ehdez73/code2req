@@ -102,6 +102,10 @@ public class ScanCommand {
 
         recoverOrphans(report);
 
+        if (resume) {
+            cleanFailedTasks(report);
+        }
+
         var batches = discoverFiles(manifest, report);
         if (batches == null) return report.toString();
 
@@ -184,6 +188,13 @@ public class ScanCommand {
         var result = orphanRecovery.recover();
         report.append(String.format("Phase 2/5 — Orphan Recovery: %d task(s) reverted%n", result.revertedCount()));
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
+    }
+
+    private void cleanFailedTasks(StringBuilder report) {
+        int deleted = taskStore.deleteByStatus(TaskStatus.FAILED);
+        if (deleted > 0) {
+            report.append(String.format("Phase 2b/5 — Clean Stale FAILED: removed %d task(s) for re-scan%n", deleted));
+        }
     }
 
     private List<TemplateFileBatch> discoverTemplateFiles(ProjectManifest manifest, StringBuilder report) {
@@ -389,7 +400,7 @@ public class ScanCommand {
             }
         }
 
-        report.append(String.format("  Skipped (already INDEXED or ENRICHED): %d, Remaining: %d%n", skipped, pending.size()));
+        report.append(String.format("  Skipped (already indexed/enriched): %d, Remaining: %d%n", skipped, pending.size()));
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
         return pending;
     }
@@ -402,7 +413,10 @@ public class ScanCommand {
             String targetName = targetNameForFile(file, targets);
             String taskId = taskIdHasher.hash(fp, contentHash, targetName);
             Optional<Task> existing = taskStore.findById(taskId);
-            return existing.isPresent() && (existing.get().status() == TaskStatus.INDEXED || existing.get().status() == TaskStatus.ENRICHED);
+            return existing.isPresent() && switch (existing.get().status()) {
+                case INDEXED, ENRICH_PENDING, ENRICHING, ENRICHED, ENRICH_FAILED -> true;
+                default -> false;
+            };
         } catch (IOException e) {
             log.warn("Failed to check completion for {}: {}", fp, e.getMessage());
             return false;

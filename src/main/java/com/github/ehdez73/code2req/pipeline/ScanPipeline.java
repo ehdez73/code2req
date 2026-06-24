@@ -51,6 +51,7 @@ import com.github.javaparser.ast.CompilationUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -101,6 +102,7 @@ public class ScanPipeline {
     private final TopicLinkStore topicLinkStore;
     private final FloatingLinkStore floatingLinkStore;
     private final MetricsStore metricsStore;
+    private final TransactionTemplate transactionTemplate;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public ScanPipeline(
@@ -114,7 +116,8 @@ public class ScanPipeline {
             ExecutionFindingStore executionFindingStore,
             TopicLinkStore topicLinkStore,
             FloatingLinkStore floatingLinkStore,
-            MetricsStore metricsStore) {
+            MetricsStore metricsStore,
+            TransactionTemplate transactionTemplate) {
         this.pass1Collector = pass1Collector;
         this.astAnalyzer = astAnalyzer;
         this.secretRedactor = secretRedactor;
@@ -126,6 +129,7 @@ public class ScanPipeline {
         this.topicLinkStore = topicLinkStore;
         this.floatingLinkStore = floatingLinkStore;
         this.metricsStore = metricsStore;
+        this.transactionTemplate = transactionTemplate;
     }
 
     public ScanPipelineResult execute(List<Path> files, StringBuilder report) {
@@ -260,10 +264,12 @@ public class ScanPipeline {
 
         String contentHash = sha256Hex(content);
         String taskId = taskIdHasher.hash(fp, contentHash, targetName);
-        taskStore.save(new Task(taskId, fp, TaskStatus.INDEXED, "java", contentHash, targetName));
 
-        persistFindings(taskId, result);
-        reclassifyFindings(taskId, result);
+        transactionTemplate.executeWithoutResult(status -> {
+            taskStore.save(new Task(taskId, fp, TaskStatus.INDEXED, "java", contentHash, targetName));
+            persistFindings(taskId, result);
+            reclassifyFindings(taskId, result);
+        });
 
         return result;
     }

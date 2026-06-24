@@ -44,6 +44,7 @@ class StatusCommandTest {
         String result = command.status(null, false);
         assertTrue(result.contains("Total: 0"));
         assertTrue(result.contains("PENDING: 0"));
+        assertTrue(result.contains("ENRICH_PENDING: 0"));
         assertTrue(result.contains("INDEXED: 0"));
         assertTrue(result.contains("FAILED: 0"));
     }

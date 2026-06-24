@@ -4,6 +4,9 @@ import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.executor.ContextBudgetCalculator;
 import com.github.ehdez73.code2req.executor.SemanticExecutor;
 import com.github.ehdez73.code2req.executor.SimulationStub;
+import com.github.ehdez73.code2req.executor.testmining.PairedExecutionResolver;
+import com.github.ehdez73.code2req.executor.testmining.TestAssertionExtractor;
+import com.github.ehdez73.code2req.executor.testmining.TestFileMatcher;
 import com.github.ehdez73.code2req.model.ExecutionConfig;
 import com.github.ehdez73.code2req.model.ExecutionFinding;
 import com.github.ehdez73.code2req.model.Metric;
@@ -34,6 +37,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -79,8 +84,9 @@ class Phase2OrchestratorTest {
         taskIdHasher = new TaskIdHasher();
         budgetCalculator = new ContextBudgetCalculator();
         simulationStub = new SimulationStub();
-        executionConfig = new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7);
+        executionConfig = new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null);
 
+        var tfm = new TestFileMatcher(executionConfig);
         defaultRules = List.of(
             new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
@@ -88,7 +94,7 @@ class Phase2OrchestratorTest {
             new ScheduledTaskPresentRule(),
             new UnresolvedSignaturesRule(jdbc, 5),
             new UnresolvedFloatingLinkRule(floatingLinkStore),
-            new TestAssertionsPresentRule(),
+            new TestAssertionsPresentRule(tfm),
             new NativeSqlQueryRule(),
             new JpqlHqlQueryRule()
         );
@@ -96,13 +102,18 @@ class Phase2OrchestratorTest {
 
     private Phase2Orchestrator createOrchestrator() {
         planner = new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
+        var txManager = new DataSourceTransactionManager(jdbc.getDataSource());
+        var txTemplate = new TransactionTemplate(txManager);
         var executor = new SemanticExecutor(null, findingStore, taskStore,
-            budgetCalculator, simulationStub, null, null);
+            budgetCalculator, simulationStub, null, null, new TestAssertionExtractor(),
+            executionConfig, null, txTemplate);
         var manifestLoader = new ManifestLoader();
         var filePathResolver = new FilePathResolver();
+        var per = new PairedExecutionResolver(
+            new TestFileMatcher(executionConfig), new TestAssertionExtractor());
         return new Phase2Orchestrator(planner, executor, taskStore, findingStore,
             metricsStore, executionConfig, taskIdHasher, budgetCalculator,
-            manifestLoader, filePathResolver);
+            manifestLoader, filePathResolver, per);
     }
 
     private void insertTask(String taskId, String filePath) {
@@ -196,13 +207,18 @@ class Phase2OrchestratorTest {
 
             var controlledStub = new ControlledSimulationStub(depPaths);
             planner = new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
+            var txManager = new DataSourceTransactionManager(jdbc.getDataSource());
+            var txTemplate = new TransactionTemplate(txManager);
             var executor = new SemanticExecutor(null, findingStore, taskStore,
-                budgetCalculator, controlledStub, null, null);
+                budgetCalculator, controlledStub, null, null, new TestAssertionExtractor(),
+                executionConfig, null, txTemplate);
+            var per = new PairedExecutionResolver(
+                new TestFileMatcher(executionConfig), new TestAssertionExtractor());
             var orchestratorWithDeps = new Phase2Orchestrator(planner, executor, taskStore,
                 findingStore, metricsStore,
-                new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7),
+                new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null),
                 taskIdHasher, budgetCalculator, new ManifestLoader(),
-                new FilePathResolver());
+                new FilePathResolver(), per);
 
             CompletionStatus status = orchestratorWithDeps.executePhase2(manifestPath.toString(), true);
 
@@ -229,11 +245,16 @@ class Phase2OrchestratorTest {
 
             var controlledStub = new ControlledSimulationStub(depPaths);
             planner = new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
+            var txManager = new DataSourceTransactionManager(jdbc.getDataSource());
+            var txTemplate = new TransactionTemplate(txManager);
             var executor = new SemanticExecutor(null, findingStore, taskStore,
-                budgetCalculator, controlledStub, null, null);
+                budgetCalculator, controlledStub, null, null, new TestAssertionExtractor(),
+                executionConfig, null, txTemplate);
+            var per = new PairedExecutionResolver(
+                new TestFileMatcher(executionConfig), new TestAssertionExtractor());
             var orchestratorWithDeps = new Phase2Orchestrator(planner, executor, taskStore,
                 findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator,
-                new ManifestLoader(), new FilePathResolver());
+                new ManifestLoader(), new FilePathResolver(), per);
 
             CompletionStatus status = orchestratorWithDeps.executePhase2(manifestPath.toString(), true);
 

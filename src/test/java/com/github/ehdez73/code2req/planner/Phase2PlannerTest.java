@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.planner;
 
+import com.github.ehdez73.code2req.executor.testmining.TestFileMatcher;
 import com.github.ehdez73.code2req.model.ExecutionConfig;
 import com.github.ehdez73.code2req.model.PlannerDecision;
 import com.github.ehdez73.code2req.model.QualificationReason;
@@ -52,6 +53,8 @@ class Phase2PlannerTest {
         taskStore = new TaskStore(jdbc);
         findingStore = new ExecutionFindingStore(jdbc);
         floatingLinkStore = new FloatingLinkStore(jdbc);
+        var testFileMatcher = new TestFileMatcher(
+            new ExecutionConfig(null, null, null, null, null, null, null, null, null));
         defaultRules = List.of(
             new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
@@ -59,7 +62,7 @@ class Phase2PlannerTest {
             new ScheduledTaskPresentRule(),
             new UnresolvedSignaturesRule(jdbc, 5),
             new UnresolvedFloatingLinkRule(floatingLinkStore),
-            new TestAssertionsPresentRule(),
+            new TestAssertionsPresentRule(testFileMatcher),
             new NativeSqlQueryRule(),
             new JpqlHqlQueryRule()
         );
@@ -101,6 +104,7 @@ class Phase2PlannerTest {
             assertEquals(1, decisions.size());
             assertFalse(decisions.get(0).qualified());
             assertEquals(List.of(QualificationReason.NONE), decisions.get(0).reasons());
+            assertEquals(TaskStatus.INDEXED, taskStore.findById("t1").get().status());
         }
 
         @Test
@@ -117,6 +121,7 @@ class Phase2PlannerTest {
             assertEquals(1, decisions.size());
             assertTrue(decisions.get(0).qualified());
             assertTrue(decisions.get(0).reasons().contains(QualificationReason.UNRESOLVED_SIGNATURES_EXCEEDED));
+            assertEquals(TaskStatus.ENRICH_PENDING, taskStore.findById("t1").get().status());
         }
 
         @Test
@@ -237,6 +242,8 @@ class Phase2PlannerTest {
 
         @Test
         void customThresholdLower() {
+            var tfm = new TestFileMatcher(
+                new ExecutionConfig(null, null, null, null, null, null, null, null, null));
             var rules = List.of(
                 new SpringDataInterfaceRule(),
                 new StoredProcedureCallRule(),
@@ -244,7 +251,7 @@ class Phase2PlannerTest {
                 new ScheduledTaskPresentRule(),
                 new UnresolvedSignaturesRule(jdbc, 2),
                 new UnresolvedFloatingLinkRule(floatingLinkStore),
-                new TestAssertionsPresentRule(),
+                new TestAssertionsPresentRule(tfm),
                 new NativeSqlQueryRule(),
                 new JpqlHqlQueryRule()
             );
@@ -256,37 +263,40 @@ class Phase2PlannerTest {
             var decisions = planner.plan();
             assertTrue(decisions.get(0).qualified());
         }
+
+        @Test
+        void priorEnrichPendingIsQualifiedWithoutReEvaluation() {
+            taskStore.save(new Task("t1", "/src/Foo.java", TaskStatus.ENRICH_PENDING, "java", "hash", "test"));
+            var planner = createPlanner();
+            var decisions = planner.plan();
+            assertEquals(1, decisions.size());
+            assertTrue(decisions.get(0).qualified());
+            assertEquals(TaskStatus.ENRICH_PENDING, taskStore.findById("t1").get().status());
+        }
+
+        @Test
+        void priorEnrichPendingWithSemanticFindingIsExcluded() {
+            taskStore.save(new Task("t1", "/src/Foo.java", TaskStatus.ENRICH_PENDING, "java", "hash", "test"));
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t1", "SEMANTIC_ENRICHMENT", "{}", 1);
+            var planner = createPlanner();
+            assertTrue(planner.plan().isEmpty());
+        }
+
+        @Test
+        void mixesIndexedAndEnrichPending() {
+            taskStore.save(new Task("t1", "/src/Pending.java", TaskStatus.ENRICH_PENDING, "java", "h1", "test"));
+            taskStore.save(new Task("t2", "/src/Indexed.java", TaskStatus.INDEXED, "java", "h2", "test"));
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t2", "SCHEDULED_TASK", "{}", 1);
+            var planner = createPlanner();
+            var decisions = planner.plan();
+            assertEquals(2, decisions.size());
+            assertTrue(decisions.get(0).qualified(), "ENRICH_PENDING task should be qualified");
+            assertTrue(decisions.get(1).qualified(), "qualified INDEXED task should be qualified");
+            assertEquals(TaskStatus.ENRICH_PENDING, taskStore.findById("t1").get().status());
+            assertEquals(TaskStatus.ENRICH_PENDING, taskStore.findById("t2").get().status());
+        }
     }
 
-    @Nested
-    class HasPairedTestFileTests {
-
-        @Test
-        void noTestFile() {
-            assertFalse(TestAssertionsPresentRule.hasPairedTestFile("/src/Foo.java"));
-        }
-
-        @Test
-        void sameDirTestFile() throws Exception {
-            var sourceFile = tempDir.resolve("src/main/java/com/example/Foo.java");
-            var testFile = tempDir.resolve("src/main/java/com/example/FooTest.java");
-            Files.createDirectories(testFile.getParent());
-            Files.createFile(testFile);
-            assertTrue(TestAssertionsPresentRule.hasPairedTestFile(sourceFile.toString()));
-        }
-
-        @Test
-        void nonJavaFile() {
-            assertFalse(TestAssertionsPresentRule.hasPairedTestFile("readme.txt"));
-        }
-
-        @Test
-        void integrationTestSuffix() throws Exception {
-            var sourceFile = tempDir.resolve("src/main/java/com/example/Foo.java");
-            var testFile = tempDir.resolve("src/main/java/com/example/FooIT.java");
-            Files.createDirectories(testFile.getParent());
-            Files.createFile(testFile);
-            assertTrue(TestAssertionsPresentRule.hasPairedTestFile(sourceFile.toString()));
-        }
-    }
 }

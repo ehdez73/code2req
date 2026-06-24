@@ -19,6 +19,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -56,9 +58,11 @@ class ScanPipelineTest {
         var topicLinkStore = new TopicLinkStore(jdbc);
         var floatingLinkStore = new FloatingLinkStore(jdbc);
         var metricsStore = new MetricsStore(jdbc);
+        var txManager = new DataSourceTransactionManager(ds);
+        var txTemplate = new TransactionTemplate(txManager);
         pipeline = new ScanPipeline(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher,
             new TopicLinkResolver(), new FloatingLinkResolver(),
-            executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore);
+            executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore, txTemplate);
     }
 
     @Test

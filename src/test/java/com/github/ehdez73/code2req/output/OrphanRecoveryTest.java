@@ -2,8 +2,11 @@ package com.github.ehdez73.code2req.output;
 
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
+import com.github.ehdez73.code2req.store.ExecutionFindingStore;
+import com.github.ehdez73.code2req.store.FloatingLinkStore;
 import com.github.ehdez73.code2req.store.TaskStore;
 import com.github.ehdez73.code2req.store.TaskStoreSchema;
+import com.github.ehdez73.code2req.store.TopicLinkStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,13 +25,22 @@ class OrphanRecoveryTest {
     @Autowired
     private TaskStoreSchema taskStoreSchema;
 
+    @Autowired
+    private ExecutionFindingStore executionFindingStore;
+
+    @Autowired
+    private TopicLinkStore topicLinkStore;
+
+    @Autowired
+    private FloatingLinkStore floatingLinkStore;
+
     private OrphanRecovery recovery;
 
     @BeforeEach
     void setUp() {
         taskStoreSchema.dropTable();
         taskStoreSchema.createSchemaIfNotExists();
-        recovery = new OrphanRecovery(taskStore);
+        recovery = new OrphanRecovery(taskStore, executionFindingStore, topicLinkStore, floatingLinkStore);
     }
 
     @AfterEach
@@ -49,7 +61,7 @@ class OrphanRecoveryTest {
     }
 
     @Test
-    void revertsRunningTasksToPending() {
+    void revertsRunningTasksToEnrichPending() {
         taskStore.save(new Task("id-1", "file1.java", TaskStatus.ENRICHING, "java", "h1", "test"));
         taskStore.save(new Task("id-2", "file2.java", TaskStatus.ENRICHING, "java", "h2", "test"));
 
@@ -59,8 +71,8 @@ class OrphanRecoveryTest {
         assertEquals(2, result.revertedCount());
         assertTrue(result.recovered());
 
-        assertEquals(TaskStatus.PENDING, taskStore.findById("id-1").get().status());
-        assertEquals(TaskStatus.PENDING, taskStore.findById("id-2").get().status());
+        assertEquals(TaskStatus.ENRICH_PENDING, taskStore.findById("id-1").get().status());
+        assertEquals(TaskStatus.ENRICH_PENDING, taskStore.findById("id-2").get().status());
     }
 
     @Test
@@ -75,7 +87,7 @@ class OrphanRecoveryTest {
         assertEquals(1, result.orphanedCount());
         assertEquals(1, result.revertedCount());
 
-        assertEquals(TaskStatus.PENDING, taskStore.findById("id-1").get().status());
+        assertEquals(TaskStatus.ENRICH_PENDING, taskStore.findById("id-1").get().status());
         assertEquals(TaskStatus.INDEXED, taskStore.findById("id-2").get().status());
         assertEquals(TaskStatus.PENDING, taskStore.findById("id-3").get().status());
         assertEquals(TaskStatus.FAILED, taskStore.findById("id-4").get().status());

@@ -36,7 +36,7 @@ public class PlanCommand {
         this.manifestValidator = manifestValidator;
     }
 
-    @ShellMethod(key = "plan", value = "Shows the execution DAG without running Phase 2 executors (dry DAG view)")
+    @ShellMethod(key = "plan", value = "Evaluate INDEXED tasks, transition qualified ones to ENRICH_PENDING, and show the enrichment plan")
     public String plan(
             @ShellOption(value = "--manifest", defaultValue = "project-manifest.yaml",
                          help = "Path to the project manifest YAML file") String manifestPath) {
@@ -109,7 +109,7 @@ public class PlanCommand {
             sb.append("or running with --llm-threshold on the 'run' command.\n");
         }
 
-        sb.append("Zero LLM calls made — plan is pure DAG view.\n");
+        sb.append("Zero LLM calls made — qualified tasks transitioned to ENRICH_PENDING. Run `run` to enrich.\n");
         return sb.toString();
     }
 }

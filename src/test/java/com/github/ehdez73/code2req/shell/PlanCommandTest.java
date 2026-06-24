@@ -2,6 +2,8 @@ package com.github.ehdez73.code2req.shell;
 
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.config.ManifestValidator;
+import com.github.ehdez73.code2req.executor.testmining.TestFileMatcher;
+import com.github.ehdez73.code2req.model.ExecutionConfig;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.planner.Phase2Planner;
@@ -52,6 +54,8 @@ class PlanCommandTest {
         var findingStore = new ExecutionFindingStore(jdbc);
         var floatingLinkStore = new FloatingLinkStore(jdbc);
 
+        var tfm = new TestFileMatcher(
+            new ExecutionConfig(null, null, null, null, null, null, null, null, null));
         List<QualificationRule> rules = List.of(
             new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
@@ -59,7 +63,7 @@ class PlanCommandTest {
             new ScheduledTaskPresentRule(),
             new UnresolvedSignaturesRule(jdbc, 5),
             new UnresolvedFloatingLinkRule(floatingLinkStore),
-            new TestAssertionsPresentRule(),
+            new TestAssertionsPresentRule(tfm),
             new NativeSqlQueryRule(),
             new JpqlHqlQueryRule()
         );
@@ -133,15 +137,27 @@ class PlanCommandTest {
     }
 
     @Test
-    void planDoesNotMutateStore() {
+    void planTransitionsQualifiedToEnrichPending() {
         insertTask("t1", "/src/Foo.java");
         insertFinding("t1", "SPRING_DATA_INTERFACE", true);
 
-        int before = taskStore.count();
         command.plan("project-manifest.yaml");
-        int after = taskStore.count();
 
-        assertEquals(before, after, "plan must not mutate the store");
+        Task task = taskStore.findById("t1").orElseThrow();
+        assertEquals(TaskStatus.ENRICH_PENDING, task.status(),
+            "qualified task should transition to ENRICH_PENDING");
+    }
+
+    @Test
+    void planLeavesNonQualifiedAsIndexed() {
+        insertTask("t1", "/src/Foo.java");
+        insertFinding("t1", "CALL_GRAPH_EDGE", true);
+
+        command.plan("project-manifest.yaml");
+
+        Task task = taskStore.findById("t1").orElseThrow();
+        assertEquals(TaskStatus.INDEXED, task.status(),
+            "non-qualified task should remain INDEXED");
     }
 
     private void insertTask(String taskId, String filePath) {

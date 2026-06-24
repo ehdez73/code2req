@@ -3,7 +3,10 @@ package com.github.ehdez73.code2req.executor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.ehdez73.code2req.executor.testmining.TestAssertionExtractor;
 import com.github.ehdez73.code2req.model.ExecutionFinding;
+import com.github.ehdez73.code2req.model.ExecutionConfig;
+import com.github.ehdez73.code2req.model.ExecutionMode;
 import com.github.ehdez73.code2req.model.PlannerDecision;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
@@ -19,12 +22,14 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Component
 public class SemanticExecutor {
@@ -39,6 +44,10 @@ public class SemanticExecutor {
     private final SimulationStub simulationStub;
     private final ExecutionFindingValidator validator;
     private final ExecutionFindingParser parser;
+    private final TestAssertionExtractor assertionExtractor;
+    private final ExecutionConfig executionConfig;
+    private final Executor taskExecutor;
+    private final TransactionTemplate transactionTemplate;
 
     public SemanticExecutor(ObjectProvider<ChatClient.Builder> chatClientBuilderProvider,
                             ExecutionFindingStore findingStore,
@@ -46,53 +55,103 @@ public class SemanticExecutor {
                             ContextBudgetCalculator budgetCalculator,
                             SimulationStub simulationStub,
                             ExecutionFindingValidator validator,
-                            ExecutionFindingParser parser) {
+                            ExecutionFindingParser parser,
+                            TestAssertionExtractor assertionExtractor,
+                            ExecutionConfig executionConfig,
+                            @Qualifier("orchestratorTaskExecutor") Executor taskExecutor,
+                            TransactionTemplate transactionTemplate) {
         this.findingStore = findingStore;
         this.taskStore = taskStore;
         this.budgetCalculator = budgetCalculator;
         this.simulationStub = simulationStub;
         this.validator = validator;
         this.parser = parser;
+        this.assertionExtractor = assertionExtractor;
+        this.executionConfig = executionConfig;
+        this.taskExecutor = taskExecutor;
+        this.transactionTemplate = transactionTemplate;
         this.chatClient = chatClientBuilderProvider != null
             ? chatClientBuilderProvider.getObject().defaultAdvisors(new SimpleLoggerAdvisor()).build()
             : null;
     }
 
-    @Async("orchestratorTaskExecutor")
     public CompletableFuture<ExecutionFinding> enrich(Task task, PlannerDecision decision,
                                                        String sourceContent, String testContent,
                                                        String structuralContextJson, boolean dryRun) {
+        log.info("Enriching task {}, {}", task.taskId(), task.filePath());
+
+        if (executionConfig.resolvedExecutionMode() == ExecutionMode.SYNC) {
+            return executeSync(task, decision, sourceContent, testContent, structuralContextJson, dryRun);
+        }
+        return executeAsync(task, decision, sourceContent, testContent, structuralContextJson, dryRun);
+    }
+
+    private CompletableFuture<ExecutionFinding> executeSync(Task task, PlannerDecision decision,
+                                                             String sourceContent, String testContent,
+                                                             String structuralContextJson, boolean dryRun) {
         try {
-            ExecutionFinding finding;
-            String resultJson;
-
-            if (dryRun) {
-                resultJson = simulationStub.generateEnrichment(task.taskId(), task.filePath(), task.contentType());
-                finding = MAPPER.readValue(resultJson, ExecutionFinding.class);
-            } else {
-                if (chatClient == null) {
-                    throw new IllegalStateException(
-                        "ChatClient not available: configure spring.ai.openai.* properties or use --dry-run");
-                }
-                finding = callLlm(task, sourceContent, testContent, structuralContextJson);
-                resultJson = MAPPER.writeValueAsString(finding);
-            }
-
-            findingStore.save(task.taskId(), FindingType.SEMANTIC_ENRICHMENT, resultJson, true);
-            taskStore.updateStatus(task.taskId(), TaskStatus.ENRICHED);
-
-            if (finding.discoveredDependencies() != null && !finding.discoveredDependencies().isEmpty()) {
-                log.info("Task {} discovered {} new dependencies", task.taskId(), finding.discoveredDependencies().size());
-            }
-
-            log.info("Successfully enriched task {} ({})", task.taskId(), task.filePath());
+            ExecutionFinding finding = doEnrich(task, decision, sourceContent, testContent, structuralContextJson, dryRun);
             return CompletableFuture.completedFuture(finding);
-
         } catch (Exception e) {
             log.error("Failed to enrich task {}: {}", task.taskId(), e.getMessage());
-            taskStore.updateStatus(task.taskId(), TaskStatus.FAILED);
+            taskStore.updateStatus(task.taskId(), TaskStatus.ENRICH_FAILED);
             return CompletableFuture.failedFuture(e);
         }
+    }
+
+    private CompletableFuture<ExecutionFinding> executeAsync(Task task, PlannerDecision decision,
+                                                              String sourceContent, String testContent,
+                                                              String structuralContextJson, boolean dryRun) {
+        var future = new CompletableFuture<ExecutionFinding>();
+        Runnable work = () -> {
+            try {
+                future.complete(doEnrich(task, decision, sourceContent, testContent, structuralContextJson, dryRun));
+            } catch (Exception e) {
+                log.error("Failed to enrich task {}: {}", task.taskId(), e.getMessage());
+                taskStore.updateStatus(task.taskId(), TaskStatus.ENRICH_FAILED);
+                future.completeExceptionally(e);
+            }
+        };
+        if (taskExecutor != null) {
+            taskExecutor.execute(work);
+        } else {
+            work.run();
+        }
+        return future;
+    }
+
+    private ExecutionFinding doEnrich(Task task, PlannerDecision decision,
+                                       String sourceContent, String testContent,
+                                       String structuralContextJson, boolean dryRun) throws Exception {
+        ExecutionFinding finding;
+        String resultJson;
+
+        if (dryRun) {
+            resultJson = simulationStub.generateEnrichment(task.taskId(), task.filePath(), task.contentType());
+            finding = MAPPER.readValue(resultJson, ExecutionFinding.class);
+        } else {
+            if (chatClient == null) {
+                throw new IllegalStateException(
+                    "ChatClient not available: configure spring.ai.openai.* properties or use --dry-run");
+            }
+            finding = callLlm(task, sourceContent, testContent, structuralContextJson);
+            resultJson = MAPPER.writeValueAsString(finding);
+        }
+
+        transactionTemplate.executeWithoutResult(txStatus -> {
+            findingStore.save(task.taskId(), FindingType.SEMANTIC_ENRICHMENT, resultJson, true);
+            taskStore.updateStatus(task.taskId(), TaskStatus.ENRICHED);
+        });
+
+        if (finding.discoveredDependencies() != null && !finding.discoveredDependencies().isEmpty()) {
+            var depDetails = finding.discoveredDependencies().stream()
+                .map(d -> d.filePath() + " (" + d.reason() + ")")
+                .collect(java.util.stream.Collectors.joining(", "));
+            log.info("Task {} discovered {} new dependencies: [{}]", task.taskId(), finding.discoveredDependencies().size(), depDetails);
+        }
+
+        log.info("Successfully enriched task {} ({})", task.taskId(), task.filePath());
+        return finding;
     }
 
     private ExecutionFinding callLlm(Task task, String sourceContent, String testContent, String structuralContextJson) {
@@ -316,6 +375,19 @@ private String buildSystemPrompt() {
         if (testContent != null && !testContent.isBlank()) {
             sb.append("\nTEST FILE\n");
             sb.append(testContent).append("\n");
+
+            if (assertionExtractor != null) {
+                var assertions = assertionExtractor.extract(testContent);
+                if (!assertions.isEmpty()) {
+                    sb.append("\nEXTRACTED TEST ASSERTIONS\n");
+                    for (var a : assertions) {
+                        sb.append("  [").append(a.type()).append("] ");
+                        sb.append(a.detail()).append("\n");
+                        sb.append("    -> ").append(a.description()).append("\n");
+                    }
+                    sb.append("\n");
+                }
+            }
         }
 
         // ── OUTPUT REMINDER (keeps contract top-of-mind at the end too) ─────────

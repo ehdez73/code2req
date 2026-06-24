@@ -3,6 +3,7 @@ package com.github.ehdez73.code2req.orchestrator;
 import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.executor.ContextBudgetCalculator;
 import com.github.ehdez73.code2req.executor.SemanticExecutor;
+import com.github.ehdez73.code2req.executor.testmining.PairedExecutionResolver;
 import com.github.ehdez73.code2req.model.ExecutionConfig;
 import com.github.ehdez73.code2req.model.ExecutionFinding;
 import com.github.ehdez73.code2req.model.Metric;
@@ -49,6 +50,7 @@ public class Phase2Orchestrator {
     private final ContextBudgetCalculator budgetCalculator;
     private final ManifestLoader manifestLoader;
     private final FilePathResolver filePathResolver;
+    private final PairedExecutionResolver pairedExecutionResolver;
 
     public Phase2Orchestrator(Phase2Planner planner,
                               SemanticExecutor semanticExecutor,
@@ -59,7 +61,8 @@ public class Phase2Orchestrator {
                               TaskIdHasher taskIdHasher,
                               ContextBudgetCalculator budgetCalculator,
                               ManifestLoader manifestLoader,
-                              FilePathResolver filePathResolver) {
+                              FilePathResolver filePathResolver,
+                              PairedExecutionResolver pairedExecutionResolver) {
         this.planner = planner;
         this.semanticExecutor = semanticExecutor;
         this.taskStore = taskStore;
@@ -70,28 +73,18 @@ public class Phase2Orchestrator {
         this.budgetCalculator = budgetCalculator;
         this.manifestLoader = manifestLoader;
         this.filePathResolver = filePathResolver;
+        this.pairedExecutionResolver = pairedExecutionResolver;
     }
 
     public CompletionStatus executePhase2(String manifestPath, boolean dryRun) {
         Collection<ScanTarget> targets = loadScanTargets(manifestPath);
-
-        List<PlannerDecision> decisions = planner.plan();
-        List<PlannerDecision> qualified = decisions.stream()
-            .filter(PlannerDecision::qualified)
-            .toList();
-
+        List<PlannerDecision> qualified = getQualifiedDecisions();
         if (qualified.isEmpty()) {
-            log.info("No qualified tasks for Phase 2 enrichment");
-            return new CompletionStatus(0, 0, 0, 0, 0, 0.0, List.of());
+            return emptyCompletionStatus();
         }
 
-        log.info("Phase 2 orchestrator starting with {} qualified tasks", qualified.size());
-
+        EnrichmentDag dag = initializeDag(qualified);
         int maxDepth = executionConfig.maxDiscoveryDepth();
-        EnrichmentDag dag = new EnrichmentDag(maxDepth);
-        for (PlannerDecision d : qualified) {
-            dag.registerRootTask(d);
-        }
 
         int totalTokens = 0;
         int tasksCompleted = 0;
@@ -102,144 +95,26 @@ public class Phase2Orchestrator {
         List<PlannerDecision> toSubmit = new ArrayList<>(qualified);
 
         while (!toSubmit.isEmpty()) {
-            List<SubmitEntry> batch = new ArrayList<>();
-
-            for (PlannerDecision decision : toSubmit) {
-                String hashKey = hashKey(decision);
-                if (dag.isVisited(hashKey)) {
-                    log.debug("Skipping task {} — file '{}' already processed in this run", decision.taskId(), decision.filePath());
-                    continue;
-                }
-                dag.markVisited(hashKey);
-
-                Optional<Task> taskOpt = taskStore.findById(decision.taskId());
-                Task task;
-                if (taskOpt.isEmpty()) {
-                    task = new Task(decision.taskId(), decision.filePath(),
-                        TaskStatus.PENDING, "java", hashKey, decision.targetName());
-                    taskStore.save(task);
-                } else {
-                    task = taskOpt.get();
-                }
-
-                String resolvedPath = resolveTaskFilePath(task.filePath(), targets);
-                if (resolvedPath == null) {
-                    log.warn("Skipping task {} — file path '{}' does not exist under any scan target",
-                        task.taskId(), task.filePath());
-                    taskStore.updateStatus(task.taskId(), TaskStatus.FAILED);
-                    tasksFailed++;
-                    continue;
-                }
-
-                String sourceContent = readFileContent(resolvedPath);
-                taskStore.updateStatus(task.taskId(), TaskStatus.ENRICHING);
-
-                CompletableFuture<ExecutionFinding> future = semanticExecutor.enrich(
-                    task, decision, sourceContent, null, null, dryRun);
-
-                batch.add(new SubmitEntry(decision, task, future));
-            }
-
-            if (batch.isEmpty()) {
+            BuildBatchResult buildResult = buildSubmitBatch(toSubmit, dag, targets, dryRun);
+            if (buildResult.batch().isEmpty()) {
                 break;
             }
+            tasksFailed += buildResult.resolutionFailures();
 
-            CompletableFuture<?>[] futuresArray = batch.stream()
-                .map(e -> e.future)
-                .toArray(CompletableFuture[]::new);
-            CompletableFuture.allOf(futuresArray).join();
+            waitForAll(buildResult.batch());
 
-            List<PlannerDecision> nextBatch = new ArrayList<>();
-            for (SubmitEntry entry : batch) {
-                try {
-                    ExecutionFinding result = entry.future.get();
-                    tasksCompleted++;
-
-                    if (dryRun) {
-                        totalTokens += DRY_RUN_ESTIMATED_TOKENS;
-                    } else {
-                        String content = result.businessAbstraction() != null
-                            ? result.businessAbstraction().toString() : "";
-                        totalTokens += budgetCalculator.estimateTokenCount(content);
-                    }
-
-                    if (result.discoveredDependencies() != null
-                        && !result.discoveredDependencies().isEmpty()) {
-
-                        for (ExecutionFinding.DiscoveredDependency dep : result.discoveredDependencies()) {
-                            Optional<Path> resolved = filePathResolver.resolve(dep.filePath(), targets);
-                            if (resolved.isEmpty()) {
-                                log.info("Skipping discovered dependency '{}' from task {} — not resolvable under any scan target (likely external library)",
-                                    dep.filePath(), entry.decision.taskId());
-                                depsSkipped++;
-                                continue;
-                            }
-
-                            String resolvedDepPath = resolved.get().toString();
-
-                            String depHash = sha256(resolvedDepPath);
-                            if (dag.isVisited(depHash)) {
-                                log.debug("Discovered dependency {} already visited, skipping", resolvedDepPath);
-                                continue;
-                            }
-                            dag.markVisited(depHash);
-                            depsDiscovered++;
-
-                            String depTargetName = entry.task.targetName();
-
-                            BranchState branch = dag.getBranch(entry.decision.taskId());
-                            if (branch != null && branch.incrementDepth()) {
-                                log.warn("Max hop depth exceeded for dependency {} (depth={}, max={})",
-                                    resolvedDepPath, branch.currentDepth(), maxDepth);
-
-                                String depTaskId = taskIdHasher.hash(resolvedDepPath, depHash, depTargetName);
-                                taskStore.updateStatus(depTaskId, TaskStatus.AWAITING_HUMAN_REVIEW);
-                                awaitingReview.add(resolvedDepPath);
-                                continue;
-                            }
-
-                            String childTaskId = dag.registerDiscoveredDependency(
-                                entry.decision.taskId(), resolvedDepPath);
-                            if (childTaskId == null) {
-                                childTaskId = taskIdHasher.hash(resolvedDepPath, depHash, depTargetName);
-                            }
-
-                            String taskHash = sha256(resolvedDepPath + "|" + System.nanoTime());
-                            Task newTask = new Task(childTaskId, resolvedDepPath,
-                                TaskStatus.PENDING, entry.task.contentType(), taskHash, depTargetName);
-                            taskStore.save(newTask);
-
-                            PlannerDecision newDecision = PlannerDecision.qualified(
-                                childTaskId, resolvedDepPath, depTargetName, entry.decision.reasons());
-                            dag.enqueue(newDecision);
-                            nextBatch.add(newDecision);
-                        }
-                    }
-                } catch (Exception e) {
-                    tasksFailed++;
-                    log.error("Task {} failed: {}", entry.decision.taskId(), e.getMessage());
-                }
-            }
-
-            for (SubmitEntry entry : batch) {
-                dag.markTaskComplete(entry.decision.taskId());
-            }
-
-            toSubmit = nextBatch;
+            BatchResult result = processCompletedBatch(buildResult.batch(), dag, maxDepth, dryRun, targets);
+            tasksCompleted += result.tasksCompleted();
+            tasksFailed += result.tasksFailed();
+            totalTokens += result.totalTokens();
+            depsDiscovered += result.depsDiscovered();
+            depsSkipped += result.depsSkipped();
+            awaitingReview.addAll(result.awaitingReview());
+            toSubmit = result.nextBatch();
         }
 
         double costEstimate = totalTokens * COST_PER_TOKEN;
-        Metric metric = new Metric(
-            UUID.randomUUID().toString(),
-            2,
-            tasksCompleted + tasksFailed,
-            tasksCompleted,
-            0, 0, 0, 0,
-            totalTokens,
-            costEstimate,
-            LocalDateTime.now().toString()
-        );
-        metricsStore.save(metric);
+        buildAndSaveMetric(tasksCompleted, tasksFailed, totalTokens, costEstimate);
 
         log.info("Phase 2 complete: {} tasks completed, {} failed, {} deps discovered, {} deps skipped (external/unresolvable), {} tokens consumed, ${} estimated",
             tasksCompleted, tasksFailed, depsDiscovered, depsSkipped, totalTokens, String.format("%.6f", costEstimate));
@@ -253,6 +128,209 @@ public class Phase2Orchestrator {
             costEstimate,
             awaitingReview
         );
+    }
+
+    private List<PlannerDecision> getQualifiedDecisions() {
+        List<PlannerDecision> decisions = planner.plan();
+        List<PlannerDecision> qualified = decisions.stream()
+            .filter(PlannerDecision::qualified)
+            .toList();
+        if (qualified.isEmpty()) {
+            log.info("No qualified tasks for Phase 2 enrichment");
+        } else {
+            log.info("Phase 2 orchestrator starting with {} qualified tasks", qualified.size());
+        }
+        return qualified;
+    }
+
+    private CompletionStatus emptyCompletionStatus() {
+        return new CompletionStatus(0, 0, 0, 0, 0, 0.0, List.of());
+    }
+
+    private EnrichmentDag initializeDag(List<PlannerDecision> qualified) {
+        int maxDepth = executionConfig.maxDiscoveryDepth();
+        EnrichmentDag dag = new EnrichmentDag(maxDepth);
+        for (PlannerDecision d : qualified) {
+            dag.registerRootTask(d);
+        }
+        return dag;
+    }
+
+    private BuildBatchResult buildSubmitBatch(List<PlannerDecision> decisions,
+                                              EnrichmentDag dag,
+                                              Collection<ScanTarget> targets,
+                                              boolean dryRun) {
+        List<SubmitEntry> batch = new ArrayList<>();
+        int resolutionFailures = 0;
+
+        for (PlannerDecision decision : decisions) {
+            String hashKey = hashKey(decision);
+            if (dag.isVisited(hashKey)) {
+                log.debug("Skipping task {} — file '{}' already processed in this run", decision.taskId(), decision.filePath());
+                continue;
+            }
+            dag.markVisited(hashKey);
+
+            Optional<Task> taskOpt = taskStore.findById(decision.taskId());
+            Task task;
+            if (taskOpt.isEmpty()) {
+                task = new Task(decision.taskId(), decision.filePath(),
+                    TaskStatus.PENDING, "java", hashKey, decision.targetName());
+                taskStore.save(task);
+            } else {
+                task = taskOpt.get();
+            }
+
+            String resolvedPath = resolveTaskFilePath(task.filePath(), targets);
+            if (resolvedPath == null) {
+                log.warn("Skipping task {} — file path '{}' does not exist under any scan target",
+                    task.taskId(), task.filePath());
+                taskStore.updateStatus(task.taskId(), TaskStatus.ENRICH_FAILED);
+                resolutionFailures++;
+                continue;
+            }
+
+            String sourceContent = readFileContent(resolvedPath);
+            taskStore.updateStatus(task.taskId(), TaskStatus.ENRICHING);
+
+            String testContent = resolveTestContent(resolvedPath, decision);
+
+            CompletableFuture<ExecutionFinding> future = semanticExecutor.enrich(
+                task, decision, sourceContent, testContent, null, dryRun);
+
+            batch.add(new SubmitEntry(decision, task, future));
+        }
+
+        return new BuildBatchResult(batch, resolutionFailures);
+    }
+
+    private void waitForAll(List<SubmitEntry> batch) {
+        CompletableFuture<?>[] futuresArray = batch.stream()
+            .map(e -> e.future)
+            .toArray(CompletableFuture[]::new);
+        CompletableFuture.allOf(futuresArray).join();
+    }
+
+    private BatchResult processCompletedBatch(List<SubmitEntry> batch,
+                                              EnrichmentDag dag,
+                                              int maxDepth,
+                                              boolean dryRun,
+                                              Collection<ScanTarget> targets) {
+        List<PlannerDecision> nextBatch = new ArrayList<>();
+        int tasksCompleted = 0;
+        int tasksFailed = 0;
+        int totalTokens = 0;
+        int depsDiscovered = 0;
+        int depsSkipped = 0;
+        List<String> awaitingReview = new ArrayList<>();
+
+        for (SubmitEntry entry : batch) {
+            try {
+                ExecutionFinding result = entry.future.get();
+                tasksCompleted++;
+
+                if (dryRun) {
+                    totalTokens += DRY_RUN_ESTIMATED_TOKENS;
+                } else {
+                    String content = result.businessAbstraction() != null
+                        ? result.businessAbstraction().toString() : "";
+                    totalTokens += budgetCalculator.estimateTokenCount(content);
+                }
+
+                DependencyResult depResult = processDiscoveredDependencies(result, entry, dag, maxDepth, targets, nextBatch);
+                depsDiscovered += depResult.depsDiscovered();
+                depsSkipped += depResult.depsSkipped();
+                awaitingReview.addAll(depResult.awaitingReview());
+            } catch (Exception e) {
+                tasksFailed++;
+                log.error("Task {} failed: {}", entry.decision.taskId(), e.getMessage());
+            }
+        }
+
+        for (SubmitEntry entry : batch) {
+            dag.markTaskComplete(entry.decision.taskId());
+        }
+
+        return new BatchResult(nextBatch, tasksCompleted, tasksFailed, totalTokens,
+            depsDiscovered, depsSkipped, awaitingReview);
+    }
+
+    private DependencyResult processDiscoveredDependencies(ExecutionFinding result,
+                                                           SubmitEntry entry,
+                                                           EnrichmentDag dag,
+                                                           int maxDepth,
+                                                           Collection<ScanTarget> targets,
+                                                           List<PlannerDecision> nextBatch) {
+        if (result.discoveredDependencies() == null || result.discoveredDependencies().isEmpty()) {
+            return new DependencyResult(0, 0, List.of());
+        }
+
+        int depsDiscovered = 0;
+        int depsSkipped = 0;
+        List<String> awaitingReview = new ArrayList<>();
+
+        for (ExecutionFinding.DiscoveredDependency dep : result.discoveredDependencies()) {
+            Optional<Path> resolved = filePathResolver.resolve(dep.filePath(), targets);
+            if (resolved.isEmpty()) {
+                log.info("Skipping discovered dependency '{}' from task {} — not resolvable under any scan target (likely external library)",
+                    dep.filePath(), entry.decision.taskId());
+                depsSkipped++;
+                continue;
+            }
+
+            String resolvedDepPath = resolved.get().toString();
+            String depHash = sha256(resolvedDepPath);
+
+            if (dag.isVisited(depHash)) {
+                log.debug("Discovered dependency {} already visited, skipping", resolvedDepPath);
+                continue;
+            }
+            dag.markVisited(depHash);
+            depsDiscovered++;
+
+            String depTargetName = entry.task.targetName();
+            BranchState branch = dag.getBranch(entry.decision.taskId());
+
+            if (branch != null && branch.incrementDepth()) {
+                log.warn("Max hop depth exceeded for dependency {} (depth={}, max={})",
+                    resolvedDepPath, branch.currentDepth(), maxDepth);
+                String depTaskId = taskIdHasher.hash(resolvedDepPath, depHash, depTargetName);
+                taskStore.updateStatus(depTaskId, TaskStatus.AWAITING_HUMAN_REVIEW);
+                awaitingReview.add(resolvedDepPath);
+                continue;
+            }
+
+            String childTaskId = dag.registerDiscoveredDependency(entry.decision.taskId(), resolvedDepPath);
+            if (childTaskId == null) {
+                childTaskId = taskIdHasher.hash(resolvedDepPath, depHash, depTargetName);
+            }
+
+            String taskHash = sha256(resolvedDepPath + "|" + System.nanoTime());
+            Task newTask = new Task(childTaskId, resolvedDepPath,
+                TaskStatus.PENDING, entry.task.contentType(), taskHash, depTargetName);
+            taskStore.save(newTask);
+
+            PlannerDecision newDecision = PlannerDecision.qualified(
+                childTaskId, resolvedDepPath, depTargetName, entry.decision.reasons());
+            dag.enqueue(newDecision);
+            nextBatch.add(newDecision);
+        }
+
+        return new DependencyResult(depsDiscovered, depsSkipped, awaitingReview);
+    }
+
+    private void buildAndSaveMetric(int tasksCompleted, int tasksFailed, int totalTokens, double costEstimate) {
+        Metric metric = new Metric(
+            UUID.randomUUID().toString(),
+            2,
+            tasksCompleted + tasksFailed,
+            tasksCompleted,
+            0, 0, 0, 0,
+            totalTokens,
+            costEstimate,
+            LocalDateTime.now().toString()
+        );
+        metricsStore.save(metric);
     }
 
     private Collection<ScanTarget> loadScanTargets(String manifestPath) {
@@ -278,6 +356,17 @@ public class Phase2Orchestrator {
             log.debug("File '{}' not found at direct path and not resolved against scan targets — will use as-is", filePath);
         }
         return filePath;
+    }
+
+    private String resolveTestContent(String sourceFilePath, PlannerDecision decision) {
+        try {
+            return pairedExecutionResolver.resolve(sourceFilePath)
+                .map(info -> info.testContent())
+                .orElse(null);
+        } catch (Exception e) {
+            log.warn("Failed to resolve test content for {}: {}", sourceFilePath, e.getMessage());
+            return null;
+        }
     }
 
     private String readFileContent(String filePath) {
@@ -307,4 +396,15 @@ public class Phase2Orchestrator {
     }
 
     private record SubmitEntry(PlannerDecision decision, Task task, CompletableFuture<ExecutionFinding> future) {}
+    private record BuildBatchResult(List<SubmitEntry> batch, int resolutionFailures) {}
+    private record BatchResult(
+        List<PlannerDecision> nextBatch,
+        int tasksCompleted,
+        int tasksFailed,
+        int totalTokens,
+        int depsDiscovered,
+        int depsSkipped,
+        List<String> awaitingReview
+    ) {}
+    private record DependencyResult(int depsDiscovered, int depsSkipped, List<String> awaitingReview) {}
 }

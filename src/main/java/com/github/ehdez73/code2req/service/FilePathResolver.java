@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -16,6 +17,25 @@ import java.util.stream.Stream;
 public class FilePathResolver {
 
     private static final Logger log = LoggerFactory.getLogger(FilePathResolver.class);
+
+    @FunctionalInterface
+    private interface ResolutionStrategy {
+        Optional<Path> resolve(String path, Path targetRoot);
+    }
+
+    private final List<ResolutionStrategy> strategies;
+
+    public FilePathResolver() {
+        this.strategies = List.of(
+            this::resolveAbsolute,
+            this::resolveFullyQualifiedClassName,
+            this::resolveExactMatch,
+            this::resolveExactMatchWithExt,
+            this::resolveDotsToSlashes,
+            this::resolveDotsToSlashesWithExt,
+            this::resolveByFilename
+        );
+    }
 
     public Optional<Path> resolve(String rawPath, Collection<ScanTarget> targets) {
         if (rawPath == null || rawPath.isBlank()) {
@@ -40,37 +60,68 @@ public class FilePathResolver {
     }
 
     private Optional<Path> resolveAgainst(String rawPath, Path targetRoot) {
-        Path absolute = Path.of(rawPath);
-        if (absolute.isAbsolute()) {
-            if (Files.isRegularFile(absolute)) {
-                return Optional.of(absolute.normalize());
+        String path = rawPath.replace('\\', '/');
+        if (path.endsWith(".class")) {
+            return resolveClassFile(path, targetRoot);
+        }
+        for (var strategy : strategies) {
+            Optional<Path> result = strategy.resolve(path, targetRoot);
+            if (result.isPresent()) {
+                return result;
             }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<Path> resolveClassFile(String path, Path targetRoot) {
+        if (!path.endsWith(".class")) return Optional.empty();
+        String base = path.substring(0, path.length() - 6);
+        return findUnder(targetRoot, base + ".java")
+            .or(() -> findUnder(targetRoot, base.replace('.', '/') + ".java"))
+            .or(() -> findFileByAnyName(targetRoot, base + ".java"));
+    }
+
+    private Optional<Path> resolveAbsolute(String path, Path targetRoot) {
+        Path absolute = Path.of(path);
+        if (absolute.isAbsolute() && Files.isRegularFile(absolute)) {
+            return Optional.of(absolute.normalize());
+        }
+        return Optional.empty();
+    }
+
+    private Optional<Path> resolveFullyQualifiedClassName(String path, Path targetRoot) {
+        if (path.endsWith(".java")) return Optional.empty();
+        if (!path.contains(".")) return Optional.empty();
+        if (path.contains("/") || path.contains("\\")) return Optional.empty();
+        int lastDot = path.lastIndexOf('.');
+        String className = path.substring(lastDot + 1);
+        if (className.isEmpty() || Character.isLowerCase(className.charAt(0))) {
             return Optional.empty();
         }
+        return findUnder(targetRoot, path.replace('.', '/') + ".java");
+    }
 
-        String normalised = rawPath.replace('\\', '/');
+    private Optional<Path> resolveExactMatch(String path, Path targetRoot) {
+        return findUnder(targetRoot, path);
+    }
 
-        Optional<Path> byExact = findUnder(targetRoot, normalised);
-        if (byExact.isPresent()) return byExact;
+    private Optional<Path> resolveExactMatchWithExt(String path, Path targetRoot) {
+        if (path.endsWith(".java")) return Optional.empty();
+        return findUnder(targetRoot, path + ".java");
+    }
 
-        if (!normalised.endsWith(".java")) {
-            Optional<Path> byExactWithExt = findUnder(targetRoot, normalised + ".java");
-            if (byExactWithExt.isPresent()) return byExactWithExt;
-        }
+    private Optional<Path> resolveDotsToSlashes(String path, Path targetRoot) {
+        return findUnder(targetRoot, path.replace('.', '/'));
+    }
 
-        String dotToSlash = normalised.replace('.', '/');
-        Optional<Path> byDots = findUnder(targetRoot, dotToSlash);
-        if (byDots.isPresent()) return byDots;
+    private Optional<Path> resolveDotsToSlashesWithExt(String path, Path targetRoot) {
+        String converted = path.replace('.', '/');
+        if (converted.endsWith(".java")) return Optional.empty();
+        return findUnder(targetRoot, converted + ".java");
+    }
 
-        if (!dotToSlash.endsWith(".java")) {
-            Optional<Path> byDotsWithExt = findUnder(targetRoot, dotToSlash + ".java");
-            if (byDotsWithExt.isPresent()) return byDotsWithExt;
-        }
-
-        Optional<Path> byFilename = findFileByAnyName(targetRoot, normalised);
-        if (byFilename.isPresent()) return byFilename;
-
-        return Optional.empty();
+    private Optional<Path> resolveByFilename(String path, Path targetRoot) {
+        return findFileByAnyName(targetRoot, path);
     }
 
     private Optional<Path> findUnder(Path targetRoot, String relativePath) {

@@ -36,34 +36,38 @@ public class Phase2Planner {
     }
 
     public List<PlannerDecision> plan() {
-        List<Task> tasks = taskStore.findByStatus(TaskStatus.INDEXED);
+        List<Task> tasks = taskStore.findByStatusesWithoutFinding(
+            List.of(TaskStatus.INDEXED, TaskStatus.ENRICH_PENDING),
+            FindingType.SEMANTIC_ENRICHMENT);
         if (tasks.isEmpty()) {
-            log.info("No INDEXED tasks found — planner has nothing to evaluate");
-            return List.of();
-        }
-
-        // Skip tasks that already have a SEMANTIC_ENRICHMENT finding from a prior run
-        List<Task> unenriched = tasks.stream()
-            .filter(t -> findingStore.countByTaskIdAndType(t.taskId(),
-                FindingType.SEMANTIC_ENRICHMENT) == 0)
-            .toList();
-
-        int skipped = tasks.size() - unenriched.size();
-        if (skipped > 0) {
-            log.info("Planner skipped {} already-enriched task(s)", skipped);
-        }
-
-        if (unenriched.isEmpty()) {
-            log.info("All INDEXED tasks already enriched — planner has nothing to evaluate");
+            log.info("No INDEXED or ENRICH_PENDING tasks without enrichment findings — planner has nothing to evaluate");
             return List.of();
         }
 
         var ctx = new PlanningContext(jdbc);
 
-        List<PlannerDecision> decisions = new ArrayList<>(unenriched.size());
-        for (Task task : unenriched) {
-            decisions.add(evaluateTask(task, ctx));
+        List<PlannerDecision> decisions = new ArrayList<>(tasks.size());
+        int priorPending = 0;
+        for (Task task : tasks) {
+            if (task.status() == TaskStatus.ENRICH_PENDING) {
+                decisions.add(PlannerDecision.qualified(
+                    task.taskId(), task.filePath(), task.targetName(), List.of()));
+                priorPending++;
+                continue;
+            }
+
+            PlannerDecision decision = evaluateTask(task, ctx);
+            if (decision.qualified()) {
+                taskStore.updateStatus(task.taskId(), TaskStatus.ENRICH_PENDING);
+                log.debug("Transitioned task {} ({}) from INDEXED to ENRICH_PENDING",
+                    task.taskId(), task.filePath());
+            }
+            decisions.add(decision);
         }
+
+        int qualified = (int) decisions.stream().filter(PlannerDecision::qualified).count();
+        log.info("Planner evaluated {} task(s): {} qualified ({} from prior ENRICH_PENDING), {} not qualified",
+            decisions.size(), qualified, priorPending, decisions.size() - qualified);
         return decisions;
     }
 

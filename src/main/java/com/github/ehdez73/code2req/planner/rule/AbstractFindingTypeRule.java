@@ -5,6 +5,10 @@ import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.planner.PlanningContext;
 import com.github.ehdez73.code2req.planner.QualificationRule;
 
+/**
+ * Base class for qualification rules that check whether a task has a specific
+ * {@link com.github.ehdez73.code2req.store.FindingType} persisted in its execution findings.
+ */
 public abstract class AbstractFindingTypeRule implements QualificationRule {
 
     private final QualificationReason reason;

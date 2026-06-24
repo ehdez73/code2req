@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import java.util.List;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
@@ -21,6 +22,9 @@ class TaskStoreTest {
 
     @Autowired
     private TaskStoreSchema taskStoreSchema;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @BeforeEach
     void setUp() {
@@ -112,5 +116,32 @@ class TaskStoreTest {
         assertEquals(0, taskStore.count());
         taskStore.save(new Task("id-1", "file1.java", TaskStatus.PENDING, "java", "h1", "test"));
         assertEquals(1, taskStore.count());
+    }
+
+    @Test
+    void findByStatusWithoutFinding() {
+        taskStore.save(new Task("id-1", "file1.java", TaskStatus.INDEXED, "java", "h1", "test"));
+        taskStore.save(new Task("id-2", "file2.java", TaskStatus.INDEXED, "java", "h2", "test"));
+        jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+            "id-1", "SEMANTIC_ENRICHMENT", "{}", 1);
+
+        List<Task> result = taskStore.findByStatusWithoutFinding(TaskStatus.INDEXED, "SEMANTIC_ENRICHMENT");
+        assertEquals(1, result.size());
+        assertEquals("id-2", result.get(0).taskId());
+    }
+
+    @Test
+    void findByStatusesWithoutFinding() {
+        taskStore.save(new Task("id-1", "file1.java", TaskStatus.INDEXED, "java", "h1", "test"));
+        taskStore.save(new Task("id-2", "file2.java", TaskStatus.ENRICH_PENDING, "java", "h2", "test"));
+        taskStore.save(new Task("id-3", "file3.java", TaskStatus.INDEXED, "java", "h3", "test"));
+        jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+            "id-3", "SEMANTIC_ENRICHMENT", "{}", 1);
+
+        List<Task> result = taskStore.findByStatusesWithoutFinding(
+            List.of(TaskStatus.INDEXED, TaskStatus.ENRICH_PENDING), "SEMANTIC_ENRICHMENT");
+        assertEquals(2, result.size());
+        assertTrue(result.stream().anyMatch(t -> t.taskId().equals("id-1")));
+        assertTrue(result.stream().anyMatch(t -> t.taskId().equals("id-2")));
     }
 }

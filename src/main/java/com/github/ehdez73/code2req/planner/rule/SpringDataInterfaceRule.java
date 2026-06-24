@@ -4,6 +4,11 @@ import com.github.ehdez73.code2req.model.QualificationReason;
 import com.github.ehdez73.code2req.store.FindingType;
 import org.springframework.stereotype.Component;
 
+/**
+ * Qualifies a task when the file is a Spring Data repository interface
+ * (extending {@code CrudRepository} or {@code JpaRepository}) that has no
+ * AST body to analyse — its derived query methods require LLM interpretation.
+ */
 @Component
 public class SpringDataInterfaceRule extends AbstractFindingTypeRule {
     public SpringDataInterfaceRule() {

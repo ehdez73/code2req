@@ -13,7 +13,7 @@
 - [ ] Each qualified task shows its qualification reason
 - [ ] Non-qualified tasks are listed with reason "NONE"
 - [ ] Zero LLM calls are made during plan
-- [ ] Zero SQLite mutations occur during plan (read-only)
+- [ ] Qualified tasks are transitioned from INDEXED to ENRICH_PENDING during plan
 
 ### INVEST Flags
 

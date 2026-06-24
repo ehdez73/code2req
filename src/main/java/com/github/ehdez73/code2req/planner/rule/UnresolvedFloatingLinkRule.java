@@ -12,6 +12,12 @@ import org.springframework.stereotype.Component;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Qualifies a task when the file contains outbound HTTP calls whose
+ * target endpoint could not be resolved deterministically
+ * ({@code floating_links.resolved_status = 'PENDING'}). The LLM infers
+ * the external service's business purpose from call-site context.
+ */
 @Component
 public class UnresolvedFloatingLinkRule implements QualificationRule {
 
