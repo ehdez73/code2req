@@ -61,3 +61,11 @@ Feature: Phase 2 Orchestrator
       Given all Phase 2 tasks have completed
       When the orchestrator finalizes Phase 2
       Then a metrics record is written with tokens consumed and cost estimate
+
+    @US045 @E003 @F018 @should @draft
+    Scenario: run --resume recovers AWAITING_HUMAN_REVIEW tasks
+      Given 2 tasks are in AWAITING_HUMAN_REVIEW state
+      When the run --resume recovery executes
+      Then both tasks are changed to INDEXED
+      And their findings are cleaned
+      And the planner re-qualifies them on next run

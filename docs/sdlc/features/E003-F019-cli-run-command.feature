@@ -62,3 +62,28 @@ Feature: CLI Commands — plan and run
       Then the output shows enriched task count
       And shows tokens consumed and estimated cost
       And shows pending and completed counts
+
+    @US047 @E003 @F019 @must @draft
+    Scenario: Developer recovers AWAITING_HUMAN_REVIEW tasks with --resume
+      Given 2 tasks are AWAITING_HUMAN_REVIEW
+      And the Phase 3 marker is stuck on ENRICHING
+      When the developer runs run --resume
+      Then recoverOrphanedTasks resets AWAITING_HUMAN_REVIEW tasks to INDEXED
+      And recoverPhase3Marker resets the Phase 3 marker from ENRICHING to PENDING
+      And stale .tmp.* output files are cleaned
+      And Phase 3 re-runs from scratch
+
+    @US047 @E003 @F019 @must @draft
+    Scenario: Developer sees Phase 3 skip guard when already complete
+      Given the Phase 3 marker is ENRICHED
+      When the developer runs run without --force-phase3
+      Then Phase 3 is skipped
+      And the output shows "Phase 3 already completed (use --force-phase3 to re-run)"
+
+    @US047 @E003 @F019 @must @draft
+    Scenario: Developer forces Phase 3 re-run with --force-phase3
+      Given the Phase 3 marker is ENRICHED
+      When the developer runs run --force-phase3
+      Then the marker is reset to PENDING
+      And Phase 3 executes from scratch
+      And existing spec-output/ files are overwritten

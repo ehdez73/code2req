@@ -472,15 +472,15 @@ Phase 3 takes the complete set of enriched `ExecutionFinding` records (produced 
    - **Phase 1 structural data:** call graph edges, topic links, floating links, endpoint registries, database access patterns.
    - **Phase 2 enriched data:** per-file `ExecutionFinding` records (business purpose, validations, edge cases, test insights).
    
-   This aggregate is passed to the Embabel agent as its initial working memory — the agent never queries SQLite directly.
+   This aggregate is placed on the Embabel blackboard as the agent's initial working memory — the agent never queries SQLite directly. Actions read from and write to the blackboard, setting world-state conditions that drive GOAP planning.
 
-3. **Actions (pluggable, GOAP-scheduled):**
+3. **Actions (pluggable, GOAP-scheduled via world-state conditions):**
    - `AnalyzeFindings` — Group enriched records by functional flow boundaries (controller → service → repository chains). Identify candidate flows with completeness scores.
    - `SearchCodebase` — When a candidate flow has ambiguity gaps, investigate the codebase for missing context. Queries the in-memory `CodebaseKnowledge` first (call graph, endpoint maps), falls back to raw source file reads only when needed.
    - `CrossReferenceLinks` — Match floating HTTP calls and topic publications to known endpoints. Resolve cross-manifest topic pairs.
    - `SynthesizeFunctionalSpec` — Aggregate all resolved knowledge into the final functional specification.
    
-   Adding a new investigation capability requires only a new `@Action` class — zero changes to the goal model or existing actions.
+   Each action declares preconditions and postconditions as world-state condition identifiers (e.g., `codebase_knowledge_loaded → flows_analyzed`). The GOAP planner uses these to determine action ordering and goal satisfaction. Adding a new investigation capability requires only a new `@Action` method — zero changes to the goal model or existing actions.
 
 4. **Dynamic Re-Planning (GOAP):** After each action, the Embabel planner reassesses goal completion. If ambiguity remains, it replans the next action sequence — this is an OODA loop, not a fixed pipeline. The planner uses a non-LLM GOAP algorithm for planning; LLM calls are reserved for individual actions that require semantic analysis.
 
@@ -599,7 +599,7 @@ Phase 3 employs Embabel's **Goal-Oriented Action Planning (GOAP)** to dynamicall
 
 **Agent Structure:**
 
-- **`@Agent(description = "Extract functional requirements from enriched codebase analysis")`** — The top-level agent for Phase 3.
+- **`@Agent(name = "functional-requirement-extractor", description = "Extract functional requirements from enriched codebase analysis", planner = GOAP, scan = true)`** — The top-level agent for Phase 3, deployed via Embabel's annotation scanning.
 - **Domain Model:** `CodebaseKnowledge` (aggregate), `FunctionalFlow`, `BusinessRule`, `EndpointSpec`, `CodePattern`, `AmbiguityGap` — strongly-typed objects that flow between actions.
 - **Goals:**
   - `FunctionalFlowCoverage` — All candidate functional flows have complete descriptions (trigger, steps, outcomes).
@@ -612,7 +612,7 @@ Phase 3 employs Embabel's **Goal-Oriented Action Planning (GOAP)** to dynamicall
   - `CrossReferenceFloatingLinks` — Match unresolved HTTP client calls and topic publications against known endpoints in `CodebaseKnowledge`.
   - `SynthesizeFunctionalSpec` — Aggregate all resolved knowledge into the final functional specification.
   - `QuarantineUnresolvable` — Flag flows that cannot be completed after exhausting investigation budget; set to `AWAITING_HUMAN_REVIEW`.
-- **Conditions:** Each action has GOAP preconditions (e.g., "AnalyzeFindings requires CodebaseKnowledge loaded") and postconditions (e.g., "AnalyzeFindings produces candidate flows"). The planner chains actions automatically.
+- **Conditions:** Each action declares preconditions and postconditions as world-state condition identifiers (e.g., precondition `codebase_knowledge_loaded = true` enables `AnalyzeFindings`; postcondition `flows_analyzed = true` enables downstream actions). Conditions are managed on the Embabel blackboard and drive the GOAP planner's action chaining automatically.
 
 **Quality Audit (post-agent):**
 
@@ -849,14 +849,108 @@ In the event of an abrupt process termination (e.g., manual kills via `Ctrl+C`, 
 
 The `--resume` flag on `run` handles full crash recovery across all interruptible states:
 
-1. **Orphan Mitigation:** The system queries the SQLite task matrix for entries stuck in `ENRICHING`, `ENRICH_PENDING`, `FAILED`, and `PENDING` states. `ENRICH_PENDING` entries also self-heal automatically on the next `plan()` invocation even without `--resume`.
+1. **Orphan Mitigation:** The system queries the SQLite task matrix for entries stuck in `AWAITING_HUMAN_REVIEW`, `ENRICHING`, `ENRICH_PENDING`, `FAILED`, `ENRICH_FAILED`, and `PENDING` states. `ENRICH_PENDING` entries also self-heal automatically on the next `plan()` invocation even without `--resume`.
 2. **Reversion Steps:**
+   - `AWAITING_HUMAN_REVIEW` → `INDEXED` (findings cleaned) — if the user re-runs without explicit resolution, the planner re-qualifies these tasks. The spec output preserves the quarantine record even after reset.
    - `ENRICHING` → `ENRICH_PENDING` (findings cleaned)
    - `ENRICH_PENDING` → `INDEXED` (findings cleaned)
+   - `ENRICH_FAILED` → `ENRICH_PENDING` (findings cleaned)
    - `FAILED` → `ENRICH_PENDING` if any findings exist (was past Phase 1 and likely qualified), or `INDEXED` if no findings (unreadable file that was never scanned)
    - `PENDING` → `INDEXED`
 3. **DAG Realignment:** The Planner rebuilds the dependency graph from the updated database state, resuming analysis with zero metadata corruption or double token expenditures.
-4. **Single-flag recovery:** A single `run --resume` recovers all interruptible states including FAILED tasks.
+4. **Single-flag recovery:** A single `run --resume` recovers all interruptible states including AWAITING_HUMAN_REVIEW and FAILED tasks.
+
+5. **Phase 3 Marker Recovery:** Unlike Phase 2's per-task persistence, Phase 3 executes as a single synchronous pass with no intermediate checkpointing. To prevent redundant re-execution after a crash, a dedicated Phase 3 status marker task is maintained in the `tasks` table:
+   - **Marker task ID:** Deterministic SHA-256 of `__phase3_marker__`.
+   - **Marker lifecycle:**
+     - `PENDING` — Phase 3 not started or previous run completed cleanly.
+     - `ENRICHING` — Set before Embabel agent invocation. If the process crashes after this point, the marker remains `ENRICHING`.
+     - `ENRICHED` — Set after all output files are written and metrics are persisted.
+     - `FAILED` — Set if the agent or output writers throw an unrecoverable error.
+   
+   On `--resume`:
+   - If the marker is `ENRICHING` → reset to `PENDING`, delete any partial output files from `spec-output/` (files prefixed with `.tmp.`), and log a warning that Phase 3 was interrupted. Phase 3 will re-run from scratch.
+   - If the marker is `ENRICHED` → skip Phase 3 entirely (output already exists). Use `--force-phase3` to override and force a fresh run.
+   - If the marker is `FAILED` → reset to `PENDING` so Phase 3 re-runs.
+   - If the marker is `PENDING` → run Phase 3 normally.
+
+6. **Output File Integrity:** Output writers (`MarkdownSpecWriter`, `SemanticManifestWriter`) write to a temporary file path first (e.g., `spec-output/.tmp.flow-name.md`) and atomically rename to the final path on success. If the process crashes mid-write, only `.tmp.` files remain — these are cleaned by the Phase 3 marker recovery step.
+
+7. **Idempotent Re-entry Guard:** The `run` command checks the Phase 3 marker before starting Phase 3. If the marker is `ENRICHED` and `--force-phase3` is not set, Phase 3 is skipped with a log message. This prevents token waste on repeated `run` invocations against completed data.
+
+8. **Warm Start Duration:** Phase 3 recovery (marker check + temp file cleanup) completes in under 1 second, well within the ≤30s overall warm start recovery target (§7.3).
+
+### 5.5a Human Review Lifecycle
+
+Tasks and functional flows flagged `AWAITING_HUMAN_REVIEW` follow a defined lifecycle:
+
+1. **Detection:** After a `run`, the CLI output shows the awaiting-review count. The affected file paths are printed in Phase 2's `awaitingHumanReview` list and Phase 3's `awaitingReview` count.
+2. **Inspection:** The user runs `status --verbose --status AWAITING_HUMAN_REVIEW` to see all quarantined tasks, or `review list` for a formatted view with reasons, confidence scores, and source contexts.
+3. **Diagnosis:** The quarantine reason is stored as an `execution_finding` with `finding_type = 'HUMAN_REVIEW_REASON'`. The reason enum captures the trigger:
+   - `HOP_DEPTH` — Dynamic re-planning exceeded `max-discovery-depth` (Phase 2).
+   - `STEPS_EXCEEDED` — Agent investigation steps exceeded `max-investigation-steps-per-flow` (Phase 3).
+   - `LOW_CONFIDENCE` — Agent ambiguity confidence fell below `ambiguity-confidence-threshold` (Phase 3).
+4. **Resolution Options:**
+
+   | Action | CLI | Effect |
+   |---|---|---|
+   | **Accept gap** | `review accept --task <id>` | Flow documented in spec Section 5 as explicitly unresolved. Task reset to INDEXED for future re-runs. |
+   | **Reset & re-run** | `review reset --task <id>` | Delete findings, reset to INDEXED. Next `run` re-qualifies via planner. Findings are eligible for `run --resume`. |
+   | **Batch accept** | `review accept-all` | Accept all quarantined flows as documented gaps. |
+   | **Batch reset** | `review reset-all` | Reset all for re-processing on next run. |
+
+5. **Output Preservation:** Even after acceptance, the quarantine is recorded in the spec output Section 5 ("Unresolved Dependencies & Review Tasks") and in the semantic manifest (`flows[].review_required`). This ensures human decisions are never lost between runs.
+
+### 5.5b Agent-User Interaction Mode (Optional)
+
+During Phase 3, the Embabel agent may encounter knowledge gaps that a human can resolve in seconds but would cost LLM tokens or trigger a quarantine. An optional interactive mode lets the agent prompt the user for context directly during execution.
+
+**Interaction points:**
+
+When the agent encounters an ambiguity it cannot resolve with high confidence, it pauses and asks the user. The user can answer, skip, or abort:
+
+| Agent action | Prompt example | User options |
+|---|---|---|
+| `ResolveAmbiguity` | "Method `chargeOrder()` in `OrderService.java:142` calls `PaymentGatewayClient` which is not in scan targets. Is this an internal service (trace deeper) or external (document as dependency)?" | `internal` / `external` / `skip` |
+| `CrossReferenceFloatingLinks` | "Found floating link `POST ${payment.service.url}/api/v1/charges`. Does this map to existing endpoint `POST /api/v1/charges` in target `payment-service`?" | `yes` / `no` / `skip` |
+| `QuarantineUnresolvable` | "Flow `PaymentProcessing` has exhausted 5 investigation steps without resolving `chargeOrder()`. Should I quarantine this flow (AWAITING_HUMAN_REVIEW) or accept the gap as an external dependency?" | `quarantine` / `accept` |
+
+**Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  FunctionalRequirementAgent (@Action methods)            │
+│                                                          │
+│  ResolveAmbiguity:                                       │
+│    1. Compute gap signature (SHA-256 of context)         │
+│    2. Query UserResponseStore by signature               │
+│    3. If cached response found → use it (skip prompt)    │
+│    4. If no cached response AND interactive → prompt     │
+│    5. If no cached response OR non-interactive → LLM     │
+│    6. If still stuck → create AmbiguityGap → quarantine  │
+└──────────────────────────────────────────────────────────┘
+```
+
+- **`UserInteractionService` SPI** (interface in `synthesis/interaction/`): Abstracts the prompt mechanism. Two implementations:
+  - `NoOpUserInteractionService` (default) — always returns empty/skip. Used when `--interactive` is not set.
+  - `InteractiveUserInteractionService` (deferred, post-F025) — uses Spring Shell's `LineReader` to prompt, with configurable timeout.
+- **`UserResponseStore`** (in `store/`): SQLite-backed persistence for user answers. Keyed by deterministic hash of the ambiguity context. This ensures answered questions are never re-asked on subsequent runs or crash recovery.
+- **`UserResponse`** (record in `model/`): `signature`, `question`, `answer`, `confidence_gained`, `created_at`.
+
+**CLI flags:**
+
+| Flag | Effect |
+|---|---|
+| `run --interactive` | Enables interactive prompts during Phase 3. In non-TTY environments, falls back to non-interactive mode automatically. |
+| `run --interactive-timeout N` | Timeout in seconds for each prompt (default: 60). On timeout → treat as `skip`. |
+
+**When user skips or times out:**
+
+If the user types `skip` or the prompt times out, the agent continues as if no interaction occurred — it falls back to LLM inference. If the LLM also cannot resolve, the flow is quarantined as `AWAITING_HUMAN_REVIEW` (existing behavior). This ensures interactive mode never blocks pipeline completion.
+
+**Implementation priority:**
+
+The interactive mode is designed as an optional UX enhancement on top of the core Phase 3 pipeline. The `UserInteractionService` SPI and `NoOpUserInteractionService` are implemented in F023. The `InteractiveUserInteractionService` and `--interactive` CLI flag are deferred to post-F026 scope.
 
 ### 5.6 CLI Visual Telemetry & UX
 
@@ -874,7 +968,7 @@ The application must expose the following commands via Spring Shell:
 |---|---|---|
 | `scan` | `[--manifest path] [--resume]` | Run Phase 1 (indexing) only — produces `code-graph-index.json` and populates SQLite. `--resume` skips already-completed files. |
 | `plan` | `[--manifest path]` | Evaluate INDEXED tasks, transition qualified ones to ENRICH_PENDING, and show the enrichment plan |
-| `run` | `[--manifest path] [--dry-run] [--resume] [--llm-threshold N]` | Execute all 3 phases end-to-end. Phase 2 LLM enrichment only activates for files exceeding N unresolved signatures (default: 5). `--resume` recovers orphaned tasks (ENRICHING, ENRICH_PENDING, FAILED, PENDING) before Phase 2. ENRICH_PENDING orphans self-heal automatically via the planner. |
+| `run` | `[--manifest path] [--dry-run] [--resume] [--llm-threshold N] [--force-phase3] [--interactive] [--interactive-timeout N]` | Execute all 3 phases end-to-end. Phase 2 LLM enrichment only activates for files exceeding N unresolved signatures (default: 5). `--resume` recovers orphaned tasks (ENRICHING, ENRICH_PENDING, FAILED, PENDING) before Phase 2 and Phase 3 (ENRICHING marker). ENRICH_PENDING orphans self-heal automatically via the planner. `--force-phase3` re-runs Phase 3 even if completed. `--interactive` enables Phase 3 user prompts (deferred). |
 | `status` | | Show current SQLite task state summary and counters |
 | `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `ENRICHING`, `ENRICH_PENDING`, `FAILED`, and `PENDING` tasks, skip completed files. Delegates to `scan --resume`. |
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |
@@ -945,7 +1039,25 @@ The final Markdown artifact written by Phase 3 combines the extracted functional
 - **Constraint B:** Validation pattern mismatch triggers immediate HTTP 400 rejection (Mapped from Custom Validator).
 
 ## 5. Unresolved Dependencies & Review Tasks
-- [List any tasks marked AWAITING_HUMAN_REVIEW here. Resolving these tasks requires running the CLI with explicit target context injection profiles.]
+
+Each item here was flagged by the pipeline as requiring human judgement before the functional specification is considered complete.
+
+- **[Flow: PaymentProcessing]** — `review accept` accepted gap: 3 investigation steps exhausted without resolving service method `chargeOrder()` → external service may be unavailable during scan.
+  - Source: `OrderService.java:142` → `PaymentGatewayClient.java` (not in scan targets)
+  - Reason: `STEPS_EXCEEDED` (max-investigation-steps-per-flow = 3)
+  - Resolution: Add `PaymentGatewayClient` to project manifest or confirm as external dependency.
+  - CLI: `review show --task a1b2c3d4e5f6...`
+- **[Task: InventoryReservation]** — Maximum hop depth exceeded (3) while following `@EventListener` chain.
+  - Source: `InventoryService.java:89` → `WarehouseClient.java` → `ExternalShippingApi.java` (not in scan targets)
+  - Reason: `HOP_DEPTH` (max-discovery-depth = 3)
+  - CLI: `review accept --task f9e8d7c6b5a4...` to document as unresolved, or `review reset --task f9e8d7c6b5a4... --depth 5` to re-run with increased depth.
+
+Resolution workflow:
+
+1. Run `review list` to see all items with reasons and confidence scores.
+2. Run `review show --task <id>` to inspect the full context (task findings, source file, trace chain).
+3. Choose **accept** (document gap in spec, reset to INDEXED) or **reset** (delete findings, re-run via planner).
+4. Run `run --resume` after batch operations to re-process reset tasks.
 
 ```
 
@@ -1013,6 +1125,21 @@ To allow external applications to process the extracted logic without losing arc
               }
             }
           }
+        },
+        "review_required": { "type": "boolean" },
+        "unresolved_reason": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["reason_type", "detail", "confidence"],
+              "properties": {
+                "reason_type": { "type": "string", "enum": ["HOP_DEPTH", "STEPS_EXCEEDED", "LOW_CONFIDENCE"] },
+                "detail": { "type": "string" },
+                "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+              }
+            }
+          ]
         }
       }
     }
