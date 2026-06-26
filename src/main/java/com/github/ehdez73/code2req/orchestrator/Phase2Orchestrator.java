@@ -313,9 +313,12 @@ public class Phase2Orchestrator {
                 childTaskId = taskIdHasher.hash(resolvedDepPath, depHash, depTargetName);
             }
 
+            String depPairedPath = resolveTestInfo(resolvedDepPath, entry.decision)
+                .map(PairedTestInfo::testFilePath)
+                .orElse(null);
             String taskHash = sha256(resolvedDepPath + "|" + System.nanoTime());
             Task newTask = new Task(childTaskId, resolvedDepPath,
-                TaskStatus.PENDING, entry.task.contentType(), taskHash, depTargetName);
+                TaskStatus.PENDING, entry.task.contentType(), taskHash, depTargetName, depPairedPath);
             taskStore.save(newTask);
 
             PlannerDecision newDecision = PlannerDecision.qualified(
