@@ -34,38 +34,43 @@
 
 ### 3.1 Domain Records (`synthesis/domain/`)
 
-- [ ] 3.1.1 `EntryPoint` record + `EntryPointType` enum (§3.1)
-- [ ] 3.1.2 `ExecutionFlow` record + `FlowStatus` enum (§3.2)
-- [ ] 3.1.3 `FlowStep` record + `FlowStepComponentType` enum (§3.3)
-- [ ] 3.1.4 `FunctionalFlow` record + `ComplexityLevel` enum (§3.4)
-- [ ] 3.1.5 `GherkinScenario` record (List\<String\> givenSteps, whenSteps, thenSteps) (§3.5)
-- [ ] 3.1.6 `BusinessRule` record (§3.6)
-- [ ] 3.1.7 `EdgeCase` record (§3.7)
-- [ ] 3.1.8 `FunctionalFeature` record (§3.8)
-- [ ] 3.1.9 `FlowRelationship` record + `FlowRelationshipType` enum (§3.9)
-- [ ] 3.1.10 `AmbiguityGap` record + `GapReason` enum (§3.10)
-- [ ] 3.1.11 `OrphanedMethod` record (§3.11)
+
+- [x] 3.1.1 `EntryPoint` record + `EntryPointType` enum (§3.1) — enhanced with id, httpMethod, path, trivial, pathVariables, schedule, topicOrQueue
+- [x] 3.1.2 `ExecutionFlow` record + `FlowStatus` enum (§3.2)
+- [x] 3.1.3 `FlowStep` record + `FlowStepComponentType` enum (§3.3)
+- [x] 3.1.4 `FunctionalFlow` record + `ComplexityLevel` enum (§3.4)
+- [x] 3.1.5 `GherkinScenario` record (List\<String\> givenSteps, whenSteps, thenSteps) (§3.5)
+- [x] 3.1.6 `BusinessRule` record (§3.6)
+- [x] 3.1.7 `EdgeCase` record (§3.7)
+- [x] 3.1.8 `FunctionalFeature` record (§3.8)
+- [x] 3.1.9 `FlowRelationship` record + `FlowRelationshipType` enum (§3.9)
+- [x] 3.1.10 `AmbiguityGap` record + `GapReason` enum (§3.10)
+- [x] 3.1.11 `OrphanedMethod` record (§3.11)
+- [x] `mvn test` succeeds
 
 ### 3.2 GOAP Actions (`synthesis/agent/`)
 
-- [ ] 3.2.1 **DiscoverEntryPoints** — query CodebaseKnowledge, filter trivial, score by priority (§2.4), sort, detect orphans (pre: KNOWLEDGE_LOADED, post: ENTRY_POINTS_DISCOVERED)
-- [ ] 3.2.2 **TraceFlow** — pop highest-priority entry point, follow call graph edges, build FlowSteps, sub-chain cache (§2.6), adaptive depth (max 5) (pre: ENTRY_POINTS_DISCOVERED, post: FLOW_TRACED / ALL_FLOWS_TRACED)
-- [ ] 3.2.3 **AnalyzeFlow** — check Phase 2 enrichment per FlowStep, fallback to LLM inference, extract user story + Gherkin + rules + edge cases, progressive disclosure (§2.7) (pre: FLOW_TRACED, post: FLOW_ANALYZED)
-- [ ] 3.2.4 **GroupFlows** — cluster by semantic similarity (§2.8), merge into FunctionalFeatures, assign names (pre: FLOW_ANALYZED / ALL_FLOWS_TRACED, post: FLOWS_GROUPED)
-- [ ] 3.2.5 **CrossReferenceFlows** — match floating HTTP links + topic publications to endpoints, record FlowRelationships (pre: FLOWS_GROUPED, post: CROSS_REFS_RESOLVED)
-- [ ] 3.2.6 **QuarantineFlow** — record reason (STEPS_EXCEEDED / LOW_CONFIDENCE / HOP_DEPTH), set confidence, add to quarantine list (pre: FLOW_TRACED, post: FLOW_QUARANTINED)
-- [ ] 3.2.7 **SynthesizeSpec** — invoke MarkdownSpecWriter + SemanticManifestWriter, validate output (pre: FLOWS_GROUPED + CROSS_REFS_RESOLVED, post: SPEC_SYNTHESIZED)
+- [x] 3.2.1 **DiscoverEntryPoints** — query CodebaseKnowledge, filter trivial, score by priority (§2.4), sort, detect orphans (pre: KNOWLEDGE_LOADED, post: ENTRY_POINTS_DISCOVERED)
+- [x] 3.2.2 **TraceFlow** — pop highest-priority entry point, follow call graph edges, build FlowSteps, sub-chain cache (§2.6), adaptive depth (max 5) (pre: ENTRY_POINTS_DISCOVERED, post: FLOW_TRACED / ALL_FLOWS_TRACED)
+- [x] 3.2.3 **AnalyzeFlow** — check Phase 2 enrichment per FlowStep, fallback to LLM inference, extract user story + Gherkin + rules + edge cases, progressive disclosure (§2.7) (pre: FLOW_TRACED, post: FLOW_ANALYZED)
+- [x] 3.2.4 **GroupFlows** — cluster by semantic similarity (§2.8), merge into FunctionalFeatures, assign names (pre: FLOW_ANALYZED / ALL_FLOWS_TRACED, post: FLOWS_GROUPED)
+- [x] 3.2.5 **CrossReferenceFlows** — match floating HTTP links + topic publications to endpoints, record FlowRelationships (pre: FLOWS_GROUPED, post: CROSS_REFS_RESOLVED)
+- [x] 3.2.6 **QuarantineFlow** — record reason (STEPS_EXCEEDED / LOW_CONFIDENCE / HOP_DEPTH), set confidence, add to quarantine list (pre: FLOW_TRACED, post: FLOW_QUARANTINED)
+- [x] 3.2.7 **SynthesizeSpec** — invoke MarkdownSpecWriter + SemanticManifestWriter, validate output (pre: FLOWS_GROUPED + CROSS_REFS_RESOLVED, post: SPEC_SYNTHESIZED)
+- [x] `mvn test` succeeds
+
 
 ### 3.3 Agent Assembly
 
-- [ ] 3.3.1 Create GOAP agent class (`@Agent`) with all 7 actions wired
+- [x] 3.3.1 Create GOAP agent class (`@Agent`) with all 7 actions wired
 - [ ] 3.3.2 Define all 9 world-state conditions (§2.2)
-- [ ] 3.3.3 Implement sub-chain cache (§2.6)
-- [ ] 3.3.4 Implement flow priority scoring formula (§2.4)
-- [ ] 3.3.5 Implement orphaned method detection (§2.5)
+- [x] 3.3.3 Implement sub-chain cache (§2.6)
+- [x] 3.3.4 Implement flow priority scoring formula (§2.4)
+- [x] 3.3.5 Implement orphaned method detection (§2.5)
 - [ ] 3.3.6 Implement Mermaid diagram generation (for ComplexityLevel.FULL flows)
 - [ ] 3.3.7 Implement Phase 3 crash marker: PENDING → ENRICHING → ENRICHED / FAILED
 - [ ] 3.3.8 Add `--force-phase3` flag for re-execution
+- [ ] `mvn test` succeeds
 
 ---
 
@@ -79,6 +84,8 @@
 - [ ] 4.6 `review reset-all` — batch reset all for re-processing
 - [ ] 4.7 After accept, flow appears in spec Section 5 (Unresolved Dependencies)
 - [ ] 4.8 After reset, next `run` re-qualifies via planner
+- [ ] `mvn compile` succeeds
+
 
 ---
 
@@ -182,9 +189,9 @@ Always verify with `mvn clean test`
 |---------|-------|------|
 | P Prerequisites | 8 | 6 |
 | 2 F022 Query Helpers | 6 | 5 |
-| 3.1 F023 Domain Records | 11 | 0 |
-| 3.2 F023 GOAP Actions | 7 | 0 |
-| 3.3 F023 Agent Assembly | 8 | 0 |
+| 3.1 F023 Domain Records | 11 | 11 |
+| 3.2 F023 GOAP Actions | 7 | 7 |
+| 3.3 F023 Agent Assembly | 8 | 4 |
 | 4 F026 Review CLI | 8 | 0 |
 | 5.1 F027 MarkdownSpecWriter | 10 | 0 |
 | 5.2 F027 SemanticManifestWriter | 10 | 0 |

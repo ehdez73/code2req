@@ -119,72 +119,111 @@ public class StructuralGraph {
         List<EntryPoint> entryPoints = new ArrayList<>();
 
         for (EndpointInfo ep : endpoints) {
-            String identifier = ep.httpMethod() + " " + ep.path();
+            String id = ep.httpMethod() + " " + ep.path();
             entryPoints.add(new EntryPoint(
+                id,
                 EntryPointType.HTTP,
+                ep.httpMethod(),
+                ep.path(),
                 ep.className(),
                 null,
                 ep.filePath(),
-                identifier,
-                0.0
+                0.0,
+                false,
+                new ArrayList<>(),
+                null,
+                null
             ));
         }
 
         for (ScheduledTaskInfo st : scheduledTasks) {
-            String identifier = st.cron() != null ? st.cron()
+            String id = st.cron() != null ? st.cron()
+                : (st.fixedRate() != null ? "fixedRate=" + st.fixedRate()
+                : "fixedDelay=" + st.fixedDelay());
+            String schedule = st.cron() != null ? st.cron()
                 : (st.fixedRate() != null ? "fixedRate=" + st.fixedRate()
                 : "fixedDelay=" + st.fixedDelay());
             entryPoints.add(new EntryPoint(
+                id,
                 EntryPointType.SCHEDULED,
+                null,
+                null,
                 st.className(),
                 st.methodName(),
                 st.filePath(),
-                identifier,
-                0.0
+                0.0,
+                false,
+                new ArrayList<>(),
+                schedule,
+                null
             ));
         }
 
         for (KafkaInfo k : kafkaListeners) {
             entryPoints.add(new EntryPoint(
+                k.topics(),
                 EntryPointType.KAFKA,
+                null,
+                null,
                 k.className(),
                 k.methodName(),
                 k.filePath(),
-                k.topics(),
-                0.0
+                0.0,
+                false,
+                new ArrayList<>(),
+                null,
+                k.topics()
             ));
         }
 
         for (RabbitMqInfo r : rabbitmqListeners) {
             entryPoints.add(new EntryPoint(
+                r.queues(),
                 EntryPointType.RABBITMQ,
+                null,
+                null,
                 r.className(),
                 r.methodName(),
                 r.filePath(),
-                r.queues(),
-                0.0
+                0.0,
+                false,
+                new ArrayList<>(),
+                null,
+                r.queues()
             ));
         }
 
         for (ActiveMqInfo a : activemqListeners) {
             entryPoints.add(new EntryPoint(
+                a.destination(),
                 EntryPointType.ACTIVEMQ,
+                null,
+                null,
                 a.className(),
                 a.methodName(),
                 a.filePath(),
-                a.destination(),
-                0.0
+                0.0,
+                false,
+                new ArrayList<>(),
+                null,
+                a.destination()
             ));
         }
 
         for (EventListenerInfo el : eventListeners) {
             entryPoints.add(new EntryPoint(
+                el.eventType(),
                 EntryPointType.EVENT_LISTENER,
+                null,
+                null,
                 el.className(),
                 el.methodName(),
                 el.filePath(),
-                el.eventType(),
-                0.0
+                0.0,
+                false,
+                new ArrayList<>(),
+                null,
+                null
             ));
         }
 

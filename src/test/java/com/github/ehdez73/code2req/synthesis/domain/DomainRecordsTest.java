@@ -3,6 +3,8 @@ package com.github.ehdez73.code2req.synthesis.domain;
 import com.github.ehdez73.code2req.synthesis.MethodIdentifier;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class DomainRecordsTest {
@@ -20,30 +22,41 @@ class DomainRecordsTest {
 
     @Test
     void entryPointConstructsCorrectly() {
-        var ep = new EntryPoint(EntryPointType.HTTP, "Controller", "handle",
-            "/src/Controller.java", "GET /api", 0.75);
+        var ep = new EntryPoint("GET /api", EntryPointType.HTTP, "GET", "/api",
+            "Controller", "handle", "/src/Controller.java", 0.75,
+            false, List.of(), null, null);
 
+        assertEquals("GET /api", ep.id());
         assertEquals(EntryPointType.HTTP, ep.type());
+        assertEquals("GET", ep.httpMethod());
+        assertEquals("/api", ep.path());
         assertEquals("Controller", ep.className());
         assertEquals("handle", ep.methodName());
         assertEquals("/src/Controller.java", ep.filePath());
-        assertEquals("GET /api", ep.identifier());
         assertEquals(0.75, ep.priorityScore());
+        assertFalse(ep.trivial());
+        assertTrue(ep.pathVariables().isEmpty());
+        assertNull(ep.schedule());
+        assertNull(ep.topicOrQueue());
     }
 
     @Test
     void entryPointSupportsNullMethodName() {
-        var ep = new EntryPoint(EntryPointType.HTTP, "Controller", null,
-            "/src/Controller.java", "GET /api", 0.0);
+        var ep = new EntryPoint("GET /api", EntryPointType.HTTP, "GET", "/api",
+            "Controller", null, "/src/Controller.java", 0.0,
+            false, List.of(), null, null);
 
         assertNull(ep.methodName());
     }
 
     @Test
     void entryPointEquality() {
-        var ep1 = new EntryPoint(EntryPointType.HTTP, "Ctrl", "m", "/f.java", "GET /api", 0.5);
-        var ep2 = new EntryPoint(EntryPointType.HTTP, "Ctrl", "m", "/f.java", "GET /api", 0.5);
-        var ep3 = new EntryPoint(EntryPointType.SCHEDULED, "Ctrl", "m", "/f.java", "GET /api", 0.5);
+        var ep1 = new EntryPoint("id1", EntryPointType.HTTP, "GET", "/api",
+            "Ctrl", "m", "/f.java", 0.5, false, List.of(), null, null);
+        var ep2 = new EntryPoint("id1", EntryPointType.HTTP, "GET", "/api",
+            "Ctrl", "m", "/f.java", 0.5, false, List.of(), null, null);
+        var ep3 = new EntryPoint("id2", EntryPointType.SCHEDULED, null, null,
+            "Ctrl", "m", "/f.java", 0.5, false, List.of(), "0 0 * * *", null);
 
         assertEquals(ep1, ep2);
         assertNotEquals(ep1, ep3);

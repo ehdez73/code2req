@@ -21,6 +21,13 @@ import com.github.ehdez73.code2req.store.FloatingLinkStore;
 import com.github.ehdez73.code2req.store.MetricsStore;
 import com.github.ehdez73.code2req.store.TaskStore;
 import com.github.ehdez73.code2req.store.TopicLinkStore;
+import com.github.ehdez73.code2req.synthesis.agent.AnalyzedFlowResult;
+import com.github.ehdez73.code2req.synthesis.agent.CrossReferencedResult;
+import com.github.ehdez73.code2req.synthesis.agent.EntryPointDiscoveryResult;
+import com.github.ehdez73.code2req.synthesis.agent.FunctionalRequirementExtractor;
+import com.github.ehdez73.code2req.synthesis.agent.GroupedFlowsResult;
+import com.github.ehdez73.code2req.synthesis.agent.SpecResult;
+import com.github.ehdez73.code2req.synthesis.agent.TracedFlowResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -74,9 +82,38 @@ public class Phase3Orchestrator {
 
         log.info("Phase 3: building CodebaseKnowledge from SQLite");
         CodebaseKnowledge knowledge = buildCodebaseKnowledge();
-        Phase3Result result = analyzeKnowledge(knowledge);
-        persistMetrics(result, false);
-        return result;
+
+        log.info("Phase 3: launching GOAP agent (FunctionalRequirementExtractor)");
+        FunctionalRequirementExtractor agent = new FunctionalRequirementExtractor(knowledge);
+
+        try {
+            EntryPointDiscoveryResult discovery = agent.discoverEntryPoints();
+            TracedFlowResult traced = agent.traceFlows(discovery);
+            AnalyzedFlowResult analyzed = agent.analyzeFlows(traced, null);
+            GroupedFlowsResult grouped = agent.groupFlows(analyzed, null);
+            CrossReferencedResult crossRef = agent.crossReferenceFlows(grouped);
+            SpecResult specResult = agent.synthesizeSpec(crossRef, discovery, traced, null);
+
+            List<String> flowNames = grouped.features().stream()
+                .flatMap(f -> f.flows().stream())
+                .map(f -> f.name())
+                .collect(Collectors.toList());
+
+            int ambiguityGaps = knowledge.findUnresolvedLinks().size()
+                + knowledge.findUnresolvedTopicLinks().size()
+                + traced.allQuarantinedFlowIds().size();
+
+            Phase3Result result = new Phase3Result(
+                specResult.flowCount(), ambiguityGaps, traced.allQuarantinedFlowIds().size(), flowNames
+            );
+            persistMetrics(result, false);
+            return result;
+        } catch (IOException e) {
+            log.error("Phase 3 synthesis failed: {}", e.getMessage(), e);
+            Phase3Result result = new Phase3Result(0, 0, 0, List.of());
+            persistMetrics(result, false);
+            return result;
+        }
     }
 
     CodebaseKnowledge buildCodebaseKnowledge() {
