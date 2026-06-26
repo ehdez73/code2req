@@ -3,11 +3,17 @@ package com.github.ehdez73.code2req.synthesis;
 import com.github.ehdez73.code2req.analyzer.bean.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
+import com.github.ehdez73.code2req.analyzer.event.broker.activemq.ActiveMqInfo;
+import com.github.ehdez73.code2req.analyzer.event.broker.kafka.KafkaInfo;
+import com.github.ehdez73.code2req.analyzer.event.broker.rabbitmq.RabbitMqInfo;
+import com.github.ehdez73.code2req.analyzer.event.listener.EventListenerInfo;
 import com.github.ehdez73.code2req.analyzer.event.link.TopicLink;
 import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkInfo;
+import com.github.ehdez73.code2req.analyzer.scheduledtask.ScheduledTaskInfo;
 import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.model.ExecutionFinding;
 import com.github.ehdez73.code2req.model.Metric;
+import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.orchestrator.CompletionStatus;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.FindingType;
@@ -28,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class Phase3Orchestrator {
@@ -92,7 +99,24 @@ public class Phase3Orchestrator {
         List<ComponentInfo> components = deserializeFindings(
             executionFindingStore.findAllByType(FindingType.COMPONENT),
             ComponentInfo.class);
-        return new StructuralGraph(edges, endpoints, dbAccess, components);
+        List<ScheduledTaskInfo> scheduledTasks = deserializeFindings(
+            executionFindingStore.findAllByType(FindingType.SCHEDULED_TASK),
+            ScheduledTaskInfo.class);
+        List<KafkaInfo> kafkaListeners = deserializeFindings(
+            executionFindingStore.findAllByType(FindingType.KAFKA_LISTENER),
+            KafkaInfo.class);
+        List<RabbitMqInfo> rabbitmqListeners = deserializeFindings(
+            executionFindingStore.findAllByType(FindingType.RABBITMQ_LISTENER),
+            RabbitMqInfo.class);
+        List<ActiveMqInfo> activemqListeners = deserializeFindings(
+            executionFindingStore.findAllByType(FindingType.ACTIVEMQ_LISTENER),
+            ActiveMqInfo.class);
+        List<EventListenerInfo> eventListeners = deserializeFindings(
+            executionFindingStore.findAllByType(FindingType.EVENT_LISTENER),
+            EventListenerInfo.class);
+        return new StructuralGraph(edges, endpoints, dbAccess, components,
+            scheduledTasks, kafkaListeners, rabbitmqListeners,
+            activemqListeners, eventListeners);
     }
 
     private SemanticEnrichment buildSemanticEnrichment() {
@@ -140,6 +164,16 @@ public class Phase3Orchestrator {
             new StructuralGraph(),
             new SemanticEnrichment(),
             new LinkRegistry());
+    }
+
+    Map<String, String> getTestFileMapping() {
+        return taskStore.findAll().stream()
+            .filter(t -> t.pairedTestPath() != null)
+            .collect(Collectors.toMap(
+                Task::filePath,
+                Task::pairedTestPath,
+                (v1, v2) -> v1
+            ));
     }
 
     static Phase3Result analyzeKnowledge(CodebaseKnowledge knowledge) {

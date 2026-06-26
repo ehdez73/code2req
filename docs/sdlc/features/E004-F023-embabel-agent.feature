@@ -1,67 +1,103 @@
-# Feature: Embabel Agent — Goals, Actions, Output
+# Feature: Embabel Agent — Entry-Point-Driven Extraction
 # Epic: E004 — Agentic Functional Requirement Extraction
 # Feature ID: F023
 # Stories: US051
-# Phase 3 draft generated: 2026-06-17
-# Last updated: 2026-06-25
+# Phase 3 redefinition: 2026-06-26
 
-Feature: Embabel Agent — Goals, Actions, Output
-  The Embabel agent extracts functional requirements using GOAP dynamic planning. It receives CodebaseKnowledge, pursues goals through actions, and produces the final specification.
+Feature: Embabel Agent — Entry-Point-Driven Extraction
+  The Embabel agent discovers entry points from CodebaseKnowledge, traces execution flows through the call graph, extracts business semantics (user stories, Gherkin scenarios, business rules), groups related flows into features, and produces the final specification.
 
   Background:
     Given CodebaseKnowledge is built with Phase 1 and Phase 2 data
     And the Embabel agent is invoked with initial blackboard state
 
-  Rule: The agent dynamically investigates ambiguity through GOAP planning
+  Rule: The agent traces execution flows from entry points and extracts functional requirements
 
     @US051 @E004 @F023 @must @draft
-    Scenario: Agent analyzes findings and produces candidate functional flows
-      Given CodebaseKnowledge contains enriched records and structural graph
-      When the AnalyzeFindings action executes
-      Then candidate FunctionalFlow objects are produced
-      And each flow has trigger, steps, and outcomes
-      And flows with complete data are marked ready for synthesis
+    Scenario: Agent discovers entry points from CodebaseKnowledge
+      Given CodebaseKnowledge contains findings with types ENDPOINT, SCHEDULED_TASK, KAFKA_LISTENER, RABBITMQ_LISTENER, and EVENT_LISTENER
+      When the DiscoverEntryPoints action executes
+      Then a list of EntryPoint objects is produced on the blackboard
+      And trivial endpoints (actuator, health, metrics) are filtered out
+      And each entry point has a priority score (0.0-1.0)
+      And entry points are sorted by priority descending
 
     @US051 @E004 @F023 @must @draft
-    Scenario: Agent resolves ambiguity by searching CodebaseKnowledge
-      Given a candidate flow has an ambiguity gap (missing endpoint for a service method)
-      When the ResolveAmbiguity action executes
-      Then it queries getCallersOf(target) on CodebaseKnowledge
-      If the caller is found, the flow gap is resolved
-      If not found, it falls back to reading the raw source file
+    Scenario: Agent traces execution flow from an entry point through the call graph
+      Given a prioritized list of entry points exists on the blackboard
+      When the TraceFlow action executes for the highest-priority unscheduled entry point
+      Then an ExecutionFlow object is produced with FlowStep entries
+      And each step traces from the entry point through services to repositories
+      And adaptive depth stops when max-flow-depth is exceeded or no more internal calls exist
+      And unresolved calls (external services, third-party) are recorded
 
     @US051 @E004 @F023 @must @draft
-    Scenario: Agent cross-references floating links against known endpoints
-      Given floating links with PENDING resolution status exist
-      When the CrossReferenceFloatingLinks action executes
-      Then each floating link's URL pattern is matched against known endpoint paths
-      And matched links are resolved with confidence score
-      And unmatched links remain PENDING for documentation
+    Scenario: Agent reuses cached sub-chains for related entry points
+      Given a service chain has been traced for POST /orders
+      When the TraceFlow action executes for GET /orders
+      Then the cached sub-chain for shared services is reused
+      And only the divergent steps are newly traced
+
+    @US051 @E004 @F023 @must @draft
+    Scenario: Agent extracts business semantics from a traced flow
+      Given an ExecutionFlow with traced steps exists on the blackboard
+      When the AnalyzeFlow action executes
+      Then a FunctionalFlow object is produced with:
+        - User story (As a... / I want... / so that...)
+        - Gherkin scenarios (Given/When/Then)
+        - Business rules with preconditions, postconditions, and error behavior
+        - Edge cases with business consequences
+      And Phase 2 enrichment is used as context where available
+      And raw source files are read for gaps not covered by enrichment
+
+    @US051 @E004 @F023 @must @draft
+    Scenario: Agent applies progressive disclosure based on flow complexity
+      Given analyzed flows of varying complexity exist on the blackboard
+      When the AnalyzeFlow action evaluates each flow's complexity score
+      Then flows with score < 0.3 produce MINIMAL output (1 story, 1 scenario)
+      And flows with score >= 0.3 and < 0.7 produce STANDARD output (story + 2-3 scenarios + rules)
+      And flows with score >= 0.7 produce FULL output (story + scenarios + rules + edge cases + Mermaid diagram)
+
+    @US051 @E004 @F023 @must @draft
+    Scenario: Agent groups related flows into features using semantic clustering
+      Given multiple FunctionalFlow objects exist on the blackboard
+      When the GroupFlows action executes
+      Then flows are clustered by semantic similarity from Phase 2 enrichment
+      And related flows are merged into FunctionalFeature objects (e.g., GET/POST /orders = "Order Management")
+      And features are assigned descriptive names and descriptions
+
+    @US051 @E004 @F023 @must @draft
+    Scenario: Agent cross-references flows for inter-flow dependencies
+      Given grouped features exist on the blackboard
+      When the CrossReferenceFlows action executes
+      Then FlowRelationship objects are produced for inter-flow dependencies
+      And floating HTTP links are matched to known endpoints
+      And topic publications are matched to known consumers
+      And relationship types include DELEGATES_TO, PUBLISHES_EVENT, CONSUMES_EVENT
+
+    @US051 @E004 @F023 @must @draft
+    Scenario: Agent detects orphaned methods not reachable from any entry point
+      Given all entry points have been traced
+      When the agent analyzes reachable methods versus known methods
+      Then methods that are called but NOT reachable from any entry point are flagged
+      And OrphanedMethod objects are produced with file path and reason
 
     @US051 @E004 @F023 @must @draft
     Scenario: Agent quarantines flows exceeding guardrails
       Given a candidate flow has required 6 investigation steps
-      And max-investigation-steps-per-flow is set to 5
-      When the QuarantineUnresolvable action evaluates the flow
+      And max-flow-depth is set to 5
+      When the QuarantineFlow action evaluates the flow
       Then the flow is quarantined
       And its status is set to AWAITING_HUMAN_REVIEW
       And it appears in spec Section 5 (unresolved dependencies)
 
     @US051 @E004 @F023 @must @draft
     Scenario: Agent synthesizes final functional specification
-      Given all goals are achieved or unresolvable flows are quarantined
-      When the SynthesizeFunctionalSpec action executes
-      Then MarkdownSpecWriter produces spec-output/*.md per PRD §6.1
+      Given all features are grouped and cross-referenced
+      When the SynthesizeSpec action executes
+      Then MarkdownSpecWriter produces spec-output/spec.md per PRD §6.1
       And SemanticManifestWriter produces spec-output/semantic_manifest.json
-      And the manifest includes full traceability (file paths, AST signatures, line numbers)
-
-    @US051 @E004 @F023 @must @draft
-    Scenario: Phase3Orchestrator persists quarantined flows after agent completes
-      Given the agent has completed with AmbiguityGap objects on the blackboard
-      When Phase3Orchestrator collects and persists results
-      Then HUMAN_REVIEW_REASON findings are saved to execution_finding_store
-      And associated task statuses are updated to AWAITING_HUMAN_REVIEW
-      And Phase3Result includes awaitingReviewReasons with flow name and detail
+      And the manifest includes features, flows, acceptance criteria, business rules, cross-flow relationships, and orphaned methods
 
     @US051 @E004 @F023 @must @draft
     Scenario: Phase 3 crash marker prevents redundant re-execution

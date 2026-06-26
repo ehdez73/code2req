@@ -2,8 +2,7 @@
 # Epic: E004 — Agentic Functional Requirement Extraction
 # Feature ID: F022
 # Stories: US050
-# Phase 3 draft generated: 2026-06-17
-# Last updated: 2026-06-17
+# Phase 3 updated: 2026-06-26
 
 Feature: CodebaseKnowledge Builder + Phase 3 Orchestrator
   Pure-Java services that aggregate Phase 1 and Phase 2 data into an in-memory CodebaseKnowledge domain model, pass it to the Embabel agent, and handle output after completion.
@@ -30,11 +29,11 @@ Feature: CodebaseKnowledge Builder + Phase 3 Orchestrator
       And business rules are queryable by file and module
 
     @US050 @E004 @F022 @must @draft
-    Scenario: CodebaseKnowledge provides getFlowCandidates query
-      Given CodebaseKnowledge is built with call graph and endpoint data
-      When getFlowCandidates() is called
-      Then candidate flows are returned grouped by controller→service→repository chains
-      And each candidate has a completeness score
+    Scenario: CodebaseKnowledge provides entry point queries
+      Given CodebaseKnowledge is built with endpoint, scheduled task, and event listener data
+      When getEntryPoints() is called
+      Then entry points of all types (HTTP, SCHEDULED, KAFKA, RABBITMQ, ACTIVEMQ, EVENT_LISTENER) are returned
+      And each entry point includes finding JSON (httpMethod, path, schedule, topicOrQueue, etc.)
 
     @US050 @E004 @F022 @must @draft
     Scenario: CodebaseKnowledge provides call graph queries
@@ -43,3 +42,11 @@ Feature: CodebaseKnowledge Builder + Phase 3 Orchestrator
       Then the result includes "OrderController.createOrder"
       When getCalleesOf("OrderController.createOrder") is called
       Then the result includes "OrderService.createOrder"
+
+    @US050 @E004 @F022 @must @draft
+    Scenario: CodebaseKnowledge provides component queries
+      Given CodebaseKnowledge is built with component data
+      When getComponentsByType("RestController") is called
+      Then all RestController components are returned
+      When getAllKnownMethods() is called
+      Then all methods defined across all components are returned for orphaned method detection

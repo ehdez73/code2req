@@ -29,14 +29,14 @@
 ### Phase 1 — Foundation
 
 #### 1.1 F001: Manifest Parsing (US001, US002, US003)
-- [x] Gherkin: [`docs/sdlc/features/E001-F001-project-configuration-and-manifest-parsing.feature`](docs/sdlc/features/E001-F001-project-configuration-and-manifest-parsing.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F001-project-configuration-and-manifest-parsing.feature`](sdlc/features/E001-F001-project-configuration-and-manifest-parsing.feature)
 - [x] Depends on: nothing
 - [x] Classes: `ScanTarget`, `ProjectManifest`, `ManifestLoader`, `ManifestValidator`
 - [x] Verify: `mvn test` + `mvn spring-boot:run` then `validate --manifest project-manifest.yaml`
 - [x] Manual: point manifest at petclinic, run `validate`, confirm targets resolved
 
 #### 1.2 F005 Part 1: SQLite Task Store (US013, US014)
-- [x] Gherkin: [`docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature`](docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature`](sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature)
 - [x] Depends on: nothing
 - [x] Classes: `Task`, `TaskStore`, `TaskStoreSchema`, `TaskIdHasher`
 - [x] Fields: `task_id`, `file_path`, `target_name`, `status`, `content_type`, `content_hash`, `created_at`, `updated_at`
@@ -47,7 +47,7 @@
 ### Phase 2 — Dependency Resolution
 
 #### 2.1 F002: Maven Dep Graph (US004, US005)
-- [x] Gherkin: [`docs/sdlc/features/E001-F002-dependency-graph-resolution.feature`](docs/sdlc/features/E001-F002-dependency-graph-resolution.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F002-dependency-graph-resolution.feature`](sdlc/features/E001-F002-dependency-graph-resolution.feature)
 - [x] Depends on: 1.1, 1.2
 - [x] Classes: `MavenDependencyResolver`, `Dependency`, `DependencyGraph`
 - [x] Verify: `mvn test` (12 tests — parse tree, heuristic fallback, maven availability check)
@@ -56,7 +56,7 @@
 ### Phase 3 — Pre-processing
 
 #### 3.1 F004: Redaction & Exclude Filtering (US011, US012)
-- [x] Gherkin: [`docs/sdlc/features/E001-F004-secret-redaction-and-exclude-filtering.feature`](docs/sdlc/features/E001-F004-secret-redaction-and-exclude-filtering.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F004-secret-redaction-and-exclude-filtering.feature`](sdlc/features/E001-F004-secret-redaction-and-exclude-filtering.feature)
 - [x] Depends on: nothing (can parallel with 1.1)
 - [x] Classes: `SecretRedactor`, `RedactionResult`, `ExcludeFilter`, `ExcludeResult`
 - [x] Verify: `mvn test`
@@ -65,7 +65,7 @@
 ### Phase 4 — Core Analysis
 
 #### 4a F003: Components + Endpoints + Scheduled Tasks (US006, US007, US010)
-- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](sdlc/features/E001-F003-java-source-ast-analysis.feature)
 - [x] Depends on: 1.1, 1.2, 2.1, 3.1
 - [x] Classes: `JavaAstAnalyzer`, `AnalysisContext`, `AnalysisResult`, `ComponentVisitor`, `EndpointVisitor`, `ScheduledTaskVisitor`, `EndpointDetector` (SPI), `SpringEndpointDetector`, `ServletEndpointDetector`, `WebXmlAnalyzer`
 - [x] Architecture: `EndpointVisitor` refactored from monolithic adapter to thin delegator — injects `List<EndpointDetector>` (Spring-collected `@Component` implementations), mirroring `DbAccessVisitor`/`OutboundHttpVisitor` OCP pattern. Adding a new endpoint type requires only a new `@Component` implementing `EndpointDetector`; zero changes to `EndpointVisitor`.
@@ -77,35 +77,35 @@
 - [x] Manual: scan petclinic → inspect JSON for: component list, endpoint paths (e.g. `/api/owners`), scheduled tasks with cron
 
 #### 4b F003: Event Listeners (US008)
-- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](sdlc/features/E001-F003-java-source-ast-analysis.feature)
 - [x] Depends on: 4a
 - [x] Classes: `EventListenerVisitor`, `EventListenerInfo`, `EventPublisherInfo`, `MethodCallInfo`
 - [x] Verify: `mvn test` (10 new tests)
 - [x] Manual: scan petclinic → inspect JSON for event listeners and call chains
 
 #### 4c F003: Custom Validators (US009)
-- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](sdlc/features/E001-F003-java-source-ast-analysis.feature)
 - [x] Depends on: 4a
 - [x] Classes: `ValidatorVisitor`, `ValidatorInfo`
 - [x] Verify: `mvn test` (10 new tests + 2 integration in JavaAstAnalyzerTest + 2 updated assertions)
 - [x] Manual: scan petclinic → inspect JSON for `@Constraint` validators with `isValid` body
 
 #### 4d F003: Kafka Event Flows (US023)
-- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](sdlc/features/E001-F003-java-source-ast-analysis.feature)
 - [x] Depends on: 4a
 - [x] Classes: `KafkaVisitor`, `KafkaInfo`, `KafkaPublisherInfo`
 - [x] Verify: `mvn test` (new tests)
 - [x] Manual: scan petclinic → inspect JSON for `@KafkaListener` topics and `KafkaTemplate.send()` publications
 
 #### 4e F003: @Bean Method Detection (US024)
-- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](sdlc/features/E001-F003-java-source-ast-analysis.feature)
 - [x] Depends on: 4a
 - [x] Classes: `BeanMethodVisitor`, `BeanMethodInfo`
 - [x] Verify: `mvn test` (9 new tests — @Bean methods extracted with name, return type, configuration class; explicit name from value/name/array attrs; lite-mode skip; interface skip)
 - [ ] Manual: scan petclinic → inspect JSON for @Bean method entries alongside components
 
 #### 4f F003: XML Spring Bean Detection (US025)
-- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](sdlc/features/E001-F003-java-source-ast-analysis.feature)
 - [x] Depends on: 4a
 - [x] Classes: `XmlBeanAnalyzer`, `XmlBeanInfo`, `XmlNamespaceBeanInfo`, `XmlComponentScanInfo`, `XmlAopConfigInfo`, `SpringXmlNamespaceRegistry`
 - [x] Discovery: 1) glob `*.xml` under resource dirs → 2) content-sniff root element for spring beans namespace → 3) `@ImportResource` from `@Configuration` classes → 4) transitive `<import>` chaining → 5) deduplicate across all sources
@@ -113,14 +113,14 @@
 - [ ] Manual: scan petclinic → inspect JSON for XML-defined beans alongside Java-defined components
 
 #### 4g F003: RabbitMQ Event Flows (US026)
-- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](sdlc/features/E001-F003-java-source-ast-analysis.feature)
 - [x] Depends on: 4a
 - [x] Classes: `RabbitMqVisitor`, `RabbitMqInfo`, `RabbitMqPublisherInfo`
 - [x] Verify: `mvn test` (8 new tests — single queue, multi-queue, convertAndSend, send, empty-component, multi-listener, missing-queues, dynamic variables)
 - [x] Manual: scan petclinic → inspect JSON for `@RabbitListener` queues and `RabbitTemplate.convertAndSend()` publications
 
 #### 4h F003: ActiveMQ/JMS Event Flows (US027)
-- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](docs/sdlc/features/E001-F003-java-source-ast-analysis.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](sdlc/features/E001-F003-java-source-ast-analysis.feature)
 - [x] Depends on: 4a
 - [x] Classes: `ActiveMqVisitor`, `ActiveMqInfo`, `ActiveMqPublisherInfo`
 - [x] Verify: `mvn test` (8 new tests)
@@ -129,7 +129,7 @@
 ### Phase 5 — Output
 
 #### 5.1 F005 Part 2: Index Output + Orphan Recovery (US013 rest, US017)
-- [x] Gherkin: [`docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature`](docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature`](sdlc/features/E001-F005-index-output-and-sqlite-persistence.feature)
 - [x] Depends on: 1.2, 4a
 - [x] Classes: `IndexWriter`, `OrphanRecovery`, `OrphanRecoveryResult`
 - [x] Verify: `mvn test` (178 total — 7 IndexWriter + 4 OrphanRecovery new tests)
@@ -138,21 +138,21 @@
 ### Phase 6 — CLI Commands
 
 #### 6.1 F006: `scan` command (US015, US016)
-- [x] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](docs/sdlc/features/E001-F006-cli-scan-orchestration.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](sdlc/features/E001-F006-cli-scan-orchestration.feature)
 - [x] Depends on: 1.1, 2.1, 3.1, 4a, 5.1
 - [x] Classes: `ScanCommand` (key: `scan`)
 - [x] Verify: `mvn test` (7 new tests) + `mvn spring-boot:run` then `scan` against petclinic
 - [ ] Manual: confirm per-stage progress output, zero network calls, exits 0
 
 #### 6.2 F006: `resume`, `validate`, `status` commands (US002, US017)
-- [x] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](docs/sdlc/features/E001-F006-cli-scan-orchestration.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](sdlc/features/E001-F006-cli-scan-orchestration.feature)
 - [x] Depends on: 1.1, 1.2, 6.1
 - [x] Classes: `ResumeCommand`, `ValidateCommand`, `StatusCommand`
 - [x] Verify: `mvn test`
 - [x] Manual: `validate --manifest ...`, `status` after scan, `resume` after killed scan
 
 #### 6.3 F006: `clean` command (US028)
-- [x] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](docs/sdlc/features/E001-F006-cli-scan-orchestration.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](sdlc/features/E001-F006-cli-scan-orchestration.feature)
 - [x] Depends on: 1.2
 - [x] Classes: `CleanCommand` (key: `clean`)
 - [x] Verify: `mvn test` (3 new tests)
@@ -161,7 +161,7 @@
 ### Phase 7 — Pipeline Refactoring & Call Graph Foundation
 
 #### 7.0 F010: Pipeline Refactoring (Two-Pass Orchestration) (US036)
-- [x] Gherkin: [`docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature`](docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature`](sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature)
 - [x] Prerequisite: refactor `JavaAstAnalyzer` + `ScanCommand` from single-pass to two-pass orchestration
 - [x] Pass 1: collect declarations from all files into `GlobalDeclarationRegistry`
 - [x] Pass 2: run full visitor suite + resolution against the registry (via `AnalysisContext.declarationRegistry()`)
@@ -173,7 +173,7 @@
 ### Phase 8 — Event Linking
 
 #### 8.1 F013: Topic Link Resolution (US033)
-- [x] Gherkin: [`docs/sdlc/features/E001-F013-event-link-resolution.feature`](docs/sdlc/features/E001-F013-event-link-resolution.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F013-event-link-resolution.feature`](sdlc/features/E001-F013-event-link-resolution.feature)
 - [x] Depends on: 4d, 4g, 4h (US023, US026, US027)
 - [x] Classes: `TopicLink`, `TopicLinkResolverStrategy` (interface), `KafkaTopicLinkResolver`, `RabbitMqTopicLinkResolver`, `ActiveMqTopicLinkResolver`, `TopicLinkResolver` (composite)
 - [x] Modified: `ScanPipelineResult` (topicLinks field), `ScanPipeline` (post-pass step), `IndexWriter` (root-level topic_links array), `ScanCommand`, `ResumeCommand`
@@ -182,7 +182,7 @@
 ### Phase 9 — Database Access Detection
 
 #### 9.1 F011: DB Access Patterns (US031)
-- [x] Gherkin: [`docs/sdlc/features/E001-F011-database-access-detection.feature`](docs/sdlc/features/E001-F011-database-access-detection.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F011-database-access-detection.feature`](sdlc/features/E001-F011-database-access-detection.feature)
 - [x] Depends on: 4a (US006)
 - [x] Classes: `DbAccessVisitor` (thin delegator), `DbAccessDetector` (interface), `DbAccessHelper`, `DbAccessInfo`, `DbAccessType` (+`NATIVE_SQL`, `JPQL_HQL`), `detector/JdbcTemplateDetector` (+`npjt` scope for `NamedParameterJdbcTemplate`), `detector/EntityManagerDetector` (+query type routing for NATIVE_SQL/JPQL_HQL), `detector/HibernateSessionDetector` (+query type routing), `detector/ProcedureDetector`, `detector/TransactionalDetector`, `detector/SpringDataJpaDetector` (+`@Query` detection with nativeQuery attribute + import-aware Spring Data JDBC routing), `detector/NamedQueryDetector` (@NamedQuery/@NamedNativeQuery), `detector/RawJdbcDetector` (Connection.prepareStatement, Statement.executeQuery, etc.)
 - [x] Detection: JdbcTemplate/NamedParameterJdbcTemplate (query/update/batchUpdate/execute), @Procedure, @Transactional (dedup via class-level skip of @Transactional methods), Spring Data JPA (entity type + derived queries + @Query with nativeQuery/import-aware JDBC routing), @NamedQuery/@NamedNativeQuery (individual + container forms), EntityManager (persist/merge/find/remove + createQuery→JPQL_HQL, createNativeQuery→NATIVE_SQL), Hibernate Session (save/get/load/delete + createQuery→JPQL_HQL, createNativeQuery/createSQLQuery→NATIVE_SQL, byNaturalId), raw JDBC (Connection.prepareStatement/prepareCall, Statement.executeQuery/executeUpdate/execute/executeLargeUpdate/addBatch)
@@ -192,7 +192,7 @@
 ### Phase 10 — Call Graph Resolution
 
 #### 10.1 F010: Inter-File Call Resolution (US030)
-- [x] Gherkin: [`docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature`](docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature`](sdlc/features/E001-F010-two-pass-pipeline-and-call-graph.feature)
 - [x] Depends on: 4a (US006, US007), 7.0 (pipeline refactoring)
 - [x] Classes: `CallGraphEdge`, `CallGraphVisitor`; modified: `GlobalDeclarationRegistry` (+findMethods), `IndexWriter` (+FINDING_KEYS)
 - [x] Verify: `mvn test` (274 total — 10 new CallGraphVisitorTest + 3 GlobalDeclarationRegistryTest + 2 IndexWriterTest)
@@ -200,7 +200,7 @@
 ### Phase 11 — Outbound HTTP Detection
 
 #### 11a.1 F012: HTTP Client Detection & Floating Link Resolution (US032)
-- [x] Gherkin: [`docs/sdlc/features/E001-F012-outbound-http-detection.feature`](docs/sdlc/features/E001-F012-outbound-http-detection.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F012-outbound-http-detection.feature`](sdlc/features/E001-F012-outbound-http-detection.feature)
 - [x] Depends on: 4a (US006), 7.0 (pipeline refactoring)
 - [x] Classes: `OutboundHttpVisitor`, `OutboundHttpCallInfo`, `OutboundHttpClientType`, `HttpClientDetector`, `detector/RestTemplateDetector`, `detector/WebClientDetector`, `detector/FeignClientDetector`, `detector/RestClientDetector`, `detector/HttpExchangeDetector`, `detector/JavaNetHttpClientDetector`, `detector/HttpUrlConnectionDetector`, `detector/ApacheHttpClientDetector`, `detector/OkHttpDetector`, `FloatingLinkResolver`, `FloatingLinkInfo`
 - [x] Architecture: SPI pattern mirroring `DbAccessVisitor` — `OutboundHttpVisitor` (thin delegator) + `HttpClientDetector` interface + 9 per-technology `@Component` detectors
@@ -234,7 +234,7 @@
 ### Phase 12 — Extended SQLite Schema
 
 #### 12.1 F014: Remaining Tables & Metrics (US034, US035)
-- [x] Gherkin: [`docs/sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature`](docs/sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature)
+- [x] Gherkin: [`docs/sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature`](sdlc/features/E001-F014-structured-trace-sqlite-persistence.feature)
 - [x] Depends on: 4d, 4g, 4h, 8.1, 9.1, 10.1, 11a.1
 - [x] Classes: `TopicLinkStore`, `FloatingLinkStore`, `MetricsStore`, `Metric`, `ExecutionFindingStore`, `FindingType`
 - [x] Schema: 4 new tables (`execution_findings`, `topic_links`, `floating_links`, `metrics`) with `CREATE TABLE IF NOT EXISTS` and `INSERT OR REPLACE` idempotency
@@ -245,21 +245,21 @@
 ### Phase 13 — Language Extension Framework (Epic E002)
 
 #### 13.1 F007: Parser Abstraction SPI (US018, US019)
-- [ ] Gherkin: [`docs/sdlc/features/E002-F007-parser-abstraction-spi.feature`](docs/sdlc/features/E002-F007-parser-abstraction-spi.feature)
+- [ ] Gherkin: [`docs/sdlc/features/E002-F007-parser-abstraction-spi.feature`](sdlc/features/E002-F007-parser-abstraction-spi.feature)
 - [ ] Depends on: 5.1 (IndexWriter output contract), 6.1 (ScanCommand pipeline)
 - [ ] Classes: `LanguageParser` (interface), `ParserResult`, `ParserComponent`, `ParserEndpoint`, `ParserEvent`, `ParserValidator`, `ParserTask`
 - [ ] Verify: `mvn test` (new tests for SPI contract compliance, optional field handling)
 - [ ] Manual: implement a test-only mock parser, register it, confirm pipeline accepts it
 
 #### 13.2 F008: Parser Discovery & Routing (US020, US021)
-- [ ] Gherkin: [`docs/sdlc/features/E002-F008-parser-discovery-and-routing.feature`](docs/sdlc/features/E002-F008-parser-discovery-and-routing.feature)
+- [ ] Gherkin: [`docs/sdlc/features/E002-F008-parser-discovery-and-routing.feature`](sdlc/features/E002-F008-parser-discovery-and-routing.feature)
 - [ ] Depends on: 13.1
 - [ ] Classes: `ParserRegistry`, `ParserRegistration`, `FileRouter`
 - [ ] Verify: `mvn test` (new tests for extension mapping, first-registered-wins, unknown extension logging)
 - [ ] Manual: register a mock parser for `.js`, route a `.js` file, confirm it reaches the parser
 
 #### 13.3 F009: Shared Pipeline Integration (US022)
-- [ ] Gherkin: [`docs/sdlc/features/E002-F009-shared-pipeline-integration.feature`](docs/sdlc/features/E002-F009-shared-pipeline-integration.feature)
+- [ ] Gherkin: [`docs/sdlc/features/E002-F009-shared-pipeline-integration.feature`](sdlc/features/E002-F009-shared-pipeline-integration.feature)
 - [ ] Depends on: 13.1, 13.2, 5.1, 6.1
 - [ ] Classes: `PipelineOrchestrator` (refactored from ScanCommand pipeline logic), `LanguageParserAdapter`
 - [ ] Verify: `mvn test` (new tests for parser-agnostic redaction, output, persistence; zero pipeline code changes)

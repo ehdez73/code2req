@@ -6,8 +6,10 @@ import com.github.ehdez73.code2req.analyzer.event.link.TopicLink;
 import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkInfo;
 import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.model.ExecutionFinding;
+import com.github.ehdez73.code2req.synthesis.domain.EntryPoint;
 
 import java.util.List;
+import java.util.Map;
 
 public class CodebaseKnowledge {
 
@@ -66,5 +68,21 @@ public class CodebaseKnowledge {
 
     public List<TopicLink> findAllTopicLinks() {
         return linkRegistry.topicLinks();
+    }
+
+    public List<EntryPoint> getEntryPoints() {
+        return structuralGraph.getEntryPoints();
+    }
+
+    public List<MethodIdentifier> getAllKnownMethods() {
+        return structuralGraph.getAllKnownMethods();
+    }
+
+    public List<ExecutionFinding.TestInsight> getAllTestInsights() {
+        return semanticEnrichment.getAllTestInsights();
+    }
+
+    public Map<String, String> getAllTestFilePaths() {
+        return semanticEnrichment.getAllTestFilePaths();
     }
 }

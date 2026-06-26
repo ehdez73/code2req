@@ -4,6 +4,7 @@ import com.github.ehdez73.code2req.config.ManifestLoader;
 import com.github.ehdez73.code2req.executor.ContextBudgetCalculator;
 import com.github.ehdez73.code2req.executor.SemanticExecutor;
 import com.github.ehdez73.code2req.executor.testmining.PairedExecutionResolver;
+import com.github.ehdez73.code2req.executor.testmining.PairedExecutionResolver.PairedTestInfo;
 import com.github.ehdez73.code2req.model.ExecutionConfig;
 import com.github.ehdez73.code2req.model.ExecutionFinding;
 import com.github.ehdez73.code2req.model.Metric;
@@ -174,8 +175,15 @@ public class Phase2Orchestrator {
             Optional<Task> taskOpt = taskStore.findById(decision.taskId());
             Task task;
             if (taskOpt.isEmpty()) {
+                String earlyResolvedPath = resolveTaskFilePath(decision.filePath(), targets);
+                String earlyPairedPath = null;
+                if (earlyResolvedPath != null) {
+                    earlyPairedPath = resolveTestInfo(earlyResolvedPath, decision)
+                        .map(PairedTestInfo::testFilePath)
+                        .orElse(null);
+                }
                 task = new Task(decision.taskId(), decision.filePath(),
-                    TaskStatus.PENDING, "java", hashKey, decision.targetName());
+                    TaskStatus.PENDING, "java", hashKey, decision.targetName(), earlyPairedPath);
                 taskStore.save(task);
             } else {
                 task = taskOpt.get();
@@ -358,15 +366,19 @@ public class Phase2Orchestrator {
         return filePath;
     }
 
-    private String resolveTestContent(String sourceFilePath, PlannerDecision decision) {
+    private Optional<PairedTestInfo> resolveTestInfo(String sourceFilePath, PlannerDecision decision) {
         try {
-            return pairedExecutionResolver.resolve(sourceFilePath)
-                .map(info -> info.testContent())
-                .orElse(null);
+            return pairedExecutionResolver.resolve(sourceFilePath);
         } catch (Exception e) {
-            log.warn("Failed to resolve test content for {}: {}", sourceFilePath, e.getMessage());
-            return null;
+            log.warn("Failed to resolve test info for {}: {}", sourceFilePath, e.getMessage());
+            return Optional.empty();
         }
+    }
+
+    private String resolveTestContent(String sourceFilePath, PlannerDecision decision) {
+        return resolveTestInfo(sourceFilePath, decision)
+            .map(PairedTestInfo::testContent)
+            .orElse(null);
     }
 
     private String readFileContent(String filePath) {

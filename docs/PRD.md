@@ -460,13 +460,15 @@ The structural trace produced by Phase 1 resolves all deterministic call paths (
 
 ---
 
-### 2.3 Phase 3: Agentic Functional Requirement Extraction (Embabel)
+### 2.3 Phase 3: Entry-Point-Driven Agentic Functional Requirement Extraction (Embabel)
 
-Phase 3 takes the complete set of enriched `ExecutionFinding` records (produced by Phase 2) alongside the structural call graph, topic links, and floating links (produced by Phase 1), and employs an **Embabel goal-oriented agent** to extract holistic functional requirements. Unlike a fixed pipeline, this phase uses dynamic planning to resolve ambiguity by investigating the codebase on demand. The agent requires `embabel-agent-starter` (core GOAP engine) and `embabel-agent-starter-dockermodels` (Docker-based model support) on the classpath.
+Phase 3 takes the enriched codebase (Phase 1 structural data + Phase 2 semantic enrichment) and employs an **Embabel GOAP agent** to extract holistic functional requirements by **tracing execution flows from entry points**. The agent discovers entry points (HTTP endpoints, @Scheduled, @KafkaListener, etc.), traces the execution flow through the call graph (Controller -> Service -> Repository), and for each flow extracts user stories, Gherkin acceptance criteria, business rules, and edge cases.
+
+The agent requires `embabel-agent-starter` (core GOAP engine) on the classpath.
 
 **The Embabel Agent:**
 
-1. **Goal:** Extract complete, coherent functional requirements (use cases, business rules, edge cases) from the combined structural + enriched corpus. The agent terminates when all goals are achieved or unresolvable gaps are flagged for human review.
+1. **Goal:** Extract complete, coherent functional requirements (user stories, Gherkin scenarios, business rules, edge cases) from the combined structural + enriched corpus. The agent terminates when all entry points have been traced and analyzed, or unresolvable gaps are flagged for human review.
 
 2. **Initial Knowledge (`CodebaseKnowledge` domain model):** Before the agent runs, a pure-Java orchestrator aggregates two sources into an in-memory domain model:
    - **Phase 1 structural data:** call graph edges, topic links, floating links, endpoint registries, database access patterns.
@@ -475,31 +477,49 @@ Phase 3 takes the complete set of enriched `ExecutionFinding` records (produced 
    This aggregate is placed on the Embabel blackboard as the agent's initial working memory — the agent never queries SQLite directly. Actions read from and write to the blackboard, setting world-state conditions that drive GOAP planning.
 
 3. **Actions (pluggable, GOAP-scheduled via world-state conditions):**
-   - `AnalyzeFindings` — Group enriched records by functional flow boundaries (controller → service → repository chains). Identify candidate flows with completeness scores.
-   - `SearchCodebase` — When a candidate flow has ambiguity gaps, investigate the codebase for missing context. Queries the in-memory `CodebaseKnowledge` first (call graph, endpoint maps), falls back to raw source file reads only when needed.
-   - `CrossReferenceLinks` — Match floating HTTP calls and topic publications to known endpoints. Resolve cross-manifest topic pairs.
-   - `SynthesizeFunctionalSpec` — Aggregate all resolved knowledge into the final functional specification.
+   - `DiscoverEntryPoints` — Scan `CodebaseKnowledge` for all entry points (HTTP endpoints, @Scheduled, @KafkaListener, @RabbitListener, @JmsListener, @EventListener). Score each by priority and filter trivial endpoints (actuator, health, metrics).
+   - `TraceFlow` — For the highest-priority unscheduled entry point, follow call graph edges through the codebase. Build a `FlowStep` list tracing from entry point through services to repositories. Adaptive depth — agent decides when to stop based on complexity.
+   - `AnalyzeFlow` — For a traced flow, extract business semantics: user story, Gherkin scenarios, business rules, edge cases. Uses Phase 2 enrichment as context, raw source for gaps.
+   - `GroupFlows` — After analyzing multiple flows, cluster related flows into features using semantic similarity (e.g., GET/POST /orders -> "Order Management").
+   - `CrossReferenceFlows` — Resolve inter-flow dependencies (Order flow -> Payment flow). Match floating HTTP calls and topic publications to known endpoints.
+   - `SynthesizeSpec` — Aggregate all analyzed and grouped flows into the final Markdown + JSON output.
+   - `QuarantineFlow` — When a flow cannot be fully resolved (exceeds investigation budget, low confidence), flag it for human review.
    
-   Each action declares preconditions and postconditions as world-state condition identifiers (e.g., `codebase_knowledge_loaded → flows_analyzed`). The GOAP planner uses these to determine action ordering and goal satisfaction. Adding a new investigation capability requires only a new `@Action` method — zero changes to the goal model or existing actions.
+   Each action declares preconditions and postconditions as world-state condition identifiers. The GOAP planner uses these to determine action ordering and goal satisfaction.
 
-4. **Dynamic Re-Planning (GOAP):** After each action, the Embabel planner reassesses goal completion. If ambiguity remains, it replans the next action sequence — this is an OODA loop, not a fixed pipeline. The planner uses a non-LLM GOAP algorithm for planning; LLM calls are reserved for individual actions that require semantic analysis.
+4. **Dynamic Re-Planning (GOAP):** After each action, the Embabel planner reassesses goal completion. If ambiguity remains, it replans the next action sequence. The planner uses a non-LLM GOAP algorithm; LLM calls are reserved for individual actions that require semantic analysis.
 
-5. **Guardrails & Model Configuration (via `application.properties`):**
+5. **Flow Priority Scoring:** Each entry point receives a priority score (0.0-1.0) that determines tracing order:
+   - Phase 2 enrichment exists (+0.3) — cheaper to analyze
+   - Complex downstream calls (+0.3) — more likely to contain business logic
+   - User-facing endpoint (+0.2) — more important than internal tasks
+   - Test file exists (+0.2) — provides additional context
+
+6. **Sub-Chain Caching:** When tracing a flow, the agent checks if a shared sub-chain already exists. If `OrderService.processOrder()` was already traced by `POST /orders`, reuse it for `GET /orders`. This avoids redundant tracing.
+
+7. **Orphaned Method Detection:** After tracing all entry points, the agent identifies methods that are called but NOT reachable from any entry point. These are flagged as potential dead code or missing entry points.
+
+8. **Progressive Disclosure:** The agent decides output granularity per flow based on complexity:
+   - **Minimal** (score < 0.3): 1-line description, 1 user story, 1 Gherkin scenario
+   - **Standard** (0.3-0.7): User story, 2-3 Gherkin scenarios, business rules matrix
+   - **Full** (>= 0.7): User story, multiple Gherkin scenarios, business rules, edge cases, traceability table, Mermaid diagram
+
+9. **Guardrails & Model Configuration (via `application.properties`):**
    - `embabel.models.default-llm` — Default model for Embabel agent actions.
    - `embabel.models.llms.cheapest` — Budget model for cost-sensitive actions.
    - `embabel.models.llms.best` — High-quality model for critical synthesis steps.
-   - `max-investigation-steps-per-flow` (default: 5) — Caps the number of investigation actions per functional flow. Prevents runaway exploration on deeply ambiguous code.
+   - `max-flow-depth` (default: 5) — Maximum call chain depth per flow.
    - `max-tokens-per-run` (default: 500000) — Hard token budget for Phase 3 LLM calls.
-   - `ambiguity-confidence-threshold` (default: 0.7) — Below this threshold, the flow is marked `AWAITING_HUMAN_REVIEW` instead of continuing investigation.
+   - `ambiguity-confidence-threshold` (default: 0.7) — Below this threshold, the flow is marked `AWAITING_HUMAN_REVIEW`.
 
-6. **Termination:** When all goals are satisfied or unresolvable gaps are quarantined, the agent finalizes. A pure-Java writer then produces the output artifacts (Markdown + JSON) — agent concerns are strictly limited to decision-making.
+10. **Termination:** When all entry points have been traced and analyzed, or unresolvable gaps are quarantined, the agent finalizes. A pure-Java writer then produces the output artifacts (Markdown + JSON).
 
 **Design Principle — Separation of Concerns:**
 - **Pure Java services** (non-agentic) handle: loading data from SQLite, assembling `CodebaseKnowledge`, writing output files.
 - **Embabel agent** handles only: deciding what to investigate next, calling actions, tracking goal completion.
 - This keeps the agent focused, testable, and cheap (GOAP planning uses no tokens).
 
-**Why not map-reduce?** Map-reduce assumes the knowledge to synthesize is already present in the input records. In practice, functional requirement extraction requires *discovering missing knowledge* — tracing a service method back to its controller when no direct call graph edge exists, or inferring the purpose of an orphaned repository method. GOAP's dynamic planning is the correct tool for this non-linear discovery process.
+**Why entry-point-driven?** Previous design grouped findings by "boundary" which assumed the boundaries were known. In legacy codebases, the actual execution flows are unknown until traced. Starting from entry points and following the call graph discovers the real flows, including unexpected paths and orphaned methods.
 
 ---
 
@@ -595,33 +615,30 @@ Legacy architectures often hide critical business logic inside procedural databa
 
 ### 3.8 Embabel Agentic Functional Requirement Extraction
 
-Phase 3 employs Embabel's **Goal-Oriented Action Planning (GOAP)** to dynamically construct an investigation plan for extracting functional requirements from the enriched codebase corpus. This is fundamentally different from a fixed pipeline: the agent decides *what to do next* based on current knowledge and remaining ambiguity.
+Phase 3 employs Embabel's **Goal-Oriented Action Planning (GOAP)** to dynamically trace execution flows from entry points and extract functional requirements. This is fundamentally different from a fixed pipeline: the agent decides *what entry point to trace next* based on current knowledge and remaining ambiguity.
 
 **Agent Structure:**
 
-- **`@Agent(name = "functional-requirement-extractor", description = "Extract functional requirements from enriched codebase analysis", planner = GOAP, scan = true)`** — The top-level agent for Phase 3, deployed via Embabel's annotation scanning.
-- **Domain Model:** `CodebaseKnowledge` (aggregate), `FunctionalFlow`, `BusinessRule`, `EndpointSpec`, `CodePattern`, `AmbiguityGap` — strongly-typed objects that flow between actions.
-- **Goals:**
-  - `FunctionalFlowCoverage` — All candidate functional flows have complete descriptions (trigger, steps, outcomes).
-  - `BusinessRuleCompleteness` — All extracted business rules include preconditions, postconditions, and error behaviors.
-  - `TraceabilityVerified` — Every functional requirement maps to a source code location.
-  - `LinkConsistency` — Floating HTTP calls and topic publications are matched to endpoints where possible; unresolvable links are documented.
+- **`@Agent(name = "functional-requirement-extractor", description = "Trace execution flows from entry points and extract functional requirements", planner = GOAP, scan = true)`** — The top-level agent for Phase 3, deployed via Embabel's annotation scanning.
+- **Domain Model:** `CodebaseKnowledge` (aggregate), `EntryPoint`, `ExecutionFlow`, `FlowStep`, `FunctionalFlow`, `FunctionalFeature`, `GherkinScenario`, `BusinessRule`, `EdgeCase`, `FlowRelationship`, `AmbiguityGap`, `OrphanedMethod` — strongly-typed objects that flow between actions.
 - **Actions:**
-  - `AnalyzeFindings` — Load and group `ExecutionFinding` records by functional flow boundaries using the call graph from `CodebaseKnowledge`.
-  - `ResolveAmbiguity` — When a candidate flow has knowledge gaps, search `CodebaseKnowledge` for missing context; if unresolved, read raw source files.
-  - `CrossReferenceFloatingLinks` — Match unresolved HTTP client calls and topic publications against known endpoints in `CodebaseKnowledge`.
-  - `SynthesizeFunctionalSpec` — Aggregate all resolved knowledge into the final functional specification.
-  - `QuarantineUnresolvable` — Flag flows that cannot be completed after exhausting investigation budget; set to `AWAITING_HUMAN_REVIEW`.
-- **Conditions:** Each action declares preconditions and postconditions as world-state condition identifiers (e.g., precondition `codebase_knowledge_loaded = true` enables `AnalyzeFindings`; postcondition `flows_analyzed = true` enables downstream actions). Conditions are managed on the Embabel blackboard and drive the GOAP planner's action chaining automatically.
+  - `DiscoverEntryPoints` — Scan for all entry points (HTTP endpoints, @Scheduled, @KafkaListener, @RabbitListener, @JmsListener, @EventListener). Score by priority, filter trivial.
+  - `TraceFlow` — For the highest-priority unscheduled entry point, trace call graph edges and build an execution flow with adaptive depth and sub-chain caching.
+  - `AnalyzeFlow` — Extract business semantics from traced flow: user story, Gherkin scenarios, business rules, edge cases.
+  - `GroupFlows` — Cluster related flows into features using semantic similarity from Phase 2 enrichment.
+  - `CrossReferenceFlows` — Resolve inter-flow dependencies (HTTP calls, topic events between flows).
+  - `SynthesizeSpec` — Aggregate all resolved knowledge into the final Markdown + JSON specification.
+  - `QuarantineFlow` — Flag flows that cannot be completed after exhausting investigation budget; set to `AWAITING_HUMAN_REVIEW`.
+- **Conditions:** Each action declares preconditions and postconditions as world-state condition identifiers (e.g., `entry_points_discovered = true` enables `TraceFlow`; `flows_grouped = true` enables `SynthesizeSpec`). Conditions are managed on the Embabel blackboard and drive the GOAP planner's action chaining automatically.
 
-**Quality Audit (post-agent):**
+**Improvements over previous design:**
+- **Flow Priority Scoring:** Entry points are scored by enrichment availability, complexity, user-facing status, and test file presence. High-priority flows are traced first.
+- **Sub-Chain Caching:** Shared service chains are reused across related entry points, avoiding redundant tracing.
+- **Orphaned Method Detection:** Methods unreachable from any entry point are flagged as dead code or missing entry points.
+- **Progressive Disclosure:** Output granularity adapts per flow — simple flows get minimal output, complex flows get full treatment with Mermaid diagrams.
+- **Semantic Clustering:** Related flows are grouped into features using semantic similarity from Phase 2 enrichment.
 
-After the agent completes all goals, a pure-Java validation pass audits output quality:
-1. Randomly sample 20% of extracted requirements against raw source files (configurable via `semantic-validation-sample-rate`).
-2. If pass rate < 92%, flag the batch for human review and increase sample rate to 100% for the next run.
-3. Output a quality assurance report alongside the functional specification.
-
-**Decoupled Asset Generation:** After the agent finishes and the audit passes, the system outputs two matching assets: a clean, readable Markdown specification document organized by functional flows, and a machine-readable `semantic_manifest.json` file embedded with AST tracing coordinates and business mappings.
+**Decoupled Asset Generation:** After the agent finishes, the system outputs two matching assets: a clean, readable Markdown specification document organized by functional features, and a machine-readable `semantic_manifest.json` file with flows, acceptance criteria, business rules, cross-flow relationships, and orphaned methods.
 
 ---
 
@@ -1012,45 +1029,112 @@ To enable safe experimentation and rollback during iterative analysis, the CLI s
 
 ## 6. Output Artifact Structures
 
-### 6.1 Human-Centric Specification Template (Functional Flow Document)
+### 6.1 Human-Centric Specification Template (Functional Feature Document)
 
-The final Markdown artifact written by Phase 3 combines the extracted functional requirements into a structured, business-readable specification. Each functional flow is derived from the enriched codebase analysis and includes full traceability to source code locations. Document format:
+The final Markdown artifact written by Phase 3 combines the extracted functional requirements into a structured, business-readable specification organized by features (grouped flows). Document format:
 
 ```markdown
-# Functional Flow Specification: [Flow Name]
+# Functional Specification: [System Name]
 
-## 1. User Journey & Interaction Overview
-- **Trigger Component (UI):** [e.g., CheckoutPage.tsx — Button "Confirm Purchase"]
-- **Local Validation Rules:** [Form constraint mappings]
-- **Downstream Entry API:** [e.g., POST /api/v1/orders]
+> Generated by code2req on [date]
+> Entry points analyzed: [count]
+> Features extracted: [count]
 
-## 2. Ecosystem Preconditions
-- **Async Condition:** [e.g., Kafka topic "inventory-status" must be active]
-- **Database Dependency:** [e.g., Stored Procedure 'PR_CALCULATE_TAX' must be compiled]
+## Table of Contents
+1. [Feature: Order Management](#feature-order-management)
+2. [Feature: Payment Processing](#feature-payment-processing)
+...
 
-## 3. Business Rules Matrix (BDD Input Source)
-| Scenario ID | Context (Given) | Trigger Action (When) | Expected System State (Then) | Data Bounds (Examples) | Source Task IDs |
+---
+
+## Feature: Order Management
+
+**Description:** Manages the complete lifecycle of customer orders.
+
+### User Story
+As a store manager, I want to create and manage customer orders, so that I can track sales and fulfillments.
+
+### Execution Flow
+
+```mermaid
+graph TD
+    A["POST /api/v1/orders<br/>OrderController"] --> B["processOrder()<br/>OrderService"]
+    B --> C["save()<br/>OrderRepository"]
+    B --> D["send('order-events')<br/>KafkaTemplate"]
+```
+
+### Happy Paths
+
+#### Flow: Create Order
+- **Trigger:** POST /api/v1/orders
+- **Steps:**
+  1. `OrderController.createOrder()` — receives order request
+  2. `OrderService.processOrder()` — validates inventory, calculates total
+  3. `OrderRepository.save()` — persists order to database
+  4. `KafkaTemplate.send("order-events", ...)` — publishes OrderCreated event
+- **Outcome:** Order created with status PENDING, event published
+
+### Business Rules Matrix
+| ID | Rule | Precondition | Postcondition | Error Behavior | Source Task IDs |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **TR-01** | Active Account | Order finalized | Set status to PROCESSED | balance > price | `e2a71b...` |
-| **TR-02** | Invalid Balance | Order finalized | Reject with TransactionException | balance < price | `f9c21d...` |
+| BR-01 | Order total must be positive | Order items provided | Total calculated | Reject with HTTP 400 | `e2a71b...` |
+| BR-02 | Inventory must be sufficient | Items in stock | Stock reserved | Reject with HTTP 409 | `f9c21d...` |
 
-## 4. Discovered Edge Cases & Invariants
-- **Constraint A:** Database level transaction rollback enforced on stock failure (Mapped from Stored Procedure).
-- **Constraint B:** Validation pattern mismatch triggers immediate HTTP 400 rejection (Mapped from Custom Validator).
+### Edge Cases & Invariants
+| Scenario | Business Consequence |
+|----------|---------------------|
+| All items out of stock | Order rejected, user notified |
+| Payment fails after order created | Order rolled back, inventory released |
+
+### Acceptance Criteria (Gherkin)
+```gherkin
+Feature: Order Management
+
+  Scenario: Successfully create an order
+    Given a customer has items in their cart
+    When they submit the order
+    Then the order is created with status PENDING
+    And an OrderCreated event is published
+
+  Scenario: Reject order with insufficient inventory
+    Given a customer has items with insufficient stock
+    When they submit the order
+    Then the order is rejected with HTTP 409
+    And no OrderCreated event is published
+```
+
+### Traceability
+| Component | File | Lines |
+|-----------|------|-------|
+| OrderController | src/main/java/.../OrderController.java | 15-45 |
+| OrderService | src/main/java/.../OrderService.java | 23-89 |
+| OrderRepository | src/main/java/.../OrderRepository.java | interface |
+
+---
+
+## Feature: Payment Processing
+...
+
+## Cross-Flow Relationships
+| Source Flow | Target Flow | Type | Description |
+|-------------|-------------|------|-------------|
+| Create Order | Process Payment | DELEGATES_TO | Order creation triggers payment processing |
 
 ## 5. Unresolved Dependencies & Review Tasks
 
 Each item here was flagged by the pipeline as requiring human judgement before the functional specification is considered complete.
 
-- **[Flow: PaymentProcessing]** — `review accept` accepted gap: 3 investigation steps exhausted without resolving service method `chargeOrder()` → external service may be unavailable during scan.
-  - Source: `OrderService.java:142` → `PaymentGatewayClient.java` (not in scan targets)
-  - Reason: `STEPS_EXCEEDED` (max-investigation-steps-per-flow = 3)
+- **[Flow: PaymentProcessing]** — `review accept` accepted gap: 3 investigation steps exhausted without resolving service method `chargeOrder()` -> external service may be unavailable during scan.
+  - Source: `OrderService.java:142` -> `PaymentGatewayClient.java` (not in scan targets)
+  - Reason: `STEPS_EXCEEDED` (max-flow-depth = 5)
   - Resolution: Add `PaymentGatewayClient` to project manifest or confirm as external dependency.
   - CLI: `review show --task a1b2c3d4e5f6...`
-- **[Task: InventoryReservation]** — Maximum hop depth exceeded (3) while following `@EventListener` chain.
-  - Source: `InventoryService.java:89` → `WarehouseClient.java` → `ExternalShippingApi.java` (not in scan targets)
-  - Reason: `HOP_DEPTH` (max-discovery-depth = 3)
-  - CLI: `review accept --task f9e8d7c6b5a4...` to document as unresolved, or `review reset --task f9e8d7c6b5a4... --depth 5` to re-run with increased depth.
+
+## 6. Orphaned Methods
+| Class | Method | File | Lines | Reason |
+|-------|--------|------|-------|--------|
+| LegacyReportGenerator | generatePDF() | LegacyReportGenerator.java | 45-67 | No entry point reachable |
+```
 
 Resolution workflow:
 
@@ -1063,89 +1147,205 @@ Resolution workflow:
 
 ### 6.2 Machine-to-Machine Integration: `semantic_manifest.json`
 
-To allow external applications to process the extracted logic without losing architectural traceability, the system outputs a decoupled relational JSON schema. This schema explicitly accommodates incomplete or suspended AST coordinates arising from tasks categorized as `AWAITING_HUMAN_REVIEW` to ensure validation compliance:
+To allow external applications to process the extracted logic without losing architectural traceability, the system outputs a decoupled relational JSON schema organized by **features** (grouped flows), with explicit support for `AWAITING_HUMAN_REVIEW` quarantine records:
 
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "SemanticManifest",
   "type": "object",
-  "required": ["manifest_version", "system_name", "flows"],
+  "required": ["manifest_version", "system_name", "features"],
   "properties": {
     "manifest_version": { "type": "string", "enum": ["3.0.0"] },
     "system_name": { "type": "string" },
-    "flows": {
+    "generated_at": { "type": "string", "format": "date-time" },
+    "features": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["flow_id", "name", "steps", "traceability_graph"],
+        "required": ["feature_id", "name", "description", "flows"],
         "properties": {
-          "flow_id": { "type": "string" },
+          "feature_id": { "type": "string" },
           "name": { "type": "string" },
-          "steps": {
+          "description": { "type": "string" },
+          "flows": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["step_index", "component_type", "business_rule"],
+              "required": ["flow_id", "entry_point", "steps", "user_story", "acceptance_criteria", "complexity"],
               "properties": {
-                "step_index": { "type": "integer" },
-                "component_type": { "type": "string", "enum": ["UI_CONTROLLER", "REST_ENDPOINT", "VALIDATOR", "STORED_PROCEDURE", "EVENT_LISTENER"] },
-                "business_rule": { "type": "string" }
-              }
-            }
-          },
-          "traceability_graph": {
-            "type": "object",
-            "required": ["nodes", "edges"],
-            "properties": {
-              "nodes": {
-                "type": "array",
-                "items": {
+                "flow_id": { "type": "string" },
+                "entry_point": {
                   "type": "object",
-                  "required": ["node_id", "file_reference", "ast_signature", "lines"],
+                  "required": ["type", "class_name", "method_name", "file_path"],
                   "properties": {
-                    "node_id": { "type": "string" },
-                    "file_reference": { "type": "string" },
-                    "ast_signature": { "type": ["string", "null"] },
-                    "lines": { "type": ["string", "null"] }
+                    "type": { "type": "string", "enum": ["HTTP", "SCHEDULED", "EVENT_LISTENER", "KAFKA", "RABBITMQ", "ACTIVEMQ"] },
+                    "http_method": { "type": ["string", "null"] },
+                    "path": { "type": ["string", "null"] },
+                    "class_name": { "type": "string" },
+                    "method_name": { "type": "string" },
+                    "file_path": { "type": "string" },
+                    "schedule": { "type": ["string", "null"] },
+                    "topic_or_queue": { "type": ["string", "null"] }
                   }
-                }
-              },
-              "edges": {
-                "type": "array",
-                "items": {
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["step_index", "component_type", "class_name", "method_name", "source_file"],
+                    "properties": {
+                      "step_index": { "type": "integer" },
+                      "component_type": { "type": "string", "enum": ["REST_ENDPOINT", "SERVICE", "REPOSITORY", "DATABASE", "EXTERNAL_CALL", "EVENT_PUBLISHER", "SCHEDULED_TASK"] },
+                      "class_name": { "type": "string" },
+                      "method_name": { "type": "string" },
+                      "business_purpose": { "type": ["string", "null"] },
+                      "source_file": { "type": "string" },
+                      "start_line": { "type": "integer" },
+                      "end_line": { "type": "integer" }
+                    }
+                  }
+                },
+                "user_story": { "type": "string" },
+                "acceptance_criteria": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["scenario_id", "name", "given", "when", "then"],
+                    "properties": {
+                      "scenario_id": { "type": "string" },
+                      "name": { "type": "string" },
+                      "given": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Precondition steps — first is primary Given, rest are And/But continuations"
+                      },
+                      "when": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Trigger action steps — first is primary When, rest are And/But continuations"
+                      },
+                      "then": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Expected outcome steps — first is primary Then, rest are And/But continuations"
+                      }
+                    }
+                  }
+                },
+                "business_rules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["rule_id", "description", "error_behavior"],
+                    "properties": {
+                      "rule_id": { "type": "string" },
+                      "description": { "type": "string" },
+                      "precondition": { "type": ["string", "null"] },
+                      "postcondition": { "type": ["string", "null"] },
+                      "error_behavior": { "type": "string" },
+                      "source_file": { "type": ["string", "null"] },
+                      "start_line": { "type": ["integer", "null"] },
+                      "end_line": { "type": ["integer", "null"] }
+                    }
+                  }
+                },
+                "edge_cases": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["scenario", "business_consequence"],
+                    "properties": {
+                      "scenario": { "type": "string" },
+                      "business_consequence": { "type": "string" },
+                      "source_file": { "type": ["string", "null"] }
+                    }
+                  }
+                },
+                "mermaid_diagram": { "type": ["string", "null"] },
+                "complexity": { "type": "string", "enum": ["MINIMAL", "STANDARD", "FULL"] },
+                "review_required": { "type": "boolean" },
+                "unresolved_reason": {
+                  "oneOf": [
+                    { "type": "null" },
+                    {
+                      "type": "object",
+                      "required": ["reason_type", "detail", "confidence"],
+                      "properties": {
+                        "reason_type": { "type": "string", "enum": ["STEPS_EXCEEDED", "LOW_CONFIDENCE", "HOP_DEPTH"] },
+                        "detail": { "type": "string" },
+                        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                      }
+                    }
+                  ]
+                },
+                "traceability_graph": {
                   "type": "object",
-                  "required": ["source_node", "target_node", "link_type"],
+                  "required": ["nodes", "edges"],
                   "properties": {
-                    "source_node": { "type": "string" },
-                    "target_node": { "type": "string" },
-                    "link_type": { "type": "string", "enum": ["DETERMINISTIC_CALL", "FLOATING_HTTP", "TOPIC_KAFKA", "TOPIC_RABBITMQ", "TOPIC_ACTIVEMQ", "DATABASE_CALL"] }
+                    "nodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["node_id", "file_reference", "ast_signature", "lines"],
+                        "properties": {
+                          "node_id": { "type": "string" },
+                          "file_reference": { "type": "string" },
+                          "ast_signature": { "type": ["string", "null"] },
+                          "lines": { "type": ["string", "null"] }
+                        }
+                      }
+                    },
+                    "edges": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["source_node", "target_node", "link_type"],
+                        "properties": {
+                          "source_node": { "type": "string" },
+                          "target_node": { "type": "string" },
+                          "link_type": { "type": "string", "enum": ["DETERMINISTIC_CALL", "FLOATING_HTTP", "TOPIC_KAFKA", "TOPIC_RABBITMQ", "TOPIC_ACTIVEMQ", "DATABASE_CALL"] }
+                        }
+                      }
+                    }
                   }
                 }
               }
             }
           }
-        },
-        "review_required": { "type": "boolean" },
-        "unresolved_reason": {
-          "oneOf": [
-            { "type": "null" },
-            {
-              "type": "object",
-              "required": ["reason_type", "detail", "confidence"],
-              "properties": {
-                "reason_type": { "type": "string", "enum": ["HOP_DEPTH", "STEPS_EXCEEDED", "LOW_CONFIDENCE"] },
-                "detail": { "type": "string" },
-                "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
-              }
-            }
-          ]
+        }
+      }
+    },
+    "cross_flow_relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_flow_id", "target_flow_id", "type", "description"],
+        "properties": {
+          "source_flow_id": { "type": "string" },
+          "target_flow_id": { "type": "string" },
+          "type": { "type": "string", "enum": ["DELEGATES_TO", "PUBLISHES_EVENT", "CONSUMES_EVENT", "CALLS_EXTERNAL"] },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "orphaned_methods": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["class_name", "method_name", "file_path", "reason"],
+        "properties": {
+          "class_name": { "type": "string" },
+          "method_name": { "type": "string" },
+          "file_path": { "type": "string" },
+          "start_line": { "type": ["integer", "null"] },
+          "end_line": { "type": ["integer", "null"] },
+          "reason": { "type": "string" }
         }
       }
     }
   }
 }
-
 ```
 
 ---

@@ -1,9 +1,9 @@
 {
   "meta": {
-    "version": "2.0.0",
+    "version": "2.1.0",
     "phase": "3",
     "created_at": "2026-06-12T12:00:00Z",
-    "last_updated": "2026-06-17T12:00:00Z",
+    "last_updated": "2026-06-26T12:00:00Z",
     "last_agent": "opencode"
   },
   "project": {
@@ -92,8 +92,9 @@
     ],
     "out_of_scope": [
       "Phase 2 — Semantic Enrichment (LLM-powered per-file analysis via Spring AI @Async)",
-      "Phase 3 — Agentic Functional Requirement Extraction (Embabel GOAP agent)",
-      "Test framework generation (Gherkin, JUnit, etc.)",
+      "Phase 3 — Agentic Functional Requirement Extraction (Embabel GOAP): entry-point-driven flow tracing, user story + Gherkin extraction, semantic clustering, orphaned method detection",
+      "Test framework generation (Gherkin, JUnit, etc.) — downstream Skill consumes semantic_manifest.json",
+      "Frontend or UI code analysis (JavaScript, TypeScript, HTML)",
       "Frontend or UI code analysis (JavaScript, TypeScript, HTML)",
       "Code modification or mutation on disk (read-only operation)"
     ]
@@ -320,7 +321,7 @@
     {
       "id": "E004",
       "name": "Agentic Functional Requirement Extraction (Embabel GOAP)",
-      "description": "Phase 3 of the pipeline: an Embabel goal-oriented agent extracts functional requirements from the aggregated structural + enriched codebase knowledge. Uses GOAP dynamic planning to resolve ambiguity through targeted code exploration. Produces Markdown specification and semantic_manifest.json.",
+      "description": "Phase 3 of the pipeline: an Embabel GOAP agent discovers entry points, traces execution flows through the call graph, and extracts functional requirements (user stories, Gherkin scenarios, business rules). Produces Markdown specification organized by features and semantic_manifest.json with cross-flow relationships and orphaned method detection.",
       "priority": "must"
     }
   ],
@@ -696,12 +697,14 @@
       "id": "F022",
       "epic_id": "E004",
       "name": "CodebaseKnowledge Builder + Phase 3 Orchestrator",
-      "description": "Pure-Java services that aggregate Phase 1 (structural findings) and Phase 2 (enriched ExecutionFinding records) into an in-memory CodebaseKnowledge domain model, pass it to the Embabel agent, and handle output after completion.",
+      "description": "Pure-Java services that aggregate Phase 1 and Phase 2 data into CodebaseKnowledge with query methods for entry points, call graph traversal, component discovery, and orphaned method detection. Phase3Orchestrator assembles the model, passes it to the Embabel agent, and handles output after completion.",
       "background": "Phase 2 enriched data in SQLite. Embabel framework configured.",
       "business_rules": [
         "Phase3Orchestrator queries SQLite for ALL Phase 1 and Phase 2 data before agent invocation",
         "CodebaseKnowledge contains StructuralGraph, SemanticEnrichment, and LinkRegistry sub-models",
-        "Query methods: getFlowCandidates(), findUnresolvedLinks(), getComponentsByType(), getCallersOf(), getCalleesOf()",
+        "Query methods: getEntryPoints(), getCallersOf(), getCalleesOf(), getComponentsByType(), getAllKnownMethods(), findUnresolvedLinks()",
+        "getEntryPoints() returns all entry point types (HTTP, SCHEDULED, KAFKA, RABBITMQ, ACTIVEMQ, EVENT_LISTENER)",
+        "getAllKnownMethods() supports orphaned method detection",
         "CodebaseKnowledge is passed to the Embabel agent as initial working memory — agent never queries SQLite directly",
         "Output writing is pure Java, not agentic"
       ],
@@ -712,14 +715,19 @@
     {
       "id": "F023",
       "epic_id": "E004",
-      "name": "Embabel Agent — Goals, Actions, Output",
-      "description": "The Embabel agent that extracts functional requirements using GOAP dynamic planning. Receives CodebaseKnowledge, pursues goals through actions (AnalyzeFindings, ResolveAmbiguity, CrossReferenceFloatingLinks, SynthesizeFunctionalSpec, QuarantineUnresolvable), and produces Markdown + JSON output.",
+      "name": "Embabel Agent — Entry-Point-Driven Extraction",
+      "description": "The Embabel agent discovers entry points (HTTP, scheduled, Kafka, RabbitMQ, ActiveMQ, EventListener), traces execution flows through the call graph, extracts business semantics (user stories, Gherkin scenarios, business rules, edge cases), groups related flows into features using semantic clustering, resolves cross-flow dependencies, and produces Markdown + JSON output. Supports sub-chain caching, orphaned method detection, and progressive disclosure.",
       "background": "CodebaseKnowledge available. Embabel framework configured.",
       "business_rules": [
-        "Agent runs in Focused mode — invoked explicitly by Phase3Orchestrator",
-        "GOAP dynamically chains actions based on goal completion — not a fixed pipeline",
-        "Guardrails: max-investigation-steps-per-flow (5), max-tokens-per-run (500000), ambiguity-confidence-threshold (0.7)",
-        "SynthesizeFunctionalSpec produces both Markdown (PRD §6.1) and semantic_manifest.json"
+        "Entry points are scored by priority (Phase 2 enrichment + complexity + user-facing + test file)",
+        "Trivial endpoints (actuator, health, metrics) are filtered out",
+        "Flow tracing uses sub-chain caching to avoid redundant service chain analysis",
+        "Adaptive depth: max-flow-depth (default: 5) caps call chain exploration",
+        "Progressive disclosure: MINIMAL/STANDARD/FULL output based on complexity score",
+        "Semantic clustering groups related flows into features using Phase 2 enrichment similarity",
+        "Orphaned methods unreachable from any entry point are flagged",
+        "Guardrails: max-flow-depth (5), max-tokens-per-run (500000), ambiguity-confidence-threshold (0.7)",
+        "UserInteractionService SPI with NoOpUserInteractionService default; Interactive deferred"
       ],
       "user_stories": [
         { "id": "US051", "title": "Embabel agent extracts functional requirements", "priority": "must", "type": "story", "gherkin_file": "features/E004-F023-embabel-agent.feature" }
@@ -728,17 +736,70 @@
     {
       "id": "F024",
       "epic_id": "E004",
-      "name": "Quality Audit — Post-Agent Validation",
-      "description": "Post-agent validation pass (pure Java) that samples extracted requirements against raw source files to verify correctness. Enforces minimum pass rate and flags batches for human review on failure.",
+      "name": "Quality Audit — Schema Validation (Simplified)",
+      "description": "Post-agent validation pass (pure Java) that validates semantic_manifest.json against the PRD §6.2 schema and ensures quarantined flows appear in spec Section 5. Runs inside the output writers, not as a separate step.",
       "background": "Embabel agent completed. Output artifacts exist.",
       "business_rules": [
-        "Sample rate: semantic-validation-sample-rate from manifest (default: 20%)",
-        "Pass threshold: ≥ 92% pass rate",
-        "On failure: flag batch for human review, increase sample rate to 100%",
-        "Audit is pure Java — not part of the Embabel agent"
+        "SemanticManifestWriter validates JSON output against PRD §6.2 schema before persisting",
+        "Schema validation failure sets Phase 3 marker to FAILED",
+        "Quarantined flows appear in spec Section 5 with review_required: true in manifest",
+        "Audit is pure Java — runs inside output writers, not as a separate step"
       ],
       "user_stories": [
-        { "id": "US052", "title": "Tech Lead validates output quality via audit", "priority": "should", "type": "story", "gherkin_file": "features/E004-F024-quality-audit.feature" }
+        { "id": "US052", "title": "Quality audit validates output", "priority": "should", "type": "story", "gherkin_file": "features/E004-F024-quality-audit.feature" }
+      ]
+    },
+    {
+      "id": "F026",
+      "epic_id": "E004",
+      "name": "Review CLI Command — AWAITING_HUMAN_REVIEW lifecycle",
+      "description": "The review command lets developers inspect and resolve tasks and flows flagged as AWAITING_HUMAN_REVIEW, providing a single workflow for diagnosis, acceptance, and reset.",
+      "background": "Pipeline has completed with AWAITING_HUMAN_REVIEW tasks in SQLite.",
+      "business_rules": [
+        "review list groups quarantined tasks by reason type (HOP_DEPTH, STEPS_EXCEEDED, LOW_CONFIDENCE)",
+        "review show displays full quarantine context including reason JSON and source trace chain",
+        "review accept documents the gap and resets task to INDEXED; HUMAN_REVIEW_REASON finding preserved",
+        "review reset deletes HUMAN_REVIEW_REASON findings and resets to INDEXED for re-processing",
+        "Batch operations (accept-all, reset-all) available for bulk resolution"
+      ],
+      "user_stories": [
+        { "id": "US055", "title": "Developer reviews and resolves AWAITING_HUMAN_REVIEW tasks", "priority": "should", "type": "story", "gherkin_file": "features/E004-F026-review-command.feature" }
+      ]
+    },
+    {
+      "id": "F027",
+      "epic_id": "E004",
+      "name": "Domain Model + Output Writers",
+      "description": "Pure-Java domain classes for Phase 3 synthesis output (EntryPoint, ExecutionFlow, FlowStep, FunctionalFlow, GherkinScenario, etc.) and writers that produce Markdown spec and semantic JSON manifest from the Embabel agent's results.",
+      "background": "Embabel agent completed. FunctionalFlow, AmbiguityGap, and OrphanedMethod objects available.",
+      "business_rules": [
+        "All domain model classes use Java record types with business-key-based equality",
+        "MarkdownSpecWriter writes to spec-output/spec.md with TOC, features, Gherkin, Mermaid diagrams",
+        "SemanticManifestWriter writes to spec-output/semantic_manifest.json with manifest_version 3.0.0",
+        "SemanticManifestWriter validates JSON output against PLAN-Phase3 §4.2 schema before persisting",
+        "Schema validation failure sets Phase 3 marker to FAILED",
+        "Writers are pure Java (not agentic) — invoked by Phase3Orchestrator after agent completes"
+      ],
+      "user_stories": [
+        { "id": "US056", "title": "Domain model and output writers", "priority": "must", "type": "story", "gherkin_file": "features/E004-F027-domain-model-output-writers.feature" }
+      ]
+    },
+    {
+      "id": "F028",
+      "epic_id": "E004",
+      "name": "Interactive Mode — Agent-User Clarification",
+      "description": "When the Embabel agent encounters ambiguity, it defers to the user via terminal prompts. A UserInteractionService SPI decouples the agent from I/O, enabling both headless (NoOp) and interactive (stdin/stdout) modes.",
+      "background": "Embabel agent actions (TraceFlow, AnalyzeFlow, CrossReferenceFlows) can encounter ambiguity.",
+      "business_rules": [
+        "UserInteractionService SPI defines ask/confirm/select methods — NoOpUserInteractionService is the default (headless)",
+        "InteractiveUserInteractionService uses stdin/stdout for terminal prompts",
+        "Agent calls UserInteractionService when confidence drops below ambiguity-confidence-threshold (0.7)",
+        "AmbiguityGap records are created for every ambiguity event for the audit trail",
+        "User responses are cached in a user_responses SQLite table",
+        "Interactive mode is opt-in via run --interactive flag"
+      ],
+      "user_stories": [
+        { "id": "US057", "title": "Interactive mode for agent-user clarification", "priority": "should", "type": "story", "gherkin_file": "features/E004-F028-interactive-mode.feature" }
       ]
     }
   ],
@@ -807,7 +868,10 @@
       "features/E004-F021-embabel-setup.feature",
       "features/E004-F022-codebase-knowledge.feature",
       "features/E004-F023-embabel-agent.feature",
-      "features/E004-F024-quality-audit.feature"
+      "features/E004-F024-quality-audit.feature",
+      "features/E004-F026-review-command.feature",
+      "features/E004-F027-domain-model-output-writers.feature",
+      "features/E004-F028-interactive-mode.feature"
     ]
   }
 }

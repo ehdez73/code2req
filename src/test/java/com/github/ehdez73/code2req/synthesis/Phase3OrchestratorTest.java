@@ -207,12 +207,12 @@ class Phase3OrchestratorTest {
         List<CallGraphEdge> calleesOfController =
             knowledge.getCalleesOf("/src/Controller.java");
         assertEquals(1, calleesOfController.size());
-        assertEquals("Service", calleesOfController.getFirst().targetClassName());
+        assertEquals("Service", calleesOfController.get(0).targetClassName());
 
         List<CallGraphEdge> callersOfRepo =
             knowledge.getCallersOf("/src/Repo.java");
         assertEquals(1, callersOfRepo.size());
-        assertEquals("Service", callersOfRepo.getFirst().sourceClassName());
+        assertEquals("Service", callersOfRepo.get(0).sourceClassName());
     }
 
     @Test

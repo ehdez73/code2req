@@ -210,21 +210,23 @@ Pure-Java services that prepare data for the Embabel agent and handle output aft
 4. After agent completes, invokes pure-Java writers for output artifacts.
 
 **CodebaseKnowledge domain model:**
-- `StructuralGraph` — call graph edges, component stereotypes, endpoint registries, database access patterns.
-- `SemanticEnrichment` — all Phase 2 `ExecutionFinding` records keyed by file path.
+- `StructuralGraph` — call graph edges, component stereotypes, endpoint registries, database access patterns, **all 6 entry point types (HTTP, SCHEDULED, KAFKA, RABBITMQ, ACTIVEMQ, EVENT_LISTENER)**.
+- `SemanticEnrichment` — all Phase 2 `ExecutionFinding` records keyed by file path. Added `getAllTestInsights()`, `getTestFilePath()`, `getAllTestFilePaths()` convenience methods.
 - `LinkRegistry` — topic links (producer↔consumer), floating links (HTTP calls), template links.
-- Query methods: `getFlowCandidates()`, `findUnresolvedLinks()`, `getComponentsByType()`, `getCallersOf(target)`, `getCalleesOf(source)`.
+- Query methods: `getFlowCandidates()`, `findUnresolvedLinks()`, `getComponentsByType()`, `getCallersOf(target)`, `getCalleesOf(source)`, **`getEntryPoints()`**, **`getAllKnownMethods()`**, **`getEntryPointPriority()`**.
+- **New types:** `EntryPoint` record + `EntryPointType` enum in `synthesis/domain/`, `MethodIdentifier` record in `synthesis/`.
 
 **No fallback needed** — Embabel is the agent framework (decision-making), not a data-processing pipeline. If Embabel repo is unavailable, Phase 3 cannot run.
 
-- [x] **US050** (must): Phase3Orchestrator aggregates Phase 1 (structural) + Phase 2 (enriched) data into CodebaseKnowledge with query methods (getFlowCandidates, getCallersOf, getCalleesOf, findUnresolvedLinks)
+- [x] **US050** (must): Phase3Orchestrator aggregates Phase 1 (structural) + Phase 2 (enriched) data into CodebaseKnowledge with query methods (getFlowCandidates, getCallersOf, getCalleesOf, findUnresolvedLinks, getEntryPoints, getAllKnownMethods)
 - [x] Gherkin: `docs/sdlc/features/E004-F022-codebase-knowledge.feature`
 - [x] Depends on: F021 (Embabel integration), Phase 2 enriched data in SQLite
-- [x] Classes: `Phase3Orchestrator`, `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry`
-- [x] Verify: `mvn test` — 501 tests pass (11 new Phase3Orchestrator tests covering CodebaseKnowledge aggregation from empty store, call graph edges, endpoints, DB access, components, semantic enrichment, floating/topic links, query methods, analyzeKnowledge counts, dry-run)
-- [x] Modified: `ExecutionFindingStore` (+findAllByType), `TopicLinkStore` (+findAll), `RunCommandTest` (updated Phase3Orchestrator constructor)
-- [ ] **F023 dependency:** `Phase3Orchestrator.analyzeKnowledge()` is currently a pure-Java stub (counts flows by name). F023 replaces it with Embabel agent invocation — injects `AgentPlatform`, builds `ProcessOptions`, runs the agent, collects `FunctionalFlow` objects from the blackboard. See F023 for full spec.
-- [x] Manual: `run --dry-run --manifest ...` — verify orchestrator loads data and invokes agent
+- [x] Classes: `Phase3Orchestrator`, `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry`, `EntryPoint` (+`EntryPointType`), `MethodIdentifier`
+- [x] Verify: `mvn test` — Phase3Orchestrator tests pass (11 tests covering CodebaseKnowledge aggregation, all query methods, and entry point loading from SQLite)
+- [x] Modified: `ExecutionFindingStore` (+findAllByType), `TopicLinkStore` (+findAll), `RunCommandTest` (updated Phase3Orchestrator constructor), `StructuralGraph` (+entry point fields + getEntryPoints + getAllKnownMethods + getEntryPointPriority), `Phase3Orchestrator` (+entry point deserialization), `CodebaseKnowledge` (+delegation methods), `SemanticEnrichment` (+test insight convenience methods)
+- [ ] **Phase 2 fix:** `Phase2Orchestrator` now resolves `Task.pairedTestPath` from `PairedExecutionResolver` during task creation (was previously discarded). This makes test file info available to Phase 3 without re-running test detection.
+- [ ] **F023 dependency:** `Phase3Orchestrator.analyzeKnowledge()` is currently a pure-Java stub (counts flows by name). F023 replaces it with Embabel agent invocation — injects `AgentPlatform`, builds `ProcessOptions`, runs the agent, collects `FunctionalFlow` objects from the blackboard. See F023 for full spec. `Phase3Orchestrator` constructor has been prepared with AgentPlatform injection point.
+- [x] Manual: `run --dry-run --manifest ...` — verify orchestrator loads data and entry points are discovered
 
 #### F023: Embabel Agent — Goals, Actions, Output (US051, PRD §2.3, §3.8)
 
@@ -618,10 +620,14 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `model/Task.java` | Added `String pairedTestPath` field |
 | ✓ `store/TaskStoreSchema.java` | Added `paired_test_path TEXT` column |
 | ✓ `store/TaskStore.java` | Updated `save()` and `rowMapper` for new column |
-| ✓ `orchestrator/Phase2Orchestrator.java` | Inject `PairedExecutionResolver`; resolve and pass test content to executor |
+| ✓ `orchestrator/Phase2Orchestrator.java` | Inject `PairedExecutionResolver`; resolve and pass test content to executor. **F022: Populate `Task.pairedTestPath` from `PairedExecutionResolver.resolve()` (was previously discarded).** |
 | ✓ `executor/SemanticExecutor.java` | Inject `TestAssertionExtractor`; add `EXTRACTED TEST ASSERTIONS` structured section to prompt |
 | ✓ `planner/rule/TestAssertionsPresentRule.java` | Refactored to delegate to `TestFileMatcher` |
 | ✓ `model/ExecutionConfig.java` | Added `List<String> testSuffixes` with `resolvedTestSuffixes()` defaulting to `["Test", "IT"]` |
+| **`synthesis/StructuralGraph.java`** | **F022: Add fields + accessors for all 6 entry point types (SCHEDULED_TASK, KAFKA_LISTENER, RABBITMQ_LISTENER, ACTIVEMQ_LISTENER, EVENT_LISTENER). Add `getEntryPoints()`, `getAllKnownMethods()`, `getEntryPointPriority()` methods. Backward-compatible 4-arg constructor delegates to new 9-arg constructor.** |
+| **`synthesis/CodebaseKnowledge.java`** | **F022: Add `getEntryPoints()`, `getAllKnownMethods()`, `getAllTestInsights()`, `getAllTestFilePaths()` delegation methods.** |
+| **`synthesis/SemanticEnrichment.java`** | **F022: Add `getAllTestInsights()`, `getTestFilePath(filePath)`, `getAllTestFilePaths()` convenience methods for test insight extraction.** |
+| **`synthesis/Phase3Orchestrator.java`** | **F022: `buildStructuralGraph()` now deserializes all 6 entry point finding types. Added `getTestFileMapping()` for paired test path lookup. AgentPlatform injection point prepared for F023.** |
 
 ### New files:
 | Package | Files |
@@ -639,7 +645,8 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | `synthesis/output/` | `MarkdownSpecWriter`, `SemanticManifestWriter` |
 | `synthesis/audit/` | `Phase3QualityAudit`, `AuditSample`, `AuditReport` |
 | ✓ `shell/` | `PlanCommand`, `RunCommand`. `ReviewCommand`, `ReviewService` (F026). |
-| ✓ `synthesis/` | `Phase3Result` (updated in F023 with `awaitingReviewReasons`), `Phase3Orchestrator` (now implemented; modified in F023: +`AgentPlatform`, +`ExecutionConfig`, Phase 3 marker upsert, temp-file output, persist `HUMAN_REVIEW_REASON` findings + task statuses), `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry` |
+| ✓ `synthesis/` | `Phase3Result` (updated in F023 with `awaitingReviewReasons`), `Phase3Orchestrator` (now implemented; modified in F023: +`AgentPlatform`, +`ExecutionConfig`, Phase 3 marker upsert, temp-file output, persist `HUMAN_REVIEW_REASON` findings + task statuses), `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry`, **`MethodIdentifier` (F022 — for orphaned method detection)** |
+| ✓ `synthesis/domain/` | **`EntryPoint` (F022 — unified entry point record), `EntryPointType` (F022 — enum: HTTP, SCHEDULED, KAFKA, RABBITMQ, ACTIVEMQ, EVENT_LISTENER).** Also used by F023 domain records (`FunctionalFlow`, `BusinessRule`, etc.). |
 | ✓ `store/TopicLinkStore.java` | **Added `findAll()` query for Phase 3 LinkRegistry** |
 | `store/UserResponseStore.java` | `findBySignature()`, `save()` for user interaction cache (F023). |
 | ✓ `shell/RunCommand.java` | `--resume` now handles `AWAITING_HUMAN_REVIEW` → `INDEXED` (F026). `--resume` also calls `recoverPhase3Marker()` (ENRICHING → PENDING, clean .tmp files). `--force-phase3`, `--interactive`, `--interactive-timeout` flags. Phase 3 skip-if-ENRICHED guard. |
