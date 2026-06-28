@@ -19,6 +19,11 @@ public class QuarantineFlowAction {
     private static final double LOW_CONFIDENCE_THRESHOLD = 0.3;
 
     public TracedFlowResult quarantine(TracedFlowResult tracedResult) {
+        QuarantineFlowResult result = quarantineWithResult(tracedResult);
+        return result.cleanResult();
+    }
+
+    public QuarantineFlowResult quarantineWithResult(TracedFlowResult tracedResult) {
         List<ExecutionFlow> quarantined = new ArrayList<>();
         List<ExecutionFlow> clean = new ArrayList<>();
         List<AmbiguityGap> gaps = new ArrayList<>();
@@ -53,8 +58,10 @@ public class QuarantineFlowAction {
         List<String> allQuarantinedIds = new ArrayList<>(tracedResult.allQuarantinedFlowIds());
         allQuarantinedIds.addAll(quarantined.stream().map(ExecutionFlow::flowId).toList());
 
-        return new TracedFlowResult(clean, allQuarantinedIds);
+        return new QuarantineFlowResult(new TracedFlowResult(clean, allQuarantinedIds), gaps);
     }
+
+    public record QuarantineFlowResult(TracedFlowResult cleanResult, List<AmbiguityGap> gaps) {}
 
     public List<AmbiguityGap> getQuarantineGaps(TracedFlowResult originalResult, TracedFlowResult quarantinedResult) {
         List<String> quarantinedIds = quarantinedResult.allQuarantinedFlowIds();

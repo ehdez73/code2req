@@ -11,24 +11,11 @@ import com.github.ehdez73.code2req.synthesis.domain.EntryPoint;
 import java.util.List;
 import java.util.Map;
 
-public class CodebaseKnowledge {
-
-    private final StructuralGraph structuralGraph;
-    private final SemanticEnrichment semanticEnrichment;
-    private final LinkRegistry linkRegistry;
-
-    public CodebaseKnowledge(
-            StructuralGraph structuralGraph,
-            SemanticEnrichment semanticEnrichment,
-            LinkRegistry linkRegistry) {
-        this.structuralGraph = structuralGraph;
-        this.semanticEnrichment = semanticEnrichment;
-        this.linkRegistry = linkRegistry;
-    }
-
-    public StructuralGraph structuralGraph() { return structuralGraph; }
-    public SemanticEnrichment semanticEnrichment() { return semanticEnrichment; }
-    public LinkRegistry linkRegistry() { return linkRegistry; }
+public record CodebaseKnowledge(
+        StructuralGraph structuralGraph,
+        SemanticEnrichment semanticEnrichment,
+        LinkRegistry linkRegistry
+) {
 
     public List<String> getFlowCandidates() {
         return structuralGraph.getFlowCandidates();

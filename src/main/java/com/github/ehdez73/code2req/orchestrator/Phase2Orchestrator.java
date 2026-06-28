@@ -77,7 +77,7 @@ public class Phase2Orchestrator {
         this.pairedExecutionResolver = pairedExecutionResolver;
     }
 
-    public CompletionStatus executePhase2(String manifestPath, boolean dryRun) {
+    public CompletionStatus execute(String manifestPath, boolean dryRun) {
         Collection<ScanTarget> targets = loadScanTargets(manifestPath);
         List<PlannerDecision> qualified = getQualifiedDecisions();
         if (qualified.isEmpty()) {

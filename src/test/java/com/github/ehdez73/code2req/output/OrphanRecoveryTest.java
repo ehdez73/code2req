@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.output;
 
+import com.embabel.agent.core.AgentPlatform;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
@@ -12,12 +13,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:sqlite:target/test-orphan-" + "${random.uuid}" + ".db"
 })
 class OrphanRecoveryTest {
+
+    @MockitoBean
+    private AgentPlatform agentPlatform;
 
     @Autowired
     private TaskStore taskStore;

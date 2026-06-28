@@ -23,6 +23,7 @@ import com.github.ehdez73.code2req.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.planner.rule.UnresolvedFloatingLinkRule;
 import com.github.ehdez73.code2req.planner.rule.UnresolvedSignaturesRule;
+import com.embabel.agent.core.AgentPlatform;
 import com.github.ehdez73.code2req.service.FilePathResolver;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.FloatingLinkStore;
@@ -43,6 +44,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 class RunCommandTest {
 
@@ -99,7 +101,8 @@ class RunCommandTest {
             new ManifestLoader(), new FilePathResolver(), per);
 
         var phase3Orchestrator = new Phase3Orchestrator(
-            taskStore, findingStore, floatingLinkStore, topicLinkStore, metricsStore);
+            taskStore, findingStore, floatingLinkStore, topicLinkStore, metricsStore,
+            mock(AgentPlatform.class));
         var manifestLoader = new ManifestLoader();
         var manifestValidator = new ManifestValidator(manifestLoader);
 
@@ -110,7 +113,7 @@ class RunCommandTest {
 
     @Test
     void runWithEmptyQualifiedTasksCompletes() {
-        String result = command.run("project-manifest.yaml", true, false, null);
+        String result = command.run("project-manifest.yaml", true, false, null, false);
         assertTrue(result.contains("Completed: 0"));
         assertTrue(result.contains("Phase 2"));
         assertTrue(result.contains("Phase 3"));
@@ -122,7 +125,7 @@ class RunCommandTest {
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t1", "SCHEDULED_TASK", "{}", 1);
 
-        String result = command.run("project-manifest.yaml", true, false, null);
+        String result = command.run("project-manifest.yaml", true, false, null, false);
         assertTrue(result.contains("Completed: 1"));
         assertTrue(result.contains("DRY RUN"));
         assertTrue(result.contains("Phase 2"));
@@ -135,7 +138,7 @@ class RunCommandTest {
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t1", "SCHEDULED_TASK", "{}", 1);
 
-        String result = command.run("project-manifest.yaml", false, false, 0);
+        String result = command.run("project-manifest.yaml", false, false, 0, false);
         assertTrue(result.contains("skipping Phase 2"));
         assertTrue(result.contains("Phase 3"));
     }
@@ -152,14 +155,14 @@ class RunCommandTest {
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t3", "SCHEDULED_TASK", "{}", 1);
 
-        String result = command.run("project-manifest.yaml", true, false, null);
+        String result = command.run("project-manifest.yaml", true, false, null, false);
         assertTrue(result.contains("Completed: 3"));
         assertTrue(result.contains("Run Complete"));
     }
 
     @Test
     void runWithInvalidManifestReturnsError() {
-        String result = command.run("nonexistent.yaml", false, false, null);
+        String result = command.run("nonexistent.yaml", false, false, null, false);
         assertTrue(result.contains("Error: Manifest file not found"));
     }
 
@@ -172,7 +175,7 @@ class RunCommandTest {
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "f2", "COMPONENT", "{}", 1);
 
-        String result = command.run("project-manifest.yaml", true, true, null);
+        String result = command.run("project-manifest.yaml", true, true, null, false);
 
         assertTrue(result.contains("FAILED"));
         assertEquals(TaskStatus.ENRICHED, taskStore.findById("f1").orElseThrow().status());
@@ -183,7 +186,7 @@ class RunCommandTest {
     void resumeRecoversFailedTasksWithoutFindings() {
         taskStore.save(new Task("f3", "/src/UnreadableService.java", TaskStatus.FAILED, "java", "hash-f3", "test"));
 
-        String result = command.run("project-manifest.yaml", true, true, null);
+        String result = command.run("project-manifest.yaml", true, true, null, false);
 
         assertTrue(result.contains("FAILED"));
         assertEquals(TaskStatus.INDEXED, taskStore.findById("f3").orElseThrow().status());

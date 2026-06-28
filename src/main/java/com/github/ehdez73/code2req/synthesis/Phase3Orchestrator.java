@@ -1,5 +1,9 @@
 package com.github.ehdez73.code2req.synthesis;
 
+import com.embabel.agent.core.Agent;
+import com.embabel.agent.core.AgentPlatform;
+import com.embabel.agent.core.AgentProcess;
+import com.embabel.agent.core.ProcessOptions;
 import com.github.ehdez73.code2req.analyzer.bean.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
@@ -14,6 +18,7 @@ import com.github.ehdez73.code2req.analyzer.web.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.model.ExecutionFinding;
 import com.github.ehdez73.code2req.model.Metric;
 import com.github.ehdez73.code2req.model.Task;
+import com.github.ehdez73.code2req.model.TaskStatus;
 import com.github.ehdez73.code2req.orchestrator.CompletionStatus;
 import com.github.ehdez73.code2req.store.ExecutionFindingStore;
 import com.github.ehdez73.code2req.store.FindingType;
@@ -21,13 +26,7 @@ import com.github.ehdez73.code2req.store.FloatingLinkStore;
 import com.github.ehdez73.code2req.store.MetricsStore;
 import com.github.ehdez73.code2req.store.TaskStore;
 import com.github.ehdez73.code2req.store.TopicLinkStore;
-import com.github.ehdez73.code2req.synthesis.agent.AnalyzedFlowResult;
-import com.github.ehdez73.code2req.synthesis.agent.CrossReferencedResult;
-import com.github.ehdez73.code2req.synthesis.agent.EntryPointDiscoveryResult;
-import com.github.ehdez73.code2req.synthesis.agent.FunctionalRequirementExtractor;
-import com.github.ehdez73.code2req.synthesis.agent.GroupedFlowsResult;
 import com.github.ehdez73.code2req.synthesis.agent.SpecResult;
-import com.github.ehdez73.code2req.synthesis.agent.TracedFlowResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,13 +34,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Optional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -54,6 +55,7 @@ public class Phase3Orchestrator {
     private final FloatingLinkStore floatingLinkStore;
     private final TopicLinkStore topicLinkStore;
     private final MetricsStore metricsStore;
+    private final AgentPlatform agentPlatform;
     private final ObjectMapper objectMapper;
 
     public Phase3Orchestrator(
@@ -61,17 +63,23 @@ public class Phase3Orchestrator {
             ExecutionFindingStore executionFindingStore,
             FloatingLinkStore floatingLinkStore,
             TopicLinkStore topicLinkStore,
-            MetricsStore metricsStore) {
+            MetricsStore metricsStore,
+            AgentPlatform agentPlatform) {
         this.taskStore = taskStore;
         this.executionFindingStore = executionFindingStore;
         this.floatingLinkStore = floatingLinkStore;
         this.topicLinkStore = topicLinkStore;
         this.metricsStore = metricsStore;
+        this.agentPlatform = agentPlatform;
         this.objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     public Phase3Result execute(CompletionStatus phase2Status, boolean dryRun) {
+        return execute(phase2Status, dryRun, false);
+    }
+
+    public Phase3Result execute(CompletionStatus phase2Status, boolean dryRun, boolean forcePhase3) {
         if (dryRun) {
             log.info("Phase 3 dry-run: simulation mode, using stubbed synthesis");
             CodebaseKnowledge knowledge = simulateKnowledge();
@@ -83,36 +91,68 @@ public class Phase3Orchestrator {
         log.info("Phase 3: building CodebaseKnowledge from SQLite");
         CodebaseKnowledge knowledge = buildCodebaseKnowledge();
 
-        log.info("Phase 3: launching GOAP agent (FunctionalRequirementExtractor)");
-        FunctionalRequirementExtractor agent = new FunctionalRequirementExtractor(knowledge);
+        if (!forcePhase3 && knowledge.getFlowNames().isEmpty()
+                && knowledge.findUnresolvedLinks().isEmpty()
+                && knowledge.findUnresolvedTopicLinks().isEmpty()) {
+            log.info("Phase 3: no flows to extract, skipping");
+            return Phase3Result.empty();
+        }
+
+        markPhase3Tasks(TaskStatus.PENDING);
+
+        if (agentPlatform == null) {
+            log.info("Phase 3: AgentPlatform not available (Embabel not configured), skipping agent");
+            Phase3Result noAgentResult = Phase3Result.empty();
+            persistMetrics(noAgentResult, false);
+            return noAgentResult;
+        }
+
+        log.info("Phase 3: launching GOAP agent (FunctionalRequirementAgent)");
 
         try {
-            EntryPointDiscoveryResult discovery = agent.discoverEntryPoints();
-            TracedFlowResult traced = agent.traceFlows(discovery);
-            AnalyzedFlowResult analyzed = agent.analyzeFlows(traced, null);
-            GroupedFlowsResult grouped = agent.groupFlows(analyzed, null);
-            CrossReferencedResult crossRef = agent.crossReferenceFlows(grouped);
-            SpecResult specResult = agent.synthesizeSpec(crossRef, discovery, traced, null);
+            markPhase3Tasks(TaskStatus.ENRICHING);
 
-            List<String> flowNames = grouped.features().stream()
-                .flatMap(f -> f.flows().stream())
-                .map(f -> f.name())
-                .collect(Collectors.toList());
+            Agent agent = agentPlatform.agents().stream()
+                .filter(a -> "functional-requirement-extractor".equals(a.getName()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                    "FunctionalRequirementAgent not deployed by Embabel"));
 
+            Map<String, Object> initialBlackboard = new HashMap<>();
+            initialBlackboard.put("codebaseKnowledge", knowledge);
+            initialBlackboard.put("outputDir", Path.of("spec-output"));
+
+            AgentProcess process = agentPlatform.createAgentProcess(
+                agent, ProcessOptions.DEFAULT, initialBlackboard);
+            agentPlatform.start(process).get(30, TimeUnit.MINUTES);
+
+            SpecResult specResult = process.resultOfType(SpecResult.class);
+
+            List<String> flowNames = knowledge.getFlowNames();
+            int flowCount = specResult != null ? specResult.flowCount() : 0;
             int ambiguityGaps = knowledge.findUnresolvedLinks().size()
-                + knowledge.findUnresolvedTopicLinks().size()
-                + traced.allQuarantinedFlowIds().size();
+                + knowledge.findUnresolvedTopicLinks().size();
+            int awaitingReview = 0;
 
             Phase3Result result = new Phase3Result(
-                specResult.flowCount(), ambiguityGaps, traced.allQuarantinedFlowIds().size(), flowNames
+                flowCount, ambiguityGaps, awaitingReview, flowNames
             );
+            markPhase3Tasks(TaskStatus.ENRICHED);
             persistMetrics(result, false);
             return result;
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Phase 3 synthesis failed: {}", e.getMessage(), e);
-            Phase3Result result = new Phase3Result(0, 0, 0, List.of());
+            markPhase3Tasks(TaskStatus.FAILED);
+            Phase3Result result = Phase3Result.empty();
             persistMetrics(result, false);
             return result;
+        }
+    }
+
+    private void markPhase3Tasks(TaskStatus status) {
+        int count = taskStore.updateStatusByOldStatus(TaskStatus.ENRICHED, status);
+        if (count > 0) {
+            log.info("Phase 3 crash marker: {} tasks marked as {}", count, status);
         }
     }
 

@@ -1,11 +1,13 @@
 package com.github.ehdez73.code2req.store;
 
+import com.embabel.agent.core.AgentPlatform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -13,6 +15,9 @@ import static org.junit.jupiter.api.Assertions.*;
     "spring.datasource.url=jdbc:sqlite:target/test-schema-" + "${random.uuid}" + ".db"
 })
 class TaskStoreSchemaTest {
+
+    @MockitoBean
+    private AgentPlatform agentPlatform;
 
     @Autowired
     private JdbcTemplate jdbc;

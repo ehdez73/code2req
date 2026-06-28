@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.synthesis;
 
+import com.embabel.agent.core.AgentPlatform;
 import com.github.ehdez73.code2req.analyzer.bean.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
@@ -27,6 +28,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 class Phase3OrchestratorTest {
 
@@ -57,9 +59,11 @@ class Phase3OrchestratorTest {
         metricsStore = new MetricsStore(jdbc);
         mapper = new ObjectMapper();
 
+        AgentPlatform agentPlatform = mock(AgentPlatform.class);
+
         orchestrator = new Phase3Orchestrator(
             taskStore, executionFindingStore, floatingLinkStore,
-            topicLinkStore, metricsStore);
+            topicLinkStore, metricsStore, agentPlatform);
     }
 
     @Test

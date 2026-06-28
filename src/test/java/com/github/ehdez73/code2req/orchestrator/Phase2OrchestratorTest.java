@@ -44,10 +44,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -140,7 +138,7 @@ class Phase2OrchestratorTest {
         void returnsEmptyWhenNoQualifiedTasks() {
             insertTask("t1", "/src/Foo.java");
             var orchestrator = createOrchestrator();
-            CompletionStatus status = orchestrator.executePhase2("project-manifest.yaml", true);
+            CompletionStatus status = orchestrator.execute("project-manifest.yaml", true);
             assertEquals(0, status.tasksSubmitted());
             assertEquals(0, status.tasksCompleted());
             assertTrue(status.allSucceeded());
@@ -153,7 +151,7 @@ class Phase2OrchestratorTest {
                 "t1", "SCHEDULED_TASK", "{}", 1);
 
             var orchestrator = createOrchestrator();
-            CompletionStatus status = orchestrator.executePhase2("project-manifest.yaml", true);
+            CompletionStatus status = orchestrator.execute("project-manifest.yaml", true);
 
             assertEquals(1, status.tasksSubmitted());
             assertEquals(1, status.tasksCompleted());
@@ -171,7 +169,7 @@ class Phase2OrchestratorTest {
                 "t2", "SPRING_DATA_INTERFACE", "{}", 1);
 
             var orchestrator = createOrchestrator();
-            CompletionStatus status = orchestrator.executePhase2("project-manifest.yaml", true);
+            CompletionStatus status = orchestrator.execute("project-manifest.yaml", true);
 
             assertEquals(2, status.tasksCompleted());
             assertEquals(TaskStatus.ENRICHED, taskStore.findById("t1").get().status());
@@ -220,7 +218,7 @@ class Phase2OrchestratorTest {
                 taskIdHasher, budgetCalculator, new ManifestLoader(),
                 new FilePathResolver(), per);
 
-            CompletionStatus status = orchestratorWithDeps.executePhase2(manifestPath.toString(), true);
+            CompletionStatus status = orchestratorWithDeps.execute(manifestPath.toString(), true);
 
             assertEquals(TaskStatus.ENRICHED, taskStore.findById("root").get().status());
         }
@@ -256,7 +254,7 @@ class Phase2OrchestratorTest {
                 findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator,
                 new ManifestLoader(), new FilePathResolver(), per);
 
-            CompletionStatus status = orchestratorWithDeps.executePhase2(manifestPath.toString(), true);
+            CompletionStatus status = orchestratorWithDeps.execute(manifestPath.toString(), true);
 
             assertEquals(2, status.tasksCompleted());
             assertEquals(1, status.dependenciesDiscovered());
@@ -284,7 +282,7 @@ class Phase2OrchestratorTest {
                 "t1", "SCHEDULED_TASK", "{}", 1);
 
             var orchestrator = createOrchestrator();
-            orchestrator.executePhase2("project-manifest.yaml", true);
+            orchestrator.execute("project-manifest.yaml", true);
 
             Metric metric = metricsStore.getLatestForPhase(2);
             assertNotNull(metric);
@@ -307,7 +305,7 @@ class Phase2OrchestratorTest {
                 "t3", "NATIVE_SQL_QUERY", "{}", 1);
 
             var orchestrator = createOrchestrator();
-            CompletionStatus status = orchestrator.executePhase2("project-manifest.yaml", true);
+            CompletionStatus status = orchestrator.execute("project-manifest.yaml", true);
 
             assertEquals(3, status.tasksSubmitted());
             assertEquals(3, status.tasksCompleted());

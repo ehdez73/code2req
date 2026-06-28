@@ -63,13 +63,13 @@
 ### 3.3 Agent Assembly
 
 - [x] 3.3.1 Create GOAP agent class (`@Agent`) with all 7 actions wired
-- [ ] 3.3.2 Define all 9 world-state conditions (§2.2)
+- [x] 3.3.2 Define all 9 world-state conditions (§2.2)
 - [x] 3.3.3 Implement sub-chain cache (§2.6)
 - [x] 3.3.4 Implement flow priority scoring formula (§2.4)
 - [x] 3.3.5 Implement orphaned method detection (§2.5)
-- [ ] 3.3.6 Implement Mermaid diagram generation (for ComplexityLevel.FULL flows)
-- [ ] 3.3.7 Implement Phase 3 crash marker: PENDING → ENRICHING → ENRICHED / FAILED
-- [ ] 3.3.8 Add `--force-phase3` flag for re-execution
+- [x] 3.3.6 Implement Mermaid diagram generation (for ComplexityLevel.FULL flows)
+- [x] 3.3.7 Implement Phase 3 crash marker: PENDING → ENRICHING → ENRICHED / FAILED
+- [x] 3.3.8 Add `--force-phase3` flag for re-execution
 - [ ] `mvn test` succeeds
 
 ---
@@ -191,7 +191,7 @@ Always verify with `mvn clean test`
 | 2 F022 Query Helpers | 6 | 5 |
 | 3.1 F023 Domain Records | 11 | 11 |
 | 3.2 F023 GOAP Actions | 7 | 7 |
-| 3.3 F023 Agent Assembly | 8 | 4 |
+| 3.3 F023 Agent Assembly | 8 | 8 |
 | 4 F026 Review CLI | 8 | 0 |
 | 5.1 F027 MarkdownSpecWriter | 10 | 0 |
 | 5.2 F027 SemanticManifestWriter | 10 | 0 |

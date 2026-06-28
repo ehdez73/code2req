@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.store;
 
+import com.embabel.agent.core.AgentPlatform;
 import com.github.ehdez73.code2req.model.Task;
 import com.github.ehdez73.code2req.model.TaskStatus;
 import org.junit.jupiter.api.AfterEach;
@@ -8,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
 import java.util.List;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,6 +34,9 @@ class TaskStoreTest {
         taskStoreSchema.dropTable();
         taskStoreSchema.createSchemaIfNotExists();
     }
+
+    @MockitoBean
+    private AgentPlatform agentPlatform;
 
     @AfterEach
     void tearDown() {

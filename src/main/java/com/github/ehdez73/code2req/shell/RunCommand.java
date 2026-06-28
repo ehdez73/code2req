@@ -62,7 +62,9 @@ public class RunCommand {
             @ShellOption(value = "--resume", defaultValue = "false",
                           help = "Recover orphaned tasks (ENRICH_FAILED, ENRICHING, ENRICH_PENDING, PENDING) before Phase 2 (use after interrupted run). ENRICH_PENDING orphans self-heal automatically.") boolean resume,
             @ShellOption(value = "--llm-threshold", defaultValue = ShellOption.NULL,
-                         help = "Override unresolved signatures threshold (0 to skip Phase 2)") Integer llmThreshold) {
+                         help = "Override unresolved signatures threshold (0 to skip Phase 2)") Integer llmThreshold,
+            @ShellOption(value = "--force-phase3", defaultValue = "false",
+                         help = "Force Phase 3 re-execution even if no new enrichments") boolean forcePhase3) {
 
         var sb = new StringBuilder("=== Run Pipeline ===\n\n");
         var start = Instant.now();
@@ -78,7 +80,7 @@ public class RunCommand {
 
         boolean skipPhase2 = (llmThreshold != null && llmThreshold == 0);
         CompletionStatus phase2Status = runPhase2(manifestPath, dryRun, skipPhase2, sb);
-        runPhase3(phase2Status, dryRun, sb);
+        runPhase3(phase2Status, dryRun, forcePhase3, sb);
 
         long totalElapsed = Duration.between(start, Instant.now()).toSeconds();
         sb.append(String.format("=== Run Complete (%ds) ===%n", totalElapsed));
@@ -87,6 +89,9 @@ public class RunCommand {
         }
         if (resume) {
             sb.append("  Resume mode: orphaned tasks were recovered.\n");
+        }
+        if (forcePhase3) {
+            sb.append("  Force mode: Phase 3 re-executed.\n");
         }
 
         return sb.toString();
@@ -189,7 +194,7 @@ public class RunCommand {
             sb.append("  Mode: DRY RUN (simulation stubs, no API calls)\n");
         }
 
-        CompletionStatus status = phase2Orchestrator.executePhase2(manifestPath, dryRun);
+        CompletionStatus status = phase2Orchestrator.execute(manifestPath, dryRun);
         long p2Elapsed = Duration.between(phase2Start, Instant.now()).toSeconds();
 
         appendPhase2Summary(sb, status);
@@ -213,15 +218,18 @@ public class RunCommand {
         }
     }
 
-    private void runPhase3(CompletionStatus phase2Status, boolean dryRun, StringBuilder sb) {
+    private void runPhase3(CompletionStatus phase2Status, boolean dryRun, boolean forcePhase3, StringBuilder sb) {
         sb.append("=== Phase 3: Functional Requirement Extraction ===\n");
         var phase3Start = Instant.now();
 
         if (dryRun) {
             sb.append("  Mode: DRY RUN (simulation, no actual synthesis)\n");
         }
+        if (forcePhase3) {
+            sb.append("  Mode: FORCE (re-executing Phase 3)\n");
+        }
 
-        Phase3Result result = phase3Orchestrator.execute(phase2Status, dryRun);
+        Phase3Result result = phase3Orchestrator.execute(phase2Status, dryRun, forcePhase3);
         long p3Elapsed = Duration.between(phase3Start, Instant.now()).toSeconds();
 
         sb.append(String.format("  Flows extracted: %d%n", result.flowsExtracted()));

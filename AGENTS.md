@@ -4,6 +4,7 @@ Java 21, Spring Boot 3.4.x, Spring Shell, Maven.
 
 ```
 mvn clean compile          # build only
+mvn clean test             # execute tests
 mvn spring-boot:run        # run interactive shell
 ./mvnw spring-boot:run     # via wrapper (no local Maven needed)
 ```
