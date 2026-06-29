@@ -14,7 +14,8 @@ public record ExecutionConfig(
     Integer maxTokensPerRun,
     Double ambiguityConfidenceThreshold,
     List<String> testSuffixes,
-    ExecutionMode executionMode
+    ExecutionMode executionMode,
+    Boolean strictResponseFormat
 ) {
     public int resolvedUnresolvedThreshold() {
         return llmUnresolvedThreshold != null ? llmUnresolvedThreshold : 5;
@@ -26,5 +27,9 @@ public record ExecutionConfig(
 
     public ExecutionMode resolvedExecutionMode() {
         return executionMode != null ? executionMode : ExecutionMode.ASYNC;
+    }
+
+    public boolean resolvedStrictResponseFormat() {
+        return strictResponseFormat != null ? strictResponseFormat : true;
     }
 }

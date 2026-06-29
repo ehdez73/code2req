@@ -82,7 +82,7 @@ class Phase2OrchestratorTest {
         taskIdHasher = new TaskIdHasher();
         budgetCalculator = new ContextBudgetCalculator();
         simulationStub = new SimulationStub();
-        executionConfig = new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null);
+        executionConfig = new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null);
 
         var tfm = new TestFileMatcher(executionConfig);
         defaultRules = List.of(
@@ -214,7 +214,7 @@ class Phase2OrchestratorTest {
                 new TestFileMatcher(executionConfig), new TestAssertionExtractor());
             var orchestratorWithDeps = new Phase2Orchestrator(planner, executor, taskStore,
                 findingStore, metricsStore,
-                new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null),
+                new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null),
                 taskIdHasher, budgetCalculator, new ManifestLoader(),
                 new FilePathResolver(), per);
 

@@ -128,11 +128,7 @@
             <artifactId>embabel-agent-starter</artifactId>
             <version>${embabel-agent.version}</version>
         </dependency>
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-starter-dockermodels</artifactId>
-            <version>${embabel-agent.version}</version>
-        </dependency>
+
 
         <!-- Testing Infrastructure -->
         <dependency>
@@ -163,6 +159,13 @@
     <profiles>
         <profile>
             <id>local</id>
+            <dependencies>
+                <dependency>
+                    <groupId>com.embabel.agent</groupId>
+                    <artifactId>embabel-agent-starter-dockermodels</artifactId>
+                    <version>${embabel-agent.version}</version>
+                </dependency>
+            </dependencies>
             <build>
                 <plugins>
                     <plugin>
@@ -175,6 +178,28 @@
                 </plugins>
             </build>
         </profile>
+        <profile>
+            <id>opencode</id>
+            <dependencies>
+                <dependency>
+                    <groupId>com.embabel.agent</groupId>
+                    <artifactId>embabel-agent-starter-openai-custom</artifactId>
+                    <version>${embabel-agent.version}</version>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <configuration>
+                            <jvmArguments>-Dspring.profiles.active=opencode</jvmArguments>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
     </profiles>
 
 </project>

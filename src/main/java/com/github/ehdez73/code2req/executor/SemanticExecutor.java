@@ -169,14 +169,20 @@ public class SemanticExecutor {
         String rawSchema = outputConverter.getJsonSchema();
         String strictSchema = buildStrictSchema(rawSchema);
 
+        var responseFormat = executionConfig.resolvedStrictResponseFormat()
+            ? ResponseFormat.builder()
+                .type(ResponseFormat.Type.JSON_SCHEMA)
+                .jsonSchema(strictSchema)
+                .build()
+            : ResponseFormat.builder()
+                .type(ResponseFormat.Type.JSON_OBJECT)
+                .build();
+
         var options = OpenAiChatOptions.builder()
             .httpHeaders(Map.of(
                     "X-OpenRouter-Plugins", "[{\"id\":\"response-healing\"}]"
             ))
-            .responseFormat(ResponseFormat.builder()
-                .type(ResponseFormat.Type.JSON_SCHEMA)
-                .jsonSchema(strictSchema)
-                .build())
+            .responseFormat(responseFormat)
             .build();
 
         int maxRetries = 3;

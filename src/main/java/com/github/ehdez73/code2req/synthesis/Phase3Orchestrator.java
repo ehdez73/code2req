@@ -1,9 +1,6 @@
 package com.github.ehdez73.code2req.synthesis;
 
-import com.embabel.agent.core.Agent;
-import com.embabel.agent.core.AgentPlatform;
-import com.embabel.agent.core.AgentProcess;
-import com.embabel.agent.core.ProcessOptions;
+import com.embabel.agent.core.*;
 import com.github.ehdez73.code2req.analyzer.bean.ComponentInfo;
 import com.github.ehdez73.code2req.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.analyzer.db.DbAccessInfo;
@@ -267,7 +264,7 @@ public class Phase3Orchestrator {
     }
 
     private void persistMetrics(Phase3Result result, boolean dryRun) {
-        int totalTokens = dryRun ? 0 : 0;
+        int totalTokens = 0;
         Metric metric = new Metric(
             UUID.randomUUID().toString(),
             3,

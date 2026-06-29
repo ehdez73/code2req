@@ -22,7 +22,7 @@ class PairedExecutionResolverTest {
     @BeforeEach
     void setUp() {
         matcher = new TestFileMatcher(
-            new ExecutionConfig(null, null, null, null, null, null, null, null, null));
+            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null));
         resolver = new PairedExecutionResolver(matcher, new TestAssertionExtractor());
     }
 

@@ -55,7 +55,7 @@ class PlanCommandTest {
         var floatingLinkStore = new FloatingLinkStore(jdbc);
 
         var tfm = new TestFileMatcher(
-            new ExecutionConfig(null, null, null, null, null, null, null, null, null));
+            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null));
         List<QualificationRule> rules = List.of(
             new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
