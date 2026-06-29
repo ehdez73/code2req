@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-Phase 3 takes the enriched codebase (Phase 1 structural data + Phase 2 semantic enrichment) and employs an **Embabel GOAP agent** to extract holistic functional requirements by **tracing execution flows from entry points**.
+Phase 3 takes the indexed codebase (Phase 1 structural data) and employs an **Embabel GOAP agent** to extract holistic functional requirements by **tracing execution flows from entry points**. Phase 2 semantic enrichment is optional — when available it provides richer flow context, but extraction works from Phase 1 entry points alone.
 
 ### Core Idea
 
@@ -797,8 +797,8 @@ As a Developer, I want the agent to ask me questions when it encounters ambiguit
 
 ## 7. Implementation Order
 
-1. **Domain Model** -- Create all record classes in `synthesis/domain/`
-2. **Agent Actions** -- Implement GOAP actions in `synthesis/agent/`
+1. **Domain Model** -- Create all record classes in `extraction/domain/model/`
+2. **Agent Actions** -- Implement GOAP actions in `extraction/agent/`
 3. **Output Writers** -- Implement MarkdownSpecWriter and SemanticManifestWriter
 4. **Orchestrator** -- Update Phase3Orchestrator to invoke new agent
 5. **Interactive Mode** -- Implement UserInteractionService SPI

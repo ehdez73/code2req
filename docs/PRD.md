@@ -455,7 +455,7 @@ The structural trace produced by Phase 1 resolves all deterministic call paths (
 * **The Orchestrator:** Processes the enrichment DAG, submits tasks asynchronously to the Spring pool, and tracks progress via `CompletableFuture<ExecutionFinding>` responses. The enriched `ExecutionFinding` JSON (§4) is merged with the Phase 1 structural data in the SQLite store.
 
 * **Phase Synchronization Barrier:** Phase 3 (synthesis) is blocked until ALL Phase 2 enrichment tasks complete, using `CompletableFuture.allOf(...)`. Phase 2 is skipped entirely if `--llm-threshold` is set to 0 or no files qualify.
-* **FAILED Task Recovery:** Tasks that exhaust retries and transition to FAILED can be recovered by resetting the task status to INDEXED via `task-set-status --task <id> --status INDEXED --delete-findings true` and re-running; the planner skips tasks that already have a SEMANTIC_ENRICHMENT finding, so only truly failed tasks are re-processed. Or use `run --resume` for full crash recovery.
+* **FAILED Task Recovery:** Tasks that exhaust retries and transition to FAILED can be recovered by resetting the task status to INDEXED via `task-set-status --task <id> --status INDEXED --delete-findings true` and re-running; the planner skips tasks that already have a SEMANTIC_ENRICHMENT finding, so only truly failed tasks are re-processed. Or use `enrich --resume` for full crash recovery.
   **Authentication:** LLM requests are authenticated via `OPENROUTER_API_KEY` environment variable (loaded from `.env` via `spring.config.import=optional:file:.env`).
 
 ---
@@ -858,7 +858,7 @@ Concurrency limits are managed declaratively via Spring's core context execution
 * **Queue Control:** The pool queue capacity must be sufficiently deep to accommodate large parallel DAG discovery spikes without overflow exceptions.
 * **In-Thread Resiliency:** Model interactions within the `@Async` task context employ an active exponential backoff strategy (initial delay: 2s, multiplier: 2.0, capped at 60s, maximum retry attempts: 3). If an HTTP 429 (Rate Limit Exceeded) is received from the AI provider, the running thread pauses natively (`Thread.sleep()`) and securely retries the processing step. If rate limits persist after all retries, the task transitions to `FAILED`.
 * **Error-Feedback Retry:** When the LLM returns structurally invalid JSON (malformed syntax or missing required fields), the failed output and parse error are fed back into the retry prompt so the model can self-correct on subsequent attempts. This is distinct from rate-limit backoff — the retry is immediate (no exponential delay) and the augmented prompt includes the specific parsing failure.
-* **FAILED Task Recovery:** Tasks that exhaust all retries (rate-limit or JSON parse errors) and transition to FAILED can be recovered without re-running Phase 1 indexing. Use `task-set-status --task <id> --status INDEXED --delete-findings true` to reset a single task, removing its existing findings and linked rows. Or use `run --resume` for full crash recovery across all tasks. On the next `run`, the Phase 2 planner re-evaluates them, skipping any tasks that already have a persisted SEMANTIC_ENRICHMENT finding (so already-enriched tasks are never re-processed).
+* **FAILED Task Recovery:** Tasks that exhaust all retries (rate-limit or JSON parse errors) and transition to FAILED can be recovered without re-running Phase 1 indexing. Use `task-set-status --task <id> --status INDEXED --delete-findings true` to reset a single task, removing its existing findings and linked rows. Or use `enrich --resume` for full crash recovery across all tasks. On the next `run`, the Phase 2 planner re-evaluates them, skipping any tasks that already have a persisted SEMANTIC_ENRICHMENT finding (so already-enriched tasks are never re-processed).
 
 ### 5.5 Crash Recovery & Warm Start Protocol
 
@@ -875,7 +875,7 @@ The `--resume` flag on `run` handles full crash recovery across all interruptibl
    - `FAILED` → `ENRICH_PENDING` if any findings exist (was past Phase 1 and likely qualified), or `INDEXED` if no findings (unreadable file that was never scanned)
    - `PENDING` → `INDEXED`
 3. **DAG Realignment:** The Planner rebuilds the dependency graph from the updated database state, resuming analysis with zero metadata corruption or double token expenditures.
-4. **Single-flag recovery:** A single `run --resume` recovers all interruptible states including AWAITING_HUMAN_REVIEW and FAILED tasks.
+4. **Single-flag recovery:** A single `enrich --resume` recovers all interruptible states including AWAITING_HUMAN_REVIEW and FAILED tasks.
 
 5. **Phase 3 Marker Recovery:** Unlike Phase 2's per-task persistence, Phase 3 executes as a single synchronous pass with no intermediate checkpointing. To prevent redundant re-execution after a crash, a dedicated Phase 3 status marker task is maintained in the `tasks` table:
    - **Marker task ID:** Deterministic SHA-256 of `__phase3_marker__`.
@@ -912,7 +912,7 @@ Tasks and functional flows flagged `AWAITING_HUMAN_REVIEW` follow a defined life
    | Action | CLI | Effect |
    |---|---|---|
    | **Accept gap** | `review accept --task <id>` | Flow documented in spec Section 5 as explicitly unresolved. Task reset to INDEXED for future re-runs. |
-   | **Reset & re-run** | `review reset --task <id>` | Delete findings, reset to INDEXED. Next `run` re-qualifies via planner. Findings are eligible for `run --resume`. |
+   | **Reset & re-run** | `review reset --task <id>` | Delete findings, reset to INDEXED. Next `run` re-qualifies via planner. Findings are eligible for `enrich --resume`. |
    | **Batch accept** | `review accept-all` | Accept all quarantined flows as documented gaps. |
    | **Batch reset** | `review reset-all` | Reset all for re-processing on next run. |
 
@@ -948,11 +948,11 @@ When the agent encounters an ambiguity it cannot resolve with high confidence, i
 └──────────────────────────────────────────────────────────┘
 ```
 
-- **`UserInteractionService` SPI** (interface in `synthesis/interaction/`): Abstracts the prompt mechanism. Two implementations:
+- **`UserInteractionService` SPI** (interface in `extraction/interaction/`): Abstracts the prompt mechanism. Two implementations:
   - `NoOpUserInteractionService` (default) — always returns empty/skip. Used when `--interactive` is not set.
   - `InteractiveUserInteractionService` (deferred, post-F025) — uses Spring Shell's `LineReader` to prompt, with configurable timeout.
-- **`UserResponseStore`** (in `store/`): SQLite-backed persistence for user answers. Keyed by deterministic hash of the ambiguity context. This ensures answered questions are never re-asked on subsequent runs or crash recovery.
-- **`UserResponse`** (record in `model/`): `signature`, `question`, `answer`, `confidence_gained`, `created_at`.
+- **`UserResponseStore`** (in `infrastructure/persistence/`): SQLite-backed persistence for user answers. Keyed by deterministic hash of the ambiguity context. This ensures answered questions are never re-asked on subsequent runs or crash recovery.
+- **`UserResponse`** (record in `common/domain/`): `signature`, `question`, `answer`, `confidence_gained`, `created_at`.
 
 **CLI flags:**
 
@@ -1141,7 +1141,7 @@ Resolution workflow:
 1. Run `review list` to see all items with reasons and confidence scores.
 2. Run `review show --task <id>` to inspect the full context (task findings, source file, trace chain).
 3. Choose **accept** (document gap in spec, reset to INDEXED) or **reset** (delete findings, re-run via planner).
-4. Run `run --resume` after batch operations to re-process reset tasks.
+4. Run `enrich --resume` after batch operations to re-process reset tasks.
 
 ```
 

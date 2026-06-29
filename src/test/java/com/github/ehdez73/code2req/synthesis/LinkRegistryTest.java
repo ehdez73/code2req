@@ -1,7 +1,8 @@
-package com.github.ehdez73.code2req.synthesis;
+package com.github.ehdez73.code2req.extraction;
 
-import com.github.ehdez73.code2req.analyzer.event.link.TopicLink;
-import com.github.ehdez73.code2req.analyzer.httpclient.FloatingLinkInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
+import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

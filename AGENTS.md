@@ -33,6 +33,9 @@ Before writing code, consult these sources for tech stack decisions and rational
 - **`.agents/skills/spring/SKILL.md`** — Spring framework coding patterns: Shell commands, JDBC/SQLite, JavaParser, @Async, testing. Read before writing Spring code.
 - Always try to follow coding best practices: SOLID, DRY, KISS, YAGNI, etc.
 
+
+IMPORTANT: After creating or modifying existing code, make sure all tests pass
+
 ## Project Structure
 
 ```

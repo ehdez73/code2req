@@ -9,7 +9,7 @@ Feature: CodebaseKnowledge Builder + Phase 3 Orchestrator
 
   Background:
     Given Phase 1 indexing is complete with structural findings in SQLite
-    And Phase 2 enrichment is complete with ExecutionFinding records in SQLite
+    And Phase 2 enrichment may or may not have ExecutionFinding records in SQLite
 
   Rule: The orchestrator aggregates Phase 1 and Phase 2 data into a queryable CodebaseKnowledge model
 

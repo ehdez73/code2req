@@ -1,6 +1,7 @@
-package com.github.ehdez73.code2req.synthesis;
+package com.github.ehdez73.code2req.extraction;
 
-import com.github.ehdez73.code2req.model.ExecutionFinding;
+import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

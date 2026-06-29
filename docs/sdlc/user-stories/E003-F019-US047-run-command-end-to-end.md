@@ -9,7 +9,7 @@
 
 ### Acceptance Criteria
 
-- [ ] `run --manifest path` orchestrates Phase 2 then Phase 3
+- [ ] `enrich --manifest path` orchestrates Phase 2 then Phase 3
 - [ ] Phase 2: Planner → Executors → Orchestrator with barrier
 - [ ] Phase 3: delegates to E004 (Embabel agent)
 - [ ] `--llm-threshold 0` skips Phase 2 entirely

@@ -1,0 +1,14 @@
+package com.github.ehdez73.code2req.enrichment.domain.model;
+
+public enum QualificationReason {
+    UNRESOLVED_SIGNATURES_EXCEEDED,
+    SPRING_DATA_INTERFACE,
+    STORED_PROCEDURE_CALL,
+    CUSTOM_CONSTRAINT_VALIDATOR,
+    TEST_ASSERTIONS_PRESENT,
+    UNRESOLVED_FLOATING_LINK,
+    SCHEDULED_TASK_PRESENT,
+    NATIVE_SQL_QUERY,
+    JPQL_HQL_QUERY,
+    NONE
+}

@@ -17,7 +17,7 @@
 
 ## 2 — F022 CodebaseKnowledge Query Helpers (US050)
 
-> **New files:** `EntryPoint.java`, `EntryPointType.java` in `synthesis/domain/`, `MethodIdentifier.java` in `synthesis/`
+> **New files:** `EntryPoint.java`, `EntryPointType.java` in `extraction/domain/model/`, `MethodIdentifier.java` in `extraction/`
 > **Modified files:** `StructuralGraph.java` (+entry point fields/methods), `Phase3Orchestrator.java` (+ep loading), `CodebaseKnowledge.java` (+delegations), `SemanticEnrichment.java` (+test insight helpers)
 > **Phase 2 fix:** `Phase2Orchestrator.java` now populates `Task.pairedTestPath` (was previously discarded)
 
@@ -32,7 +32,7 @@
 
 ## 3 — F023 Embabel Agent (US051)
 
-### 3.1 Domain Records (`synthesis/domain/`)
+### 3.1 Domain Records (`extraction/domain/model/`)
 
 
 - [x] 3.1.1 `EntryPoint` record + `EntryPointType` enum (§3.1) — enhanced with id, httpMethod, path, trivial, pathVariables, schedule, topicOrQueue
@@ -48,7 +48,7 @@
 - [x] 3.1.11 `OrphanedMethod` record (§3.11)
 - [x] `mvn test` succeeds
 
-### 3.2 GOAP Actions (`synthesis/agent/`)
+### 3.2 GOAP Actions (`extraction/agent/`)
 
 - [x] 3.2.1 **DiscoverEntryPoints** — query CodebaseKnowledge, filter trivial, score by priority (§2.4), sort, detect orphans (pre: KNOWLEDGE_LOADED, post: ENTRY_POINTS_DISCOVERED)
 - [x] 3.2.2 **TraceFlow** — pop highest-priority entry point, follow call graph edges, build FlowSteps, sub-chain cache (§2.6), adaptive depth (max 5) (pre: ENTRY_POINTS_DISCOVERED, post: FLOW_TRACED / ALL_FLOWS_TRACED)
@@ -144,7 +144,7 @@
 ## 8 — Documentation
 
 - [ ] 8.1 `docs/PRD.md` — rewrite sections 2.3, 3.8, 6.1, 6.2
-- [ ] 8.2 Javadoc on all public API methods in `synthesis/` package
+- [ ] 8.2 Javadoc on all public API methods in `extraction/` package
 
 ### SDLC Artifacts (all created)
 

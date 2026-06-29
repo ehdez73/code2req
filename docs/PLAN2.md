@@ -5,9 +5,10 @@
 - Test: `mvn test`
 - Run: `export OPENROUTER_API_KEY=sk-or-v1-...` then `mvn spring-boot:run` (or create `.env` file — loaded automatically)
   - `plan --manifest project-manifest.yaml` — dry DAG view (no LLM)
-  - `run --manifest project-manifest.yaml` — Phase 2 + Phase 3 (via OpenRouter, model from `OPENROUTER_MODEL` env var)
-  - `run --manifest ... --llm-threshold 0` — run without LLM enrichment
-  - `run --manifest ... --dry-run` — simulation mode (no API calls, no key required)
+- `enrich --manifest project-manifest.yaml` — Phase 2 semantic enrichment (via OpenRouter, model from `OPENROUTER_MODEL` env var)
+- `enrich --manifest ... --llm-threshold 0` — run without LLM enrichment
+- `enrich --manifest ... --dry-run` — simulation mode (no API calls, no key required)
+- `extract --manifest project-manifest.yaml` — Phase 3 functional requirement extraction
   
 ## Prerequisites (Already Done in Phase 1)
 - SQLite store with `tasks`, `execution_findings`, `topic_links`, `floating_links`, `metrics` tables
@@ -72,7 +73,7 @@ Reads the SQLite task store after Phase 1 and determines which tasks qualify for
 - [ ] **US042** (should): Planner supports dry-run DAG view via `plan` command — tracked in F019
 - [x] Gherkin: `docs/sdlc/features/E003-F016-planner.feature`
 - [x] Depends on: Phase 1 complete (SQLite populated with task rows and execution_findings)
-- [x] Classes: `Phase2Planner` (orchestrator), `QualificationRule` (interface), `PlanningContext` (shared data access), `PlannerDecision` (record), `QualificationReason` (enum), and 9 rule `@Component` classes in `planner/rule/` (`SpringDataInterfaceRule`, `StoredProcedureCallRule`, `CustomConstraintValidatorRule`, `ScheduledTaskPresentRule`, `UnresolvedSignaturesRule`, `UnresolvedFloatingLinkRule`, `TestAssertionsPresentRule`, `NativeSqlQueryRule`, `JpqlHqlQueryRule`)
+- [x] Classes: `Phase2Planner` (orchestrator), `QualificationRule` (interface), `PlanningContext` (shared data access), `PlannerDecision` (record), `QualificationReason` (enum), and 9 rule `@Component` classes in `enrichment/domain/planner/rule/` (`SpringDataInterfaceRule`, `StoredProcedureCallRule`, `CustomConstraintValidatorRule`, `ScheduledTaskPresentRule`, `UnresolvedSignaturesRule`, `UnresolvedFloatingLinkRule`, `TestAssertionsPresentRule`, `NativeSqlQueryRule`, `JpqlHqlQueryRule`)
 - [x] Modified: `AnalysisFinding` (add `isResolved()`), `CallGraphEdge` (override `isResolved()`), `ExecutionFindingStore` (use per-finding status), `FindingType` (5 new constants), `ScanPipeline` (re-classification step with 2 new cases), `FloatingLinkStore` (query by status), `Phase2Planner` (strategy refactor)
 - [x] Verify: `mvn test` — 366 tests pass, planner correctly qualifies/doesn't qualify
 - [ ] Manual: `plan` CLI command is tracked in F019
@@ -100,7 +101,7 @@ Key behaviors:
 - [x] Classes: `SemanticExecutor`, `ExecutionFindingValidator` (JSON Schema), `ContextBudgetCalculator`, `SimulationStub`
 - [x] New finding type in `FindingType`: `SEMANTIC_ENRICHMENT`
 - [x] Verify: `mvn test` — 389 tests pass (F017 executor tests included: dry-run produces valid output, schema validation works, budget calculation correct, simulation stub deterministic)
-- [ ] Manual: `run --dry-run --manifest ...` — verify enrichment output without API calls
+- [ ] Manual: `enrich --dry-run --manifest ...` — verify enrichment output without API calls
 
 #### F018: Orchestrator (US045)
 
@@ -117,8 +118,8 @@ Key behaviors:
   - Process the new task, wait for completion, resume original branch
 - **Max Hop Depth**: configurable (default: 3). Exceeded → `AWAITING_HUMAN_REVIEW` (PRD §5.2)
 - **Visited Registry**: thread-safe set of hashes to prevent redundant evaluation (PRD §5.2)
-- **FAILED Task Recovery**: tasks that exhaust retries and transition to FAILED can be recovered via `task-set-status --task <id> --status INDEXED --delete-findings true` (single task) or `run --resume` (all interruptible states, now including `AWAITING_HUMAN_REVIEW` — findings cleaned, reset to INDEXED). On re-run, the planner skips tasks with existing SEMANTIC_ENRICHMENT findings (see F016) so only genuinely failed tasks are re-processed.
-- **AWAITING_HUMAN_REVIEW Recovery**: `run --resume` now handles `AWAITING_HUMAN_REVIEW` tasks by resetting to INDEXED with findings cleaned. This allows the planner to re-qualify them after the root cause is resolved (e.g., providing missing source context or increasing budget thresholds). The spec output preserves the quarantine record even after reset.
+- **FAILED Task Recovery**: tasks that exhaust retries and transition to FAILED can be recovered via `task-set-status --task <id> --status INDEXED --delete-findings true` (single task) or `enrich --resume` (all interruptible states — findings cleaned, reset to INDEXED). On re-run, the planner skips tasks with existing SEMANTIC_ENRICHMENT findings (see F016) so only genuinely failed tasks are re-processed.
+- **AWAITING_HUMAN_REVIEW Recovery**: `enrich --resume` now handles `AWAITING_HUMAN_REVIEW` tasks by resetting to INDEXED with findings cleaned. This allows the planner to re-qualify them after the root cause is resolved (e.g., providing missing source context or increasing budget thresholds). The spec output preserves the quarantine record even after reset.
 - **Phase 3 Marker handled in RunCommand**: The Phase 3 status marker recovery (`ENRICHING → PENDING`, `.tmp` file cleanup) lives in `RunCommand.recoverPhase3Marker()`, not in Phase2Orchestrator. See F019.
 - Writes `metrics` after Phase 2 completes (tokens consumed, cost estimate)
 
@@ -128,21 +129,18 @@ Key behaviors:
 - [x] Classes: `Phase2Orchestrator`, `EnrichmentDag`, `BranchState`, `CompletionStatus`
 - [x] Modified: `TaskStatus` (add `AWAITING_HUMAN_REVIEW`)
 - [x] Verify: `mvn test` — 406 tests pass (17 orchestrator-specific), orchestrator submits all qualified tasks, barrier blocks until all complete, dynamic re-planning with discovered dependencies, max-hop-depth enforcement with AWAITING_HUMAN_REVIEW, visited registry prevents redundant evaluation, Phase 2 metrics written after completion
-- [ ] Manual: `run --dry-run --manifest ...` — verify all Phase 2 tasks complete with barrier
+- [ ] Manual: `enrich --dry-run --manifest ...` — verify all Phase 2 tasks complete with barrier
 
-#### F019: CLI Commands — `plan` and `run` (US046, US047)
+#### F019: CLI Commands — `plan`, `enrich`, and `extract` (US046, US047)
 
 - `plan --manifest path` — dry DAG view: queries SQLite for the planning decisions F016 would make and displays qualified tasks grouped by target, with qualification reason per task. Zero LLM calls.
-- `run --manifest path [--dry-run] [--resume] [--llm-threshold N] [--force-phase3] [--interactive] [--interactive-timeout N]` — orchestrates Phase 2 then Phase 3 end-to-end:
-  - Phase 2: Planner → Executors → Orchestrator with barrier
-  - Phase 3: Synthesis (delegates to E004)
-  - `--llm-threshold 0` skips Phase 2 entirely (degenerate case)
+- `enrich --manifest path [--dry-run] [--resume] [--llm-threshold N]` — runs Phase 2 semantic enrichment on qualified tasks:
+  - `--llm-threshold 0` skips enrichment entirely (degenerate case)
   - `--dry-run` simulation mode (deterministic stubs, no API spend)
-  - `--resume` recovers both Phase 2 (orphaned tasks) and Phase 3 (stuck ENRICHING marker, clean .tmp output files)
-  - `--force-phase3` re-runs Phase 3 even if the marker shows ENRICHED (overrides idempotent skip)
-
-  **`--resume` Phase 3 recovery (`recoverPhase3Marker()`):**
-  - Called after `recoverOrphanedTasks()` (Phase 2) when `--resume` is set.
+  - `--resume` recovers orphaned tasks before enrichment
+- `extract --manifest path [--dry-run] [--force]` — runs Phase 3 functional requirement extraction:
+  - `--dry-run` simulation mode
+  - `--force` re-runs extraction even if already complete
   - Queries the Phase 3 marker task (`SHA-256("__phase3_marker__")`):
     - `ENRICHING` → crash detected mid-Phase 3. Reset marker to `PENDING`, delete any `.tmp.*` files in `spec-output/`, log warning.
     - `ENRICHED` → Phase 3 completed cleanly. Leave marker as-is. Phase 3 will be skipped (see below).
@@ -163,9 +161,9 @@ Key behaviors:
 - [x] Classes: `PlanCommand`, `RunCommand`
 - [x] Modified: `StatusCommand` (Phase 2+3 metrics columns)
 - [x] `ExecutionConfig` — moved to `@ConfigurationProperties` bound from `application.properties`
-- [x] New: `synthesis/Phase3Result.java`, `synthesis/Phase3Orchestrator.java` (E004 placeholder)
+- [x] New: `extraction/Phase3Result.java`, `extraction/Phase3Orchestrator.java` (E004 placeholder)
 - [x] Verify: `mvn test` — 420 tests pass (6 new PlanCommand tests, 5 new RunCommand tests, 4 new StatusCommand metrics tests)
-- [ ] Manual: `plan --manifest ...` then `run --dry-run --manifest ...` — verify end-to-end flow
+- [ ] Manual: `plan --manifest ...` then `enrich --dry-run --manifest ...` — verify end-to-end flow
 
 #### F020: Test Suite Mining (US048, PRD §3.4)
 
@@ -214,7 +212,7 @@ Pure-Java services that prepare data for the Embabel agent and handle output aft
 - `SemanticEnrichment` — all Phase 2 `ExecutionFinding` records keyed by file path. Added `getAllTestInsights()`, `getTestFilePath()`, `getAllTestFilePaths()` convenience methods.
 - `LinkRegistry` — topic links (producer↔consumer), floating links (HTTP calls), template links.
 - Query methods: `getFlowCandidates()`, `findUnresolvedLinks()`, `getComponentsByType()`, `getCallersOf(target)`, `getCalleesOf(source)`, **`getEntryPoints()`**, **`getAllKnownMethods()`**, **`getEntryPointPriority()`**.
-- **New types:** `EntryPoint` record + `EntryPointType` enum in `synthesis/domain/`, `MethodIdentifier` record in `synthesis/`.
+- **New types:** `EntryPoint` record + `EntryPointType` enum in `extraction/domain/model/`, `MethodIdentifier` record in `extraction/`.
 
 **No fallback needed** — Embabel is the agent framework (decision-making), not a data-processing pipeline. If Embabel repo is unavailable, Phase 3 cannot run.
 
@@ -226,7 +224,7 @@ Pure-Java services that prepare data for the Embabel agent and handle output aft
 - [x] Modified: `ExecutionFindingStore` (+findAllByType), `TopicLinkStore` (+findAll), `RunCommandTest` (updated Phase3Orchestrator constructor), `StructuralGraph` (+entry point fields + getEntryPoints + getAllKnownMethods + getEntryPointPriority), `Phase3Orchestrator` (+entry point deserialization), `CodebaseKnowledge` (+delegation methods), `SemanticEnrichment` (+test insight convenience methods)
 - [x] **Phase 2 fix:** `Phase2Orchestrator` now resolves `Task.pairedTestPath` from `PairedExecutionResolver` during task creation (was previously discarded). This makes test file info available to Phase 3 without re-running test detection.
 - [ ] **F023 dependency:** `Phase3Orchestrator.analyzeKnowledge()` is currently a pure-Java stub (counts flows by name). F023 replaces it with Embabel agent invocation — injects `AgentPlatform`, builds `ProcessOptions`, runs the agent, collects `FunctionalFlow` objects from the blackboard. See F023 for full spec. `Phase3Orchestrator` constructor has been prepared with AgentPlatform injection point.
-- [x] Manual: `run --dry-run --manifest ...` — verify orchestrator loads data and entry points are discovered
+- [x] Manual: `enrich --dry-run --manifest ...` — verify orchestrator loads data and entry points are discovered
 
 #### F023: Embabel Agent — Goals, Actions, Output (US051, PRD §2.3, §3.8)
 
@@ -378,10 +376,10 @@ This ensures:
 
 **New domain/store classes:**
 
-- `synthesis/interaction/UserInteractionService` — interface (SPI)
-- `synthesis/interaction/NoOpUserInteractionService` — `@Component`, returns empty
-- `model/UserResponse` — record: `signature`, `question`, `answer`, `confidenceGained`, `createdAt`
-- `store/UserResponseStore` — Spring JDBC, `findBySignature()` / `save()` queries
+- `extraction/interaction/UserInteractionService` — interface (SPI)
+- `extraction/interaction/NoOpUserInteractionService` — `@Component`, returns empty
+- `common/domain/UserResponse` — record: `signature`, `question`, `answer`, `confidenceGained`, `createdAt`
+- `infrastructure/persistence/UserResponseStore` — Spring JDBC, `findBySignature()` / `save()` queries
 - New table: `CREATE TABLE IF NOT EXISTS user_responses (signature TEXT PRIMARY KEY, question TEXT NOT NULL, answer TEXT NOT NULL, confidence_gained REAL DEFAULT 0.0, created_at TEXT DEFAULT (datetime('now')))`
 
 **Phase3Orchestrator agent integration (modifies existing F022 class):**
@@ -426,7 +424,7 @@ public record Phase3Result(
 }
 ```
 
-**Output domain classes (POJO records in `synthesis/domain/`):**
+**Output domain classes (POJO records in `extraction/domain/model/`):**
 
 - `FunctionalFlow` — flowId, name, trigger, steps `List<FlowStep>`, outcomes, businessRules `List<BusinessRule>`, traceabilityEntries `List<TraceabilityEntry>`
 - `FlowStep` — stepIndex, componentType, description, sourceFile, astSignature
@@ -436,7 +434,7 @@ public record Phase3Result(
 - `EndpointSpec` — path, method, description, sourceFile
 - `CodePattern` — name, description, locations
 
-**Output writers (pure Java in `synthesis/output/`):**
+**Output writers (pure Java in `extraction/output/`):**
 
 - `MarkdownSpecWriter` — receives `List<FunctionalFlow>` + `List<AmbiguityGap>`, writes `spec-output/{flow-name}.md` per PRD §6.1. Uses `OutputConfig.specDir()`.
 - `SemanticManifestWriter` — receives `List<FunctionalFlow>`, writes `spec-output/semantic_manifest.json` per PRD §6.2 JSON Schema. Validates against bundled schema before writing (same pattern as F017's `ExecutionFindingValidator`).
@@ -465,7 +463,7 @@ New file `src/main/resources/schema/semantic-manifest-schema.json` (mirroring PR
 - [ ] Modified: `Phase3Orchestrator.java` (+`AgentPlatform`, +`ExecutionConfig`, agent invocation), `Application.java` (+`@EnableAgents`), `Phase3OrchestratorTest` (update constructor)
 - [ ] Schema: `src/main/resources/schema/semantic-manifest-schema.json`
 - [ ] Verify: `mvn test` — action unit tests pass with `dummyProcessContext()`, orchestrator test with mocked `AgentPlatform`
-- [ ] Manual: `run --dry-run --manifest ...` — inspect `spec-output/` for both artifacts
+- [ ] Manual: `enrich --dry-run --manifest ...` — inspect `spec-output/` for both artifacts
 
 #### F024: Quality Audit (US052, PRD §3.8)
 
@@ -528,7 +526,7 @@ Dedicated `review` command for managing `AWAITING_HUMAN_REVIEW` tasks and functi
 - [ ] Modified: `MarkdownSpecWriter` (Section 5 rendering), `SemanticManifestWriter` (`review_required` + `unresolved_reason`), `Phase3Orchestrator` (persist `HUMAN_REVIEW_REASON` findings + task statuses), `RunCommand.recoverOrphanedTasks` (+`AWAITING_HUMAN_REVIEW` → `INDEXED`)
 - [ ] Classes: `ReviewCommand` (shell), `ReviewService` (business logic)
 - [ ] Verify: `mvn test` — review list/accept/reset unit tests, spec Section 5 output verified against quarantine data
-- [ ] Manual: `run --manifest ...` then `review list` — verify quarantined tasks appear with reasons
+- [ ] Manual: `enrich --manifest ...` then `review list` — verify quarantined tasks appear with reasons
 
 ---
 
@@ -596,75 +594,75 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | File | Change |
 |------|--------|
 | ✓ `Application.java` | Add `@EnableAsync`. Add `@EnableAgents` (F023 Embabel annotation scanning). |
-| ✓ `config/AppConfig.java` | Add `@Bean("orchestratorTaskExecutor")` `ThreadPoolTaskExecutor` (core=5, max=10, queue=1000) |
+| ✓ `infrastructure/config/AppConfig.java` | Add `@Bean("orchestratorTaskExecutor")` `ThreadPoolTaskExecutor` (core=5, max=10, queue=1000) |
 | ✓ `application.properties` | Add OpenRouter config (`spring.ai.openai.base-url`, `spring.ai.openai.api-key`, `spring.ai.openai.chat.options.model`, `spring.config.import=optional:file:.env`); rename thread prefix to `c2r-orchestrator-`; add `code2req.output.*` properties |
-| ✓ `model/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
-| ✓ `model/AnalysisFinding.java` | Add `default boolean isResolved() { return true; }` |
-| ✓ `analyzer/callgraph/CallGraphEdge.java` | Override `isResolved()` to return `STATUS_RESOLVED.equals(resolvedStatus)` |
-| ✓ `store/ExecutionFindingStore.java` | `saveAllForTask` uses `finding.isResolved()` instead of hardcoded `true`. Added `countByTaskIdAndType()` query for planner. **Added `findAllByType()` query for Phase 3 CodebaseKnowledge aggregation.** |
-| ✓ `store/FindingType.java` | Add `SPRING_DATA_INTERFACE`, `DATABASE_PROCEDURE_CALL`, `CONSTRAINT_VALIDATOR`, `NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY`, `SEMANTIC_ENRICHMENT`. Add `HUMAN_REVIEW_REASON` (F026). |
-| ✓ `pipeline/ScanPipeline.java` | Add re-classification step after `persistFindings()` to create granular FindingType rows (now 5 mapping cases) |
-| ✓ `store/FloatingLinkStore.java` | Add `findSourceFilePathsByResolvedStatus(String)` query for planner |
-| ✓ `planner/Phase2Planner.java` | Refactored with Strategy Pattern — delegates to 9 `QualificationRule` components. Extended with `ExecutionFindingStore` check to skip tasks that already have SEMANTIC_ENRICHMENT findings (prevents re-enrichment after reset). |
-| ✓ `shell/StatusCommand.java` | Add Phase 2 metrics (tokens, cost, enriched count) + Phase 3 metrics (flow extraction rate, ambiguity gaps) |
+| ✓ `common/domain/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
+| ✓ `common/domain/AnalysisFinding.java` | Add `default boolean isResolved() { return true; }` |
+| ✓ `indexing/domain/analyzer/callgraph/CallGraphEdge.java` | Override `isResolved()` to return `STATUS_RESOLVED.equals(resolvedStatus)` |
+| ✓ `infrastructure/persistence/ExecutionFindingStore.java` | `saveAllForTask` uses `finding.isResolved()` instead of hardcoded `true`. Added `countByTaskIdAndType()` query for planner. **Added `findAllByType()` query for Phase 3 CodebaseKnowledge aggregation.** |
+| ✓ `infrastructure/persistence/FindingType.java` | Add `SPRING_DATA_INTERFACE`, `DATABASE_PROCEDURE_CALL`, `CONSTRAINT_VALIDATOR`, `NATIVE_SQL_QUERY`, `JPQL_HQL_QUERY`, `SEMANTIC_ENRICHMENT`. Add `HUMAN_REVIEW_REASON` (F026). |
+| ✓ `indexing/ScanPipeline.java` | Add re-classification step after `persistFindings()` to create granular FindingType rows (now 5 mapping cases) |
+| ✓ `infrastructure/persistence/FloatingLinkStore.java` | Add `findSourceFilePathsByResolvedStatus(String)` query for planner |
+| ✓ `enrichment/domain/planner/Phase2Planner.java` | Refactored with Strategy Pattern — delegates to 9 `QualificationRule` components. Extended with `ExecutionFindingStore` check to skip tasks that already have SEMANTIC_ENRICHMENT findings (prevents re-enrichment after reset). |
+| ✓ `infrastructure/cli/command/StatusCommand.java` | Add Phase 2 metrics (tokens, cost, enriched count) + Phase 3 metrics (flow extraction rate, ambiguity gaps) |
 | ✓ `pom.xml` | Add `spring-ai-client-chat`, `spring-ai-autoconfigure-model-chat-client` dependencies |
-| ✓ `model/ExecutionConfig.java` | Converted to `@ConfigurationProperties(prefix="code2req.execution")`; defaults in `application.properties`; removed `defaultConfig()`; removed from `ProjectManifest` |
+| ✓ `common/domain/ExecutionConfig.java` | Converted to `@ConfigurationProperties(prefix="code2req.execution")`; defaults in `application.properties`; removed `defaultConfig()`; removed from `ProjectManifest` |
 | ✓ `application.properties` | Add `code2req.execution.*` properties with all pipeline defaults |
 | `project-manifest.yaml` | Removed `execution:` block entirely — config now in `application.properties` |
-| ✓ `model/OutputConfig.java` | Converted to `@ConfigurationProperties(prefix="code2req.output")`; removed `defaultConfig()` and `@JsonProperty` |
-| ✓ `model/ProjectManifest.java` | Removed `output` field and `outputConfig()` method |
+| ✓ `common/domain/OutputConfig.java` | Converted to `@ConfigurationProperties(prefix="code2req.output")`; removed `defaultConfig()` and `@JsonProperty` |
+| ✓ `common/domain/ProjectManifest.java` | Removed `output` field and `outputConfig()` method |
 | ✓ `output/IndexWriter.java` | `OutputConfig` injected via constructor instead of read from manifest |
-| ✓ `shell/CleanCommand.java` | `OutputConfig` injected via constructor; removed `resolveOutputConfig()` |
-| ✓ `config/AppConfig.java` | Added `OutputConfig.class` to `@EnableConfigurationProperties` |
+| ✓ `infrastructure/cli/command/CleanCommand.java` | `OutputConfig` injected via constructor; removed `resolveOutputConfig()` |
+| ✓ `infrastructure/config/AppConfig.java` | Added `OutputConfig.class` to `@EnableConfigurationProperties` |
 | ✓ `project-manifest.yaml` | Removed `output:` block — config now in `application.properties` |
-| ✓ `model/Task.java` | Added `String pairedTestPath` field |
-| ✓ `store/TaskStoreSchema.java` | Added `paired_test_path TEXT` column |
-| ✓ `store/TaskStore.java` | Updated `save()` and `rowMapper` for new column |
-| ✓ `orchestrator/Phase2Orchestrator.java` | Inject `PairedExecutionResolver`; resolve and pass test content to executor. **F022: Populate `Task.pairedTestPath` from `PairedExecutionResolver.resolve()` (was previously discarded).** |
-| ✓ `executor/SemanticExecutor.java` | Inject `TestAssertionExtractor`; add `EXTRACTED TEST ASSERTIONS` structured section to prompt |
-| ✓ `planner/rule/TestAssertionsPresentRule.java` | Refactored to delegate to `TestFileMatcher` |
-| ✓ `model/ExecutionConfig.java` | Added `List<String> testSuffixes` with `resolvedTestSuffixes()` defaulting to `["Test", "IT"]` |
-| **`synthesis/StructuralGraph.java`** | **F022: Add fields + accessors for all 6 entry point types (SCHEDULED_TASK, KAFKA_LISTENER, RABBITMQ_LISTENER, ACTIVEMQ_LISTENER, EVENT_LISTENER). Add `getEntryPoints()`, `getAllKnownMethods()`, `getEntryPointPriority()` methods. Backward-compatible 4-arg constructor delegates to new 9-arg constructor.** |
-| **`synthesis/CodebaseKnowledge.java`** | **F022: Add `getEntryPoints()`, `getAllKnownMethods()`, `getAllTestInsights()`, `getAllTestFilePaths()` delegation methods.** |
-| **`synthesis/SemanticEnrichment.java`** | **F022: Add `getAllTestInsights()`, `getTestFilePath(filePath)`, `getAllTestFilePaths()` convenience methods for test insight extraction.** |
-| **`synthesis/Phase3Orchestrator.java`** | **F022: `buildStructuralGraph()` now deserializes all 6 entry point finding types. Added `getTestFileMapping()` for paired test path lookup. AgentPlatform injection point prepared for F023.** |
+| ✓ `common/domain/Task.java` | Added `String pairedTestPath` field |
+| ✓ `infrastructure/persistence/TaskStoreSchema.java` | Added `paired_test_path TEXT` column |
+| ✓ `infrastructure/persistence/TaskStore.java` | Updated `save()` and `rowMapper` for new column |
+| ✓ `enrichment/Phase2Orchestrator.java` | Inject `PairedExecutionResolver`; resolve and pass test content to executor. **F022: Populate `Task.pairedTestPath` from `PairedExecutionResolver.resolve()` (was previously discarded).** |
+| ✓ `enrichment/adapter/llm/SemanticExecutor.java` | Inject `TestAssertionExtractor`; add `EXTRACTED TEST ASSERTIONS` structured section to prompt |
+| ✓ `enrichment/domain/planner/rule/TestAssertionsPresentRule.java` | Refactored to delegate to `TestFileMatcher` |
+| ✓ `common/domain/ExecutionConfig.java` | Added `List<String> testSuffixes` with `resolvedTestSuffixes()` defaulting to `["Test", "IT"]` |
+| **`extraction/StructuralGraph.java`** | **F022: Add fields + accessors for all 6 entry point types (SCHEDULED_TASK, KAFKA_LISTENER, RABBITMQ_LISTENER, ACTIVEMQ_LISTENER, EVENT_LISTENER). Add `getEntryPoints()`, `getAllKnownMethods()`, `getEntryPointPriority()` methods. Backward-compatible 4-arg constructor delegates to new 9-arg constructor.** |
+| **`extraction/CodebaseKnowledge.java`** | **F022: Add `getEntryPoints()`, `getAllKnownMethods()`, `getAllTestInsights()`, `getAllTestFilePaths()` delegation methods.** |
+| **`extraction/SemanticEnrichment.java`** | **F022: Add `getAllTestInsights()`, `getTestFilePath(filePath)`, `getAllTestFilePaths()` convenience methods for test insight extraction.** |
+| **`extraction/Phase3Orchestrator.java`** | **F022: `buildStructuralGraph()` now deserializes all 6 entry point finding types. Added `getTestFileMapping()` for paired test path lookup. AgentPlatform injection point prepared for F023.** |
 
 ### New files:
 | Package | Files |
 |---------|-------|
-| `planner/` | `QualificationRule.java` (interface), `PlanningContext.java` (shared data access), `PlannerDecision.java` (record), `QualificationReason.java` (enum) |
-| `planner/rule/` | `SpringDataInterfaceRule`, `StoredProcedureCallRule`, `CustomConstraintValidatorRule`, `ScheduledTaskPresentRule`, `UnresolvedSignaturesRule`, `UnresolvedFloatingLinkRule`, `TestAssertionsPresentRule`, `NativeSqlQueryRule`, `JpqlHqlQueryRule`, `AbstractFindingTypeRule` (base class) |
-| ✓ `executor/` | `SemanticExecutor` (error-feedback retry), `ExecutionFindingValidator`, `ContextBudgetCalculator`, `SimulationStub` |
-| ✓ `model/` | `ExecutionFinding` (nested record hierarchy matching §4 schema), `UserResponse` (F023) |
+| `enrichment/domain/planner/` | `QualificationRule.java` (interface), `PlanningContext.java` (shared data access), `PlannerDecision.java` (record), `QualificationReason.java` (enum) |
+| `enrichment/domain/planner/rule/` | `SpringDataInterfaceRule`, `StoredProcedureCallRule`, `CustomConstraintValidatorRule`, `ScheduledTaskPresentRule`, `UnresolvedSignaturesRule`, `UnresolvedFloatingLinkRule`, `TestAssertionsPresentRule`, `NativeSqlQueryRule`, `JpqlHqlQueryRule`, `AbstractFindingTypeRule` (base class) |
+| ✓ `enrichment/adapter/llm/` | `SemanticExecutor` (error-feedback retry), `ExecutionFindingValidator`, `ContextBudgetCalculator`, `SimulationStub` |
+| ✓ `common/domain/` | `ExecutionFinding` (nested record hierarchy matching §4 schema), `UserResponse` (F023) |
 | ✓ `resources/schema/` | `execution-finding-schema.json` (embedded §4 JSON Schema). `semantic-manifest-schema.json` (F023, PRD §6.2 schema). |
-| ✓ `orchestrator/` | `Phase2Orchestrator`, `EnrichmentDag`, `BranchState`, `CompletionStatus` |
-| ✓ `executor/testmining/` | `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver` |
-| `synthesis/agent/` | `FunctionalRequirementAgent` (`@Component` + `@Agent`, actions as `@Action` methods), `ConditionName` (world-state condition string constants) |
-| `synthesis/interaction/` | `UserInteractionService` (SPI), `NoOpUserInteractionService` (`@Component`, default). `InteractiveUserInteractionService` deferred post-F025. |
-| `synthesis/domain/` | `FunctionalFlow`, `BusinessRule`, `EndpointSpec`, `CodePattern`, `AmbiguityGap`, `FlowStep`, `TraceabilityEntry` |
-| `synthesis/output/` | `MarkdownSpecWriter`, `SemanticManifestWriter` |
-| `synthesis/audit/` | `Phase3QualityAudit`, `AuditSample`, `AuditReport` |
-| ✓ `shell/` | `PlanCommand`, `RunCommand`. `ReviewCommand`, `ReviewService` (F026). |
-| ✓ `synthesis/` | `Phase3Result` (updated in F023 with `awaitingReviewReasons`), `Phase3Orchestrator` (now implemented; modified in F023: +`AgentPlatform`, +`ExecutionConfig`, Phase 3 marker upsert, temp-file output, persist `HUMAN_REVIEW_REASON` findings + task statuses), `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry`, **`MethodIdentifier` (F022 — for orphaned method detection)** |
-| ✓ `synthesis/domain/` | **`EntryPoint` (F022 — unified entry point record), `EntryPointType` (F022 — enum: HTTP, SCHEDULED, KAFKA, RABBITMQ, ACTIVEMQ, EVENT_LISTENER).** Also used by F023 domain records (`FunctionalFlow`, `BusinessRule`, etc.). |
-| ✓ `store/TopicLinkStore.java` | **Added `findAll()` query for Phase 3 LinkRegistry** |
-| `store/UserResponseStore.java` | `findBySignature()`, `save()` for user interaction cache (F023). |
-| ✓ `shell/RunCommand.java` | `--resume` now handles `AWAITING_HUMAN_REVIEW` → `INDEXED` (F026). `--resume` also calls `recoverPhase3Marker()` (ENRICHING → PENDING, clean .tmp files). `--force-phase3`, `--interactive`, `--interactive-timeout` flags. Phase 3 skip-if-ENRICHED guard. |
-| ✓ `shell/RunCommandTest.java` | **Updated `Phase3Orchestrator` constructor to pass all 5 stores** |
+| ✓ `enrichment/` | `Phase2Orchestrator`, `EnrichmentDag`, `BranchState`, `CompletionStatus` |
+| ✓ `enrichment/adapter/llm/testmining/` | `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver` |
+| `extraction/agent/` | `FunctionalRequirementAgent` (`@Component` + `@Agent`, actions as `@Action` methods), `ConditionName` (world-state condition string constants) |
+| `extraction/interaction/` | `UserInteractionService` (SPI), `NoOpUserInteractionService` (`@Component`, default). `InteractiveUserInteractionService` deferred post-F025. |
+| `extraction/domain/model/` | `FunctionalFlow`, `BusinessRule`, `EndpointSpec`, `CodePattern`, `AmbiguityGap`, `FlowStep`, `TraceabilityEntry` |
+| `extraction/output/` | `MarkdownSpecWriter`, `SemanticManifestWriter` |
+| `extraction/audit/` | `Phase3QualityAudit`, `AuditSample`, `AuditReport` |
+| ✓ `infrastructure/cli/command/` | `PlanCommand`, `RunCommand`. `ReviewCommand`, `ReviewService` (F026). |
+| ✓ `extraction/` | `Phase3Result` (updated in F023 with `awaitingReviewReasons`), `Phase3Orchestrator` (now implemented; modified in F023: +`AgentPlatform`, +`ExecutionConfig`, Phase 3 marker upsert, temp-file output, persist `HUMAN_REVIEW_REASON` findings + task statuses), `CodebaseKnowledge`, `StructuralGraph`, `SemanticEnrichment`, `LinkRegistry`, **`MethodIdentifier` (F022 — for orphaned method detection)** |
+| ✓ `extraction/domain/model/` | **`EntryPoint` (F022 — unified entry point record), `EntryPointType` (F022 — enum: HTTP, SCHEDULED, KAFKA, RABBITMQ, ACTIVEMQ, EVENT_LISTENER).** Also used by F023 domain records (`FunctionalFlow`, `BusinessRule`, etc.). |
+| ✓ `infrastructure/persistence/TopicLinkStore.java` | **Added `findAll()` query for Phase 3 LinkRegistry** |
+| `infrastructure/persistence/UserResponseStore.java` | `findBySignature()`, `save()` for user interaction cache (F023). |
+| ✓ `infrastructure/cli/command/RunCommand.java` | `--resume` now handles `AWAITING_HUMAN_REVIEW` → `INDEXED` (F026). `--resume` also calls `recoverPhase3Marker()` (ENRICHING → PENDING, clean .tmp files). `--force-phase3`, `--interactive`, `--interactive-timeout` flags. Phase 3 skip-if-ENRICHED guard. |
+| ✓ `infrastructure/cli/command/RunCommandTest.java` | **Updated `Phase3Orchestrator` constructor to pass all 5 stores** |
  
 ## Verification Guide
 
 - Unit: `mvn test`
-- Manual dry-run: `run --dry-run --manifest project-manifest.yaml` — no API calls made
-- Manual full: `run --manifest project-manifest.yaml` — needs `OPENROUTER_API_KEY` env set (model configurable via `OPENROUTER_MODEL`)
+- Manual dry-run: `enrich --dry-run --manifest project-manifest.yaml` — no API calls made
+- Manual full: `enrich --manifest project-manifest.yaml` — needs `OPENROUTER_API_KEY` env set (model configurable via `OPENROUTER_MODEL`)
 - JSON schema validation: enriched `ExecutionFinding` output validates against PRD §4 schema; `semantic_manifest.json` output validates against PRD §6.2 schema (F023)
 - Phase 3 agent: `@EnableAgents` required on `Application.java` — builds `FunctionalRequirementAgent` from `@Agent` + `@Action` annotations
-- Phase 2 only: `run --manifest ...` then `status` — confirm per-task enrichment status + token counters
-- Phase 2 + Phase 3: `run --manifest ... --dry-run` — verify all phases complete end-to-end without network calls
+- Phase 2 only: `enrich --manifest ...` then `status` — confirm per-task enrichment status + token counters
+- Phase 2 + Phase 3: `enrich --manifest ... --dry-run` — verify all phases complete end-to-end without network calls
 - Output inspection: `spec-output/` contains both `*.md` (functional flows) and `semantic_manifest.json` (traceability graph)
 - Phase 3 quarantine: verify flows marked `AWAITING_HUMAN_REVIEW` appear in spec Section 5
-- Review lifecycle: `review list` shows quarantined tasks grouped by reason; `review accept/reset` per-task and batch; `run --resume` recovers `AWAITING_HUMAN_REVIEW` tasks
-- Phase 3 crash recovery: kill process during Phase 3, run `run --resume` — verify "Phase 3 was interrupted" warning, stale `.tmp.*` files cleaned, Phase 3 re-runs cleanly
+- Review lifecycle: `review list` shows quarantined tasks grouped by reason; `review accept/reset` per-task and batch; `enrich --resume` recovers `AWAITING_HUMAN_REVIEW` tasks
+- Phase 3 crash recovery: kill process during Phase 3, run `enrich --resume` — verify "Phase 3 was interrupted" warning, stale `.tmp.*` files cleaned, Phase 3 re-runs cleanly
 - Phase 3 idempotent skip: run `run` twice without changes — second run skips Phase 3 ("use --force-phase3 to re-run")
-- Phase 3 force re-run: `run --force-phase3` re-runs Phase 3 even when marker is ENRICHED
+- Phase 3 force re-run: `extract --force` re-runs Phase 3 even when marker is ENRICHED
 - User interaction (deferred): `UserInteractionService` SPI + `NoOpUserInteractionService` active by default. Verify that `run` without `--interactive` never blocks or prompts — non-interactive behavior is identical before and after F023.

@@ -317,14 +317,14 @@ Depends on: TaskStore (Phase 1.2), ExecutionFindingStore + TopicLinkStore + Floa
 | Command | Change | Purpose |
 |---|---|---|
 | `scan --resume` | `ScanCommand` gains `--resume` flag; filters out already-INDEXED/ENRICHED files before pipeline execution | Resume interrupted Phase 1 scan |
-| `run --resume` | `RunCommand` gains `--resume` flag; recovers orphaned `ENRICHING` tasks to `INDEXED` with cascade delete before Phase 2 execution | Resume interrupted Phase 2+3 run |
+| `enrich --resume` | `RunCommand` gains `--resume` flag; recovers orphaned `ENRICHING` tasks to `INDEXED` with cascade delete before Phase 2 execution | Resume interrupted Phase 2+3 run |
 | `resume` command | `ResumeCommand` refactored to delegate to `ScanCommand.executeScan(manifest, true)` — zero code duplication | Backward-compatible, delegates to `scan --resume` |
 
 - [x] **Modified:** `ScanCommand` (extracted `executeScan()` shared method, added `filterCompleted()` / `isAlreadyCompleted()`)
 - [x] **Modified:** `ResumeCommand` (rewritten to 3-line delegating wrapper)
 - [x] **Modified:** `RunCommand` (injected 4 stores, added orphan recovery loop)
 - [x] **Verify:** `mvn compile` (0 errors)
-- [x] **Manual:** kill `run` mid-Phase-2, then `run --resume` and confirm orphans recovered
+- [x] **Manual:** kill `run` mid-Phase-2, then `enrich --resume` and confirm orphans recovered
 
 ## Story Index (Extended)
 | Story | Feature | Priority | Phase |
@@ -433,4 +433,4 @@ Phase 11c.1 (Template File Parsing) ── depends on Phase 4a + Phase 6.1 + Pha
 - 2026-06-17 — **Phase 4a F003 — EndpointVisitor OCP Refactoring + Servlet Endpoint Detection**: `EndpointDetector` SPI interface, `SpringEndpointDetector` (extracted Spring logic), `ServletEndpointDetector` (doGet/doPost/..., @WebServlet, HttpServlet subclass, javax + jakarta), `WebXmlAnalyzer` (DOM-based web.xml parser), `EndpointVisitor` refactored to thin delegator; integrated into `ScanCommand`; all 17 existing tests pass unchanged; no changes to `EndpointInfo`, `IndexWriter`, `FindingType`, or `ScanPipeline` ✓
 - 2026-06-21 — **Phase 14 — Snapshot & Restore (E005/F025)** implemented: `SnapshotService` (VACUUM INTO, pool drain/restore, metadata), `SnapshotCommand` (snapshot/snapshot-list/restore), config in application.properties + .gitignore. `mvn compile` — 155 sources pass. ✓
 - 2026-06-22 — **Phase 15 — Task Inspection & Lifecycle Commands** implemented: `TaskCommands` (`task-list`, `task-findings`, `task-set-status`), 9 store methods across 4 stores. ✓
-- 2026-06-22 — **Phase 15.2 — Resume Flags** implemented: `scan --resume` (with shared `executeScan()` method), `run --resume` (orphan ENRICHING recovery), `ResumeCommand` refactored to thin delegating wrapper. Zero code duplication. ✓
+- 2026-06-22 — **Phase 15.2 — Resume Flags** implemented: `scan --resume` (with shared `executeScan()` method), `enrich --resume` (orphan ENRICHING recovery), `ResumeCommand` refactored to thin delegating wrapper. Zero code duplication. ✓
