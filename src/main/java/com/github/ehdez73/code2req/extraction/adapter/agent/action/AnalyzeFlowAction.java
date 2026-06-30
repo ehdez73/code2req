@@ -61,6 +61,24 @@ public class AnalyzeFlowAction {
             .map(ef -> formatEnrichmentContext(ef))
             .orElse("No Phase 2 enrichment available.");
 
+        StringBuilder stepEnrichments = new StringBuilder();
+        flow.steps().stream()
+            .map(FlowStep::sourceFile)
+            .filter(f -> f != null && !f.equals(flow.entryPoint().filePath()))
+            .distinct().sorted()
+            .forEach(f -> {
+                knowledge.semanticEnrichment().findByFilePath(f)
+                    .ifPresent(ef -> {
+                        String fileName = f.contains("/") ? f.substring(f.lastIndexOf('/') + 1) : f;
+                        stepEnrichments.append("  ").append(fileName).append(":\n");
+                        stepEnrichments.append(formatEnrichmentContext(ef).indent(4));
+                    });
+            });
+
+        String stepEnrichmentContext = stepEnrichments.isEmpty()
+            ? "No Phase 2 enrichment available for intermediate steps."
+            : stepEnrichments.toString();
+
         String stepsContext = flow.steps().stream()
             .map(s -> {
                 String base = "  - " + s.componentType() + ": " + s.className() + "."
@@ -82,7 +100,10 @@ public class AnalyzeFlowAction {
             Traced Steps:
             %s
 
-            Phase 2 Enrichment:
+            Phase 2 Enrichment (entry point):
+            %s
+
+            Phase 2 Enrichment (intermediate steps):
             %s
 
             Extract:
@@ -107,7 +128,8 @@ public class AnalyzeFlowAction {
             flow.entryPoint().filePath(),
             complexity,
             stepsContext,
-            enrichmentContext
+            enrichmentContext,
+            stepEnrichmentContext
         );
 
         FlowAnalysisResponse response = context.ai()

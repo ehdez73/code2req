@@ -2,9 +2,12 @@ package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.EntryPointDiscoveryResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.scheduledtask.ScheduledTaskInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
@@ -36,10 +39,41 @@ public class TraceFlowAction {
 
     private final CodebaseKnowledge knowledge;
     private final Map<String, List<FlowStep>> subChainCache;
+    private final Map<String, FlowStepComponentType> componentTypeLookup;
 
     public TraceFlowAction(CodebaseKnowledge knowledge) {
         this.knowledge = knowledge;
         this.subChainCache = new HashMap<>();
+        this.componentTypeLookup = buildComponentTypeLookup();
+    }
+
+    private Map<String, FlowStepComponentType> buildComponentTypeLookup() {
+        Map<String, FlowStepComponentType> lookup = new HashMap<>();
+
+        for (EndpointInfo ep : knowledge.structuralGraph().endpoints()) {
+            lookup.putIfAbsent(ep.filePath(), FlowStepComponentType.REST_ENDPOINT);
+            lookup.putIfAbsent(ep.className(), FlowStepComponentType.REST_ENDPOINT);
+        }
+
+        for (ScheduledTaskInfo st : knowledge.structuralGraph().scheduledTasks()) {
+            lookup.putIfAbsent(st.filePath(), FlowStepComponentType.SCHEDULED_TASK);
+            lookup.putIfAbsent(st.className(), FlowStepComponentType.SCHEDULED_TASK);
+        }
+
+        for (ComponentInfo ci : knowledge.structuralGraph().components()) {
+            FlowStepComponentType type = switch (ci.annotationType()) {
+                case "Controller", "RestController" -> FlowStepComponentType.REST_ENDPOINT;
+                case "Service" -> FlowStepComponentType.SERVICE;
+                case "Repository" -> FlowStepComponentType.REPOSITORY;
+                default -> null;
+            };
+            if (type != null) {
+                lookup.putIfAbsent(ci.filePath(), type);
+                lookup.putIfAbsent(ci.className(), type);
+            }
+        }
+
+        return lookup;
     }
 
     public TracedFlowResult traceAll(EntryPointDiscoveryResult discoveryResult) {
@@ -157,23 +191,35 @@ public class TraceFlowAction {
     }
 
     private FlowStepComponentType classifySourceComponent(String filePath) {
-        if (filePath.contains("Controller")) return FlowStepComponentType.REST_ENDPOINT;
-        if (filePath.contains("Service")) return FlowStepComponentType.SERVICE;
-        if (filePath.contains("Repository") || filePath.contains("Repo")) return FlowStepComponentType.REPOSITORY;
-        return FlowStepComponentType.REST_ENDPOINT;
+        FlowStepComponentType type = componentTypeLookup.get(filePath);
+        if (type != null) return type;
+        return fallbackSourceComponentType(filePath);
     }
 
     private FlowStepComponentType classifyComponent(CallGraphEdge edge) {
-        String targetClass = edge.targetClassName();
-        String targetFile = edge.targetFilePath();
+        FlowStepComponentType type = componentTypeLookup.get(edge.targetFilePath());
+        if (type == null) type = componentTypeLookup.get(edge.targetClassName());
+        if (type != null) return type;
+        return fallbackTargetComponentType(edge);
+    }
 
+    private static FlowStepComponentType fallbackSourceComponentType(String filePath) {
+        if (filePath.contains("Controller")) return FlowStepComponentType.REST_ENDPOINT;
+        if (filePath.contains("Service")) return FlowStepComponentType.SERVICE;
+        if (filePath.contains("Repository") || filePath.contains("Repo")) return FlowStepComponentType.REPOSITORY;
+        if (filePath.contains("Scheduler") || filePath.contains("Job")) return FlowStepComponentType.SCHEDULED_TASK;
+        if (filePath.contains("Listener") || filePath.contains("Consumer")) return FlowStepComponentType.EVENT_PUBLISHER;
+        return FlowStepComponentType.SERVICE;
+    }
+
+    private static FlowStepComponentType fallbackTargetComponentType(CallGraphEdge edge) {
+        String targetFile = edge.targetFilePath();
         if (targetFile.contains("Controller")) return FlowStepComponentType.REST_ENDPOINT;
         if (targetFile.contains("Service")) return FlowStepComponentType.SERVICE;
         if (targetFile.contains("Repository") || targetFile.contains("Repo")) return FlowStepComponentType.REPOSITORY;
         if (targetFile.contains("Client") || targetFile.contains("Feign")) return FlowStepComponentType.EXTERNAL_CALL;
         if (targetFile.contains("Listener") || targetFile.contains("Consumer")) return FlowStepComponentType.EVENT_PUBLISHER;
         if (targetFile.contains("Scheduler") || targetFile.contains("Job")) return FlowStepComponentType.SCHEDULED_TASK;
-
         return FlowStepComponentType.SERVICE;
     }
 }

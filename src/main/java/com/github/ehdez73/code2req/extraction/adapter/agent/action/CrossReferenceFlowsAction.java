@@ -4,10 +4,10 @@ import com.github.ehdez73.code2req.extraction.adapter.agent.model.CrossReference
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.GroupedFlowsResult;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
-import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowRelationship;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowRelationshipType;
+import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFeature;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
 import org.slf4j.Logger;
@@ -55,7 +55,6 @@ public class CrossReferenceFlowsAction {
         List<FlowRelationship> relationships = new ArrayList<>();
 
         List<FloatingLinkInfo> floatingLinks = knowledge.findAllFloatingLinks();
-        List<EndpointInfo> endpoints = knowledge.structuralGraph().endpoints();
 
         Map<String, List<FunctionalFlow>> flowsByPath = groupedResult.features().stream()
             .flatMap(f -> f.flows().stream())
@@ -67,27 +66,61 @@ public class CrossReferenceFlowsAction {
             ));
 
         for (FloatingLinkInfo link : floatingLinks) {
-            String targetPath = normalizePath(link.urlPattern());
+            matchFlowByUrl(relationships, groupedResult, flowsByPath,
+                link.sourceFilePath(), link.method(), link.urlPattern());
+        }
 
-            for (Map.Entry<String, List<FunctionalFlow>> entry : flowsByPath.entrySet()) {
-                if (targetPath.contains(entry.getKey()) || entry.getKey().contains(targetPath)) {
-                    for (FunctionalFlow sourceFlow : findFlowsWithLink(groupedResult, link)) {
-                        for (FunctionalFlow targetFlow : entry.getValue()) {
-                            if (!sourceFlow.flowId().equals(targetFlow.flowId())) {
-                                relationships.add(new FlowRelationship(
-                                    sourceFlow.flowId(),
-                                    targetFlow.flowId(),
-                                    FlowRelationshipType.CALLS_EXTERNAL,
-                                    link.method() + " " + link.urlPattern()
-                                ));
-                            }
+        for (FunctionalFeature feature : groupedResult.features()) {
+            for (FunctionalFlow flow : feature.flows()) {
+                flow.steps().stream()
+                    .map(FlowStep::sourceFile)
+                    .filter(f -> f != null)
+                    .distinct()
+                    .forEach(sourceFile -> {
+                        knowledge.semanticEnrichment().findByFilePath(sourceFile)
+                            .filter(ef -> ef.architecturalConnections() != null
+                                && ef.architecturalConnections().outbound() != null
+                                && ef.architecturalConnections().outbound().httpCalls() != null)
+                            .ifPresent(ef -> {
+                                for (var httpCall : ef.architecturalConnections().outbound().httpCalls()) {
+                                    matchFlowByUrl(relationships, groupedResult, flowsByPath,
+                                        sourceFile, httpCall.method(), httpCall.urlOrPath());
+                                }
+                            });
+                    });
+            }
+        }
+
+        return relationships;
+    }
+
+    private void matchFlowByUrl(List<FlowRelationship> relationships, GroupedFlowsResult groupedResult,
+                                 Map<String, List<FunctionalFlow>> flowsByPath,
+                                 String sourceFile, String method, String urlPattern) {
+        String targetPath = normalizePath(urlPattern);
+
+        for (Map.Entry<String, List<FunctionalFlow>> entry : flowsByPath.entrySet()) {
+            if (targetPath.contains(entry.getKey()) || entry.getKey().contains(targetPath)) {
+                List<FunctionalFlow> sourceFlows = groupedResult.features().stream()
+                    .flatMap(f -> f.flows().stream())
+                    .filter(f -> f.entryPoint().filePath().equals(sourceFile)
+                        || f.steps().stream().anyMatch(s -> sourceFile.equals(s.sourceFile())))
+                    .collect(Collectors.toList());
+
+                for (FunctionalFlow sourceFlow : sourceFlows) {
+                    for (FunctionalFlow targetFlow : entry.getValue()) {
+                        if (!sourceFlow.flowId().equals(targetFlow.flowId())) {
+                            relationships.add(new FlowRelationship(
+                                sourceFlow.flowId(),
+                                targetFlow.flowId(),
+                                FlowRelationshipType.CALLS_EXTERNAL,
+                                method + " " + urlPattern
+                            ));
                         }
                     }
                 }
             }
         }
-
-        return relationships;
     }
 
     private List<FlowRelationship> crossReferenceTopicLinks(GroupedFlowsResult groupedResult) {
@@ -108,7 +141,7 @@ public class CrossReferenceFlowsAction {
             List<FunctionalFlow> consumers = flowsByTopic.getOrDefault(link.topic(), List.of());
 
             for (FunctionalFlow consumer : consumers) {
-                List<FunctionalFlow> producers = findFlowsPublishingToTopic(groupedResult, link.topic());
+                List<FunctionalFlow> producers = findFlowsPublishingToTopic(groupedResult, link);
                 for (FunctionalFlow producer : producers) {
                     if (!producer.flowId().equals(consumer.flowId())) {
                         FlowRelationshipType type = link.resolvedStatus().equals("RESOLVED")
@@ -129,15 +162,20 @@ public class CrossReferenceFlowsAction {
         return relationships;
     }
 
-    private List<FunctionalFlow> findFlowsWithLink(GroupedFlowsResult groupedResult, FloatingLinkInfo link) {
-        return groupedResult.features().stream()
-            .flatMap(f -> f.flows().stream())
-            .filter(f -> f.entryPoint().filePath().equals(link.sourceFilePath())
-                || f.steps().stream().anyMatch(s -> s.sourceFile() != null && s.sourceFile().equals(link.sourceFilePath())))
-            .collect(Collectors.toList());
-    }
+    private List<FunctionalFlow> findFlowsPublishingToTopic(GroupedFlowsResult groupedResult, TopicLink link) {
+        String producerFile = link.producerFilePath();
 
-    private List<FunctionalFlow> findFlowsPublishingToTopic(GroupedFlowsResult groupedResult, String topic) {
+        if (producerFile != null) {
+            return groupedResult.features().stream()
+                .flatMap(f -> f.flows().stream())
+                .filter(f -> f.entryPoint().filePath().equals(producerFile)
+                    || f.steps().stream().anyMatch(s -> producerFile.equals(s.sourceFile())))
+                .collect(Collectors.toList());
+        }
+
+        String topic = link.topic();
+        if (topic == null) return List.of();
+
         return groupedResult.features().stream()
             .flatMap(f -> f.flows().stream())
             .filter(f -> f.steps().stream().anyMatch(s ->
