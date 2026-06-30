@@ -321,7 +321,7 @@
     {
       "id": "E004",
       "name": "Agentic Functional Requirement Extraction (Embabel GOAP)",
-      "description": "Phase 3 of the pipeline: an Embabel GOAP agent discovers entry points, traces execution flows through the call graph, and extracts functional requirements (user stories, Gherkin scenarios, business rules). Produces Markdown specification organized by features and semantic_manifest.json with cross-flow relationships and orphaned method detection.",
+      "description": "Phase 3 of the pipeline: an Embabel GOAP agent discovers entry points, traces execution flows through the call graph, and extracts functional requirements (user stories, Gherkin scenarios, business rules). Persists intermediate results to extraction-cache.json; a separate generate command produces the Markdown specification and semantic_manifest.json from the cache.",
       "priority": "must"
     }
   ],
@@ -646,7 +646,7 @@
       "id": "F019",
       "epic_id": "E003",
       "name": "CLI Commands — plan and run",
-      "description": "The plan command displays the execution DAG without running. The run command orchestrates Phase 2 then Phase 3 with configurable thresholds and dry-run mode. Status command extended with Phase 2+3 counters.",
+      "description": "The plan command displays the execution DAG without running. The run command orchestrates Phase 2 then Phase 3 (extract + generate) with configurable thresholds and dry-run mode. Status command extended with Phase 2+3 counters.",
       "background": "All Phase 2 components implemented.",
       "business_rules": [
         "plan makes zero LLM calls and zero SQLite mutations — read-only DAG view",
@@ -770,15 +770,15 @@
       "id": "F027",
       "epic_id": "E004",
       "name": "Domain Model + Output Writers",
-      "description": "Pure-Java domain classes for Phase 3 synthesis output (EntryPoint, ExecutionFlow, FlowStep, FunctionalFlow, GherkinScenario, etc.) and writers that produce Markdown spec and semantic JSON manifest from the Embabel agent's results.",
-      "background": "Embabel agent completed. FunctionalFlow, AmbiguityGap, and OrphanedMethod objects available.",
+      "description": "Pure-Java domain classes for Phase 3 synthesis output (EntryPoint, ExecutionFlow, FlowStep, FunctionalFlow, GherkinScenario, etc.) and writers that produce Markdown spec and semantic JSON manifest from the extraction cache.",
+      "background": "Extraction cache populated by extract command. FunctionalFlow, AmbiguityGap, and OrphanedMethod objects available.",
       "business_rules": [
         "All domain model classes use Java record types with business-key-based equality",
         "MarkdownSpecWriter writes to spec-output/spec.md with TOC, features, Gherkin, Mermaid diagrams",
         "SemanticManifestWriter writes to spec-output/semantic_manifest.json with manifest_version 3.0.0",
         "SemanticManifestWriter validates JSON output against PLAN-Phase3 §4.2 schema before persisting",
         "Schema validation failure sets Phase 3 marker to FAILED",
-        "Writers are pure Java (not agentic) — invoked by Phase3Orchestrator after agent completes"
+        "Writers are pure Java (not agentic) — invoked by the generate command from extraction cache"
       ],
       "user_stories": [
         { "id": "US056", "title": "Domain model and output writers", "priority": "must", "type": "story", "gherkin_file": "features/E004-F027-domain-model-output-writers.feature" }
@@ -840,6 +840,13 @@
       "status": "Accepted",
       "date": "2026-06-12",
       "file": "docs/sdlc/adrs/ADR-005-in-memory-secret-redaction.md"
+    },
+    {
+      "id": "ADR-006",
+      "title": "Pipeline Orchestration — Extract/Generate Command Split",
+      "status": "Accepted",
+      "date": "2026-06-30",
+      "file": "docs/sdlc/adrs/ADR-006-pipeline-orchestration.md"
     }
   ],
   "open_questions": [],

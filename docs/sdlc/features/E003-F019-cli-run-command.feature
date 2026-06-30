@@ -5,8 +5,8 @@
 # Phase 2 draft generated: 2026-06-17
 # Last updated: 2026-06-17
 
-Feature: CLI Commands — plan and run
-  The plan command displays the execution DAG without running. The run command orchestrates Phase 2 then Phase 3 with configurable thresholds and dry-run mode.
+Feature: CLI Commands — plan, run, and generate
+  The plan command displays the execution DAG without running. The run command orchestrates Phase 2 then Phase 3 (extract + generate) with configurable thresholds and dry-run mode.
 
   Background:
     Given Phase 1 indexing completed successfully
@@ -37,7 +37,8 @@ Feature: CLI Commands — plan and run
       Given qualified tasks exist in SQLite
       When the developer runs run --manifest project-manifest.yaml
       Then Phase 2 runs: Planner → Executors → Orchestrator with barrier
-      And Phase 3 runs after the barrier is released
+      And Phase 3 extract runs after the barrier is released
+      And Phase 3 generate runs after extract
       And spec-output/ contains specification documents
 
     @US047 @E003 @F019 @must @draft
@@ -45,7 +46,7 @@ Feature: CLI Commands — plan and run
       Given qualified tasks exist in SQLite
       When the developer runs run --llm-threshold 0
       Then Phase 2 is skipped entirely
-      And Phase 3 runs on structural data only
+      And Phase 3 (extract + generate) runs on structural data only
 
     @US047 @E003 @F019 @must @draft
     Scenario: Developer runs with --dry-run for simulation
@@ -53,7 +54,8 @@ Feature: CLI Commands — plan and run
       When the developer runs run --dry-run --manifest project-manifest.yaml
       Then Phase 2 executors use stubs returning deterministic JSON
       And no API calls are made
-      And spec-output/ contains simulated output
+      And extract produces simulated cache
+      And generate produces spec-output/ from simulated cache
 
     @US047 @E003 @F019 @must @draft
     Scenario: Developer checks status with Phase 2 counters
@@ -77,7 +79,7 @@ Feature: CLI Commands — plan and run
     Scenario: Developer sees Phase 3 skip guard when already complete
       Given the Phase 3 marker is ENRICHED
       When the developer runs run without --force-phase3
-      Then Phase 3 is skipped
+      Then Phase 3 extract is skipped
       And the output shows "Phase 3 already completed (use --force-phase3 to re-run)"
 
     @US047 @E003 @F019 @must @draft
@@ -85,5 +87,5 @@ Feature: CLI Commands — plan and run
       Given the Phase 3 marker is ENRICHED
       When the developer runs run --force-phase3
       Then the marker is reset to PENDING
-      And Phase 3 executes from scratch
+      And Phase 3 (extract + generate) executes from scratch
       And existing spec-output/ files are overwritten

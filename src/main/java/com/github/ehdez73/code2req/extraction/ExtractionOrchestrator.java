@@ -5,6 +5,7 @@ import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.adapter.agent.action.SynthesizeSpecAction;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.SpecResult;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
@@ -38,6 +39,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -53,6 +56,8 @@ import java.util.stream.Stream;
 public class ExtractionOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(ExtractionOrchestrator.class);
+
+    private static final Path CACHE_PATH = Path.of("spec-output", "extraction-cache.json");
 
     private final TaskStore taskStore;
     private final ExecutionFindingStore executionFindingStore;
@@ -126,7 +131,7 @@ public class ExtractionOrchestrator {
             agentPlatform.start(process).get(
                 executionConfig.resolvedPhase3TimeoutMinutes(), TimeUnit.MINUTES);
 
-            SpecResult specResult = process.resultOfType(SpecResult.class);
+            ExtractionCache cache = process.resultOfType(ExtractionCache.class);
 
             List<String> flowNames = knowledge.getFlowNames();
             if (flowNames.isEmpty()) {
@@ -135,15 +140,16 @@ public class ExtractionOrchestrator {
                     .distinct()
                     .toList();
             }
-            int flowCount = specResult != null ? specResult.flowCount() : 0;
-            int ambiguityGaps = knowledge.findUnresolvedLinks().size()
-                + knowledge.findUnresolvedTopicLinks().size();
+            int ambiguityGaps = cache != null ? cache.quarantineGaps().size() : 0;
+            int flowCount = cache != null ? cache.crossRefResult().features().stream()
+                .mapToInt(f -> f.flows().size()).sum() : 0;
 
-            List<Path> generatedFiles = specResult != null ?
-                List.of(specResult.markdownPath(), specResult.manifestPath()) : List.of();
+            List<Path> generatedFiles = CACHE_PATH != null ?
+                List.of(CACHE_PATH) : List.of();
             ExtractionResult result = new ExtractionResult(
                 flowCount, ambiguityGaps, 0, flowNames, generatedFiles);
             persistMetrics(result, false);
+            log.info("Created extraction cache: {}", CACHE_PATH);
             return result;
         } catch (Exception e) {
             log.error("Phase 3 synthesis failed: {}", e.getMessage(), e);
@@ -159,6 +165,19 @@ public class ExtractionOrchestrator {
 
     public ExtractionResult execute(boolean dryRun) {
         return execute(dryRun, false);
+    }
+
+    public SpecResult generate() throws IOException {
+        log.info("Generate: reading extraction cache from {}", CACHE_PATH);
+        if (!Files.exists(CACHE_PATH)) {
+            throw new IllegalStateException(
+                "No extraction cache found at " + CACHE_PATH + ". Run 'extract' first.");
+        }
+
+        ExtractionCache cache = objectMapper.readValue(CACHE_PATH.toFile(), ExtractionCache.class);
+        SynthesizeSpecAction action = new SynthesizeSpecAction(CACHE_PATH.getParent());
+        return action.synthesize(
+            cache.crossRefResult(), cache.orphanedMethods(), cache.quarantineGaps(), null);
     }
 
     boolean shouldSkipPhase3(CodebaseKnowledge knowledge, boolean force) {

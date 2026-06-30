@@ -4,6 +4,10 @@ import com.embabel.agent.api.annotation.AchievesGoal;
 import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.Agent;
 import com.embabel.agent.api.common.OperationContext;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.github.ehdez73.code2req.extraction.ExtractionCache;
 import com.github.ehdez73.code2req.extraction.adapter.agent.action.*;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.*;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
@@ -12,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -121,23 +126,34 @@ public class FunctionalRequirementAgent {
         return result;
     }
 
-    @AchievesGoal(description = "Spec synthesized with features, relationships, and orphaned methods")
+    @AchievesGoal(description = "Extraction cache persisted with features, relationships, and orphaned methods")
     @Action
-    public SpecResult synthesizeSpec(CrossReferencedResult crossRefResult,
-                                     EntryPointDiscoveryResult discoveryResult,
-                                     TracedFlowResult tracedResult,
-                                     OperationContext context) throws IOException {
-        log.info("GOAP Action: SynthesizeSpec ({} features)", crossRefResult.features().size());
+    public ExtractionCache persistCache(CrossReferencedResult crossRefResult,
+                                         EntryPointDiscoveryResult discoveryResult,
+                                         TracedFlowResult tracedResult,
+                                         OperationContext context) throws IOException {
+        log.info("GOAP Action: PersistCache ({} features)", crossRefResult.features().size());
         Path outputDir = (Path) context.get("outputDir");
         if (outputDir == null) {
             outputDir = Path.of("spec-output");
         }
         WorldState ws = (WorldState) context.get("worldState");
-        SynthesizeSpecAction action = new SynthesizeSpecAction(outputDir);
-        SpecResult result = action.synthesize(
-            crossRefResult, discoveryResult.orphanedMethods(), ws.getQuarantineGaps(), context);
+        Files.createDirectories(outputDir);
+
+        ExtractionCache cache = new ExtractionCache(
+            crossRefResult, discoveryResult.orphanedMethods(), ws.getQuarantineGaps());
+
+        ObjectMapper mapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            .enable(SerializationFeature.INDENT_OUTPUT);
+        Path cachePath = outputDir.resolve("extraction-cache.json");
+        mapper.writeValue(cachePath.toFile(), cache);
+
+        log.info("Persisted extraction cache: {} ({} features, {} orphaned methods, {} quarantine gaps)",
+            cachePath, crossRefResult.features().size(),
+            discoveryResult.orphanedMethods().size(), ws.getQuarantineGaps().size());
         ws.setSpecSynthesized(true);
-        return result;
+        return cache;
     }
 
     public record KnowledgeLoaded(CodebaseKnowledge knowledge) {}

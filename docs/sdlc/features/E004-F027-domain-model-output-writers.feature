@@ -6,11 +6,11 @@
 
 Feature: Domain Model + Output Writers
   Pure-Java domain classes for Phase 3 synthesis output and writers that produce structured Markdown
-  specification and semantic JSON manifest from the Embabel agent's results.
+  specification and semantic JSON manifest from the extraction cache.
 
   Background:
-    Given the Embabel agent has completed and produced FunctionalFlow, AmbiguityGap, and OrphanedMethod objects
-    And Phase3Orchestrator has collected all agent results
+    Given extraction-cache.json exists with CrossReferencedResult, OrphanedMethod, and AmbiguityGap data
+    And the generate command reads the cache
 
   Rule: Domain records are defined for all Phase 3 synthesis output types
 
@@ -57,7 +57,7 @@ Feature: Domain Model + Output Writers
 
     @US056 @E004 @F027 @must @draft
     Scenario: SemanticManifestWriter validates output before persisting
-      Given SemanticManifestWriter is invoked with agent results
+      Given SemanticManifestWriter is invoked from generate command
       When the writer generates the manifest JSON
       Then the JSON is validated against the PLAN-Phase3 §4.2 schema
       And if validation fails, the Phase 3 marker is set to FAILED

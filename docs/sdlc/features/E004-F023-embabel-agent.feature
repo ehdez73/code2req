@@ -89,15 +89,15 @@ Feature: Embabel Agent — Entry-Point-Driven Extraction
       When the QuarantineFlow action evaluates the flow
       Then the flow is quarantined
       And its status is set to AWAITING_HUMAN_REVIEW
-      And it appears in spec Section 5 (unresolved dependencies)
+      And the quarantine gap is persisted in extraction-cache.json
 
     @US051 @E004 @F023 @must @draft
-    Scenario: Agent synthesizes final functional specification
+    Scenario: Agent persists extraction cache
       Given all features are grouped and cross-referenced
-      When the SynthesizeSpec action executes
-      Then MarkdownSpecWriter produces spec-output/spec.md per PRD §6.1
-      And SemanticManifestWriter produces spec-output/semantic_manifest.json
-      And the manifest includes features, flows, acceptance criteria, business rules, cross-flow relationships, and orphaned methods
+      When the agent persists results to extraction-cache.json
+      Then the cache contains CrossReferencedResult, orphaned methods, and quarantine gaps
+      And the cache is written to spec-output/extraction-cache.json
+      And no spec files are written by the agent
 
     @US051 @E004 @F023 @must @draft
     Scenario: Phase 3 crash marker prevents redundant re-execution

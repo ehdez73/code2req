@@ -4,6 +4,8 @@ import com.embabel.agent.api.common.OperationContext;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.CrossReferencedResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.SpecResult;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
+import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.EntryPointType;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFeature;
@@ -164,6 +166,56 @@ public class SynthesizeSpecAction {
                           .append(" | ").append(step.sourceFile() != null ? step.sourceFile() : "")
                           .append(" |\n");
                     }
+                    sb.append("\n");
+                }
+
+                // Event/Message Details section
+                List<FlowStep> eventSteps = flow.steps().stream()
+                    .filter(s -> s.componentType() == FlowStepComponentType.SCHEDULED_TASK
+                              || s.componentType() == FlowStepComponentType.EVENT_PUBLISHER)
+                    .collect(java.util.stream.Collectors.toList());
+
+                EntryPointType epType = flow.entryPoint().type();
+                boolean hasMessagingEntryPoint = epType == EntryPointType.KAFKA
+                    || epType == EntryPointType.RABBITMQ
+                    || epType == EntryPointType.ACTIVEMQ
+                    || epType == EntryPointType.EVENT_LISTENER;
+
+                if (!eventSteps.isEmpty() || hasMessagingEntryPoint) {
+                    sb.append("#### Event/Message Details\n\n");
+                    sb.append("| Component Type | Broker / Mechanism | Topic / Queue | Schedule | Event Type | Source File |\n");
+                    sb.append("|---|---|---|---|---|---|\n");
+
+                    for (FlowStep step : eventSteps) {
+                        String broker = brokerLabel(flow.entryPoint());
+                        String topic = step.componentType() == FlowStepComponentType.EVENT_PUBLISHER
+                            ? (flow.entryPoint().topicOrQueue() != null ? flow.entryPoint().topicOrQueue() : "\u2014")
+                            : "\u2014";
+                        String schedule = step.componentType() == FlowStepComponentType.SCHEDULED_TASK
+                            ? (flow.entryPoint().schedule() != null ? flow.entryPoint().schedule() : "\u2014")
+                            : "\u2014";
+                        sb.append("| ").append(step.componentType())
+                          .append(" | ").append(broker)
+                          .append(" | ").append(topic)
+                          .append(" | ").append(schedule)
+                          .append(" | \u2014")
+                          .append(" | ").append(step.sourceFile() != null ? step.sourceFile() : "")
+                          .append(" |\n");
+                    }
+
+                    if (hasMessagingEntryPoint && eventSteps.stream().noneMatch(s -> s.componentType() == FlowStepComponentType.EVENT_PUBLISHER)) {
+                        String broker = brokerLabel(flow.entryPoint());
+                        String topic = flow.entryPoint().topicOrQueue() != null ? flow.entryPoint().topicOrQueue() : "\u2014";
+                        String sourceFile = !flow.steps().isEmpty() ? flow.steps().getFirst().sourceFile() : "";
+                        sb.append("| SERVICE")
+                          .append(" | ").append(broker)
+                          .append(" | ").append(topic)
+                          .append(" | \u2014")
+                          .append(" | \u2014")
+                          .append(" | ").append(sourceFile != null ? sourceFile : "")
+                          .append(" |\n");
+                    }
+
                     sb.append("\n");
                 }
 
@@ -391,5 +443,16 @@ public class SynthesizeSpecAction {
             return file + ":" + startLine + "-" + endLine;
         }
         return file;
+    }
+
+    private String brokerLabel(EntryPoint entryPoint) {
+        return switch (entryPoint.type()) {
+            case SCHEDULED -> "@Scheduled";
+            case EVENT_LISTENER -> "@EventListener";
+            case KAFKA -> "Kafka";
+            case RABBITMQ -> "RabbitMQ";
+            case ACTIVEMQ -> "ActiveMQ";
+            case HTTP -> "ApplicationEventPublisher";
+        };
     }
 }

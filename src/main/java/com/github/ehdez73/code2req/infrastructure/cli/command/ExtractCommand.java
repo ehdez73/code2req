@@ -29,7 +29,7 @@ public class ExtractCommand {
         this.manifestValidator = manifestValidator;
     }
 
-    @ShellMethod(key = "extract", value = "Run Phase 3 functional requirement extraction from enriched tasks")
+    @ShellMethod(key = "extract", value = "Run Phase 3 agentic analysis and cache results for spec generation")
     public String extract(
             @ShellOption(value = "--manifest", defaultValue = "project-manifest.yaml",
                          help = "Path to the project manifest YAML file") String manifestPath,
@@ -76,7 +76,7 @@ public class ExtractCommand {
         sb.append(String.format("  Ambiguity gaps: %d%n", result.ambiguityGaps()));
         sb.append(String.format("  Awaiting review: %d%n", result.awaitingReview()));
         if (!result.generatedFiles().isEmpty()) {
-            sb.append("  Generated files:\n");
+            sb.append("  Cache file:\n");
             for (var f : result.generatedFiles()) {
                 sb.append(String.format("    - %s%n", f));
             }
