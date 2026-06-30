@@ -118,7 +118,8 @@ class SuggestionServiceTest {
             1, 1, 0, 0, 0, 0, 100, 0.0, LocalDateTime.now().toString()));
 
         String result = suggestionService.suggest();
-        assertTrue(result.contains("No actionable tasks"));
+        assertTrue(result.contains("Pipeline complete"));
+        assertTrue(result.contains("clean"));
     }
 
     @Test
@@ -146,12 +147,13 @@ class SuggestionServiceTest {
     }
 
     @Test
-    void suggestNothingActionable() {
+    void suggestPipelineComplete() {
         taskStore.save(new Task("t1", "/src/Enriched.java", TaskStatus.ENRICHED, "java", "h1", "test"));
         metricsStore.save(new Metric(UUID.randomUUID().toString(), 3,
             1, 1, 0, 0, 0, 0, 100, 0.0, LocalDateTime.now().toString()));
 
         String result = suggestionService.suggest();
-        assertTrue(result.contains("No actionable tasks"));
+        assertTrue(result.contains("Pipeline complete"));
+        assertTrue(result.contains("clean"));
     }
 }

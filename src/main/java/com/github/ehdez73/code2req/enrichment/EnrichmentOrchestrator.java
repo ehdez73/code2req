@@ -13,7 +13,7 @@ import com.github.ehdez73.code2req.enrichment.domain.model.CompletionStatus;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.enrichment.domain.model.PlannerDecision;
-import com.github.ehdez73.code2req.enrichment.domain.planner.Phase2Planner;
+import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import com.github.ehdez73.code2req.enrichment.domain.service.BranchState;
 import com.github.ehdez73.code2req.enrichment.domain.service.EnrichmentDag;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestLoader;
@@ -44,7 +44,7 @@ public class EnrichmentOrchestrator {
     private static final double COST_PER_TOKEN = 0.000002;
     private static final int DRY_RUN_ESTIMATED_TOKENS = 500;
 
-    private final Phase2Planner planner;
+    private final EnrichmentPlanner planner;
     private final LlmEnrichmentService semanticExecutor;
     private final TaskStore taskStore;
     private final ExecutionFindingStore findingStore;
@@ -56,7 +56,7 @@ public class EnrichmentOrchestrator {
     private final FilePathResolver filePathResolver;
     private final PairedExecutionResolver pairedExecutionResolver;
 
-    public EnrichmentOrchestrator(Phase2Planner planner, LlmEnrichmentService executor,
+    public EnrichmentOrchestrator(EnrichmentPlanner planner, LlmEnrichmentService executor,
                                   TaskStore taskStore, ExecutionFindingStore findingStore,
                                   MetricsStore metricsStore, ExecutionConfig executionConfig,
                                   TaskIdHasher taskIdHasher, ContextBudgetCalculator budgetCalculator,

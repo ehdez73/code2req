@@ -322,7 +322,7 @@ Depends on: TaskStore (Phase 1.2), ExecutionFindingStore + TopicLinkStore + Floa
 
 - [x] **Modified:** `ScanCommand` (extracted `executeScan()` shared method, added `filterCompleted()` / `isAlreadyCompleted()`)
 - [x] **Modified:** `ResumeCommand` (rewritten to 3-line delegating wrapper)
-- [x] **Modified:** `RunCommand` (injected 4 stores, added orphan recovery loop)
+- [x] **Modified:** `RunCommand` (injected 4 stores, added orphan recovery loop, fail-stop guards between phases)
 - [x] **Verify:** `mvn compile` (0 errors)
 - [x] **Manual:** kill `run` mid-Phase-2, then `enrich --resume` and confirm orphans recovered
 
@@ -434,3 +434,6 @@ Phase 11c.1 (Template File Parsing) ── depends on Phase 4a + Phase 6.1 + Pha
 - 2026-06-21 — **Phase 14 — Snapshot & Restore (E005/F025)** implemented: `SnapshotService` (VACUUM INTO, pool drain/restore, metadata), `SnapshotCommand` (snapshot/snapshot-list/restore), config in application.properties + .gitignore. `mvn compile` — 155 sources pass. ✓
 - 2026-06-22 — **Phase 15 — Task Inspection & Lifecycle Commands** implemented: `TaskCommands` (`task-list`, `task-findings`, `task-set-status`), 9 store methods across 4 stores. ✓
 - 2026-06-22 — **Phase 15.2 — Resume Flags** implemented: `scan --resume` (with shared `executeScan()` method), `enrich --resume` (orphan ENRICHING recovery), `ResumeCommand` refactored to thin delegating wrapper. Zero code duplication. ✓
+- 2026-06-29 — **SKIPPED task status** added to `TaskStatus`. Non-qualified tasks transition from `INDEXED` to `SKIPPED` (was staying `INDEXED`). Updated `EnrichmentPlanner`, `QualifyTasksService`. `SuggestionService` handles `SKIPPED` correctly with fallback suggestions. ✓
+- 2026-06-29 — **RunCommand guard conditions** added: stops on `FAILED` after scan, 0 `ENRICH_PENDING` after plan, `ENRICH_FAILED` after enrich. Strips intermediate "Suggested Next" sections from phase outputs. ✓
+- 2026-06-29 — **CleanCommand resets sqlite_sequence** added `DELETE FROM sqlite_sequence` after table truncation to reset AUTOINCREMENT counters. ✓

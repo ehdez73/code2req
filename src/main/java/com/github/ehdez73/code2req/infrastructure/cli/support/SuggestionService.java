@@ -29,6 +29,7 @@ public class SuggestionService {
         int enrichPendingCount = taskStore.countByStatus(TaskStatus.ENRICH_PENDING);
         int enrichingCount = taskStore.countByStatus(TaskStatus.ENRICHING);
         int indexedCount = taskStore.countByStatus(TaskStatus.INDEXED);
+        int skippedCount = taskStore.countByStatus(TaskStatus.SKIPPED);
         int enrichedCount = taskStore.countByStatus(TaskStatus.ENRICHED);
         int enrichFailedCount = taskStore.countByStatus(TaskStatus.ENRICH_FAILED);
         int pendingCount = taskStore.countByStatus(TaskStatus.PENDING);
@@ -71,11 +72,25 @@ public class SuggestionService {
             hasActionable = true;
         }
 
+        boolean onlySkipped = indexedCount == 0 && enrichPendingCount == 0 && enrichedCount == 0
+            && failedCount == 0 && enrichFailedCount == 0 && enrichingCount == 0
+            && pendingCount == 0 && skippedCount > 0;
+        if (onlySkipped) {
+            sb.append("  All tasks evaluated — none qualified for enrichment.\n");
+            sb.append("    plan  (lower llm-unresolved-threshold in manifest to qualify more)\n");
+            sb.append("    extract  (proceed without enrichment)\n");
+            hasActionable = true;
+        }
+
         boolean allEnriched = failedCount == 0 && enrichFailedCount == 0 && enrichingCount == 0
             && pendingCount == 0 && indexedCount == 0 && enrichPendingCount == 0 && enrichedCount > 0;
         if (allEnriched && p3 == null) {
             sb.append("  All tasks enriched. Proceed to Phase 3 extraction:\n");
             sb.append("    extract\n");
+            hasActionable = true;
+        } else if (allEnriched && p3 != null) {
+            sb.append("  Pipeline complete. Clean up to reset for a fresh scan:\n");
+            sb.append("    clean\n");
             hasActionable = true;
         }
 

@@ -12,7 +12,7 @@ import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.enrichment.EnrichmentOrchestrator;
-import com.github.ehdez73.code2req.enrichment.domain.planner.Phase2Planner;
+import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import com.github.ehdez73.code2req.enrichment.domain.planner.QualificationRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.CustomConstraintValidatorRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.JpqlHqlQueryRule;
@@ -85,7 +85,7 @@ class EnrichCommandTest {
             new JpqlHqlQueryRule()
         );
 
-        var planner = new Phase2Planner(taskStore, jdbc, rules, findingStore);
+        var planner = new EnrichmentPlanner(taskStore, jdbc, rules, findingStore);
         var txManager = new DataSourceTransactionManager(ds);
         var txTemplate = new TransactionTemplate(txManager);
         var executor = new LlmEnrichmentService(null, findingStore, taskStore,
@@ -179,7 +179,7 @@ class EnrichCommandTest {
         String result = command.enrich("project-manifest.yaml", true, true, null);
 
         assertTrue(result.contains("FAILED"));
-        assertEquals(TaskStatus.INDEXED, taskStore.findById("f3").orElseThrow().status());
+        assertEquals(TaskStatus.SKIPPED, taskStore.findById("f3").orElseThrow().status());
     }
 
     private void insertIndexedTask(String taskId, String filePath) {

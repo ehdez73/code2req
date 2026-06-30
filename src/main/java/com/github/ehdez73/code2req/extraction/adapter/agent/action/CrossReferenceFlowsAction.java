@@ -1,5 +1,7 @@
-package com.github.ehdez73.code2req.extraction.adapter.agent;
+package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.CrossReferencedResult;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.GroupedFlowsResult;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
@@ -16,6 +18,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Resolves inter-flow dependencies by matching floating HTTP calls and topic
+ * publications to known endpoints. Records FlowRelationships between flows
+ * (DELEGATES_TO, PUBLISHES_EVENT, CONSUMES_EVENT, CALLS_EXTERNAL) for
+ * inclusion in the final specification's cross-flow relationships section.
+ */
 public class CrossReferenceFlowsAction {
 
     private static final Logger log = LoggerFactory.getLogger(CrossReferenceFlowsAction.class);

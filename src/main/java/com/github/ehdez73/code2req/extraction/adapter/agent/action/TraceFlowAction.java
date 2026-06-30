@@ -1,5 +1,7 @@
-package com.github.ehdez73.code2req.extraction.adapter.agent;
+package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.EntryPointDiscoveryResult;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
@@ -21,6 +23,12 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * For the highest-priority unscheduled entry point, follows call graph edges
+ * through the codebase building a list of FlowSteps from entry point through
+ * services to repositories/database. Uses sub-chain caching to avoid redundant
+ * tracing of shared service chains and applies adaptive depth (max 5).
+ */
 public class TraceFlowAction {
 
     private static final Logger log = LoggerFactory.getLogger(TraceFlowAction.class);

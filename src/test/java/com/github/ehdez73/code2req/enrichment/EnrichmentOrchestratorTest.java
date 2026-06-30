@@ -16,7 +16,7 @@ import com.github.ehdez73.code2req.common.domain.Metric;
 import com.github.ehdez73.code2req.enrichment.domain.model.PlannerDecision;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
-import com.github.ehdez73.code2req.enrichment.domain.planner.Phase2Planner;
+import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import com.github.ehdez73.code2req.enrichment.domain.planner.QualificationRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.CustomConstraintValidatorRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.JpqlHqlQueryRule;
@@ -62,7 +62,7 @@ class EnrichmentOrchestratorTest {
     private ExecutionFindingStore findingStore;
     private MetricsStore metricsStore;
     private FloatingLinkStore floatingLinkStore;
-    private Phase2Planner planner;
+    private EnrichmentPlanner planner;
     private ExecutionConfig executionConfig;
     private TaskIdHasher taskIdHasher;
     private ContextBudgetCalculator budgetCalculator;
@@ -102,7 +102,7 @@ class EnrichmentOrchestratorTest {
     }
 
     private EnrichmentOrchestrator createOrchestrator() {
-        planner = new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
+        planner = new EnrichmentPlanner(taskStore, jdbc, defaultRules, findingStore);
         var txManager = new DataSourceTransactionManager(jdbc.getDataSource());
         var txTemplate = new TransactionTemplate(txManager);
         var executor = new LlmEnrichmentService(null, findingStore, taskStore,
@@ -207,7 +207,7 @@ class EnrichmentOrchestratorTest {
             );
 
             var controlledStub = new ControlledSimulationStub(depPaths);
-            planner = new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
+            planner = new EnrichmentPlanner(taskStore, jdbc, defaultRules, findingStore);
             var txManager = new DataSourceTransactionManager(jdbc.getDataSource());
             var txTemplate = new TransactionTemplate(txManager);
             var executor = new LlmEnrichmentService(null, findingStore, taskStore,
@@ -245,7 +245,7 @@ class EnrichmentOrchestratorTest {
             );
 
             var controlledStub = new ControlledSimulationStub(depPaths);
-            planner = new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
+            planner = new EnrichmentPlanner(taskStore, jdbc, defaultRules, findingStore);
             var txManager = new DataSourceTransactionManager(jdbc.getDataSource());
             var txTemplate = new TransactionTemplate(txManager);
             var executor = new LlmEnrichmentService(null, findingStore, taskStore,

@@ -64,6 +64,10 @@ public class QualifyTasksService {
                 taskStore.updateStatus(task.taskId(), TaskStatus.ENRICH_PENDING);
                 log.debug("Transitioned task {} ({}) from INDEXED to ENRICH_PENDING",
                     task.taskId(), task.filePath());
+            } else {
+                taskStore.updateStatus(task.taskId(), TaskStatus.SKIPPED);
+                log.debug("Transitioned task {} ({}) from INDEXED to SKIPPED",
+                    task.taskId(), task.filePath());
             }
             decisions.add(decision);
         }

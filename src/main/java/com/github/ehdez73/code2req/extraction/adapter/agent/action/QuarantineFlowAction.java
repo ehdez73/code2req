@@ -1,5 +1,6 @@
-package com.github.ehdez73.code2req.extraction.adapter.agent;
+package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStatus;
@@ -11,6 +12,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Flags flows that cannot be fully resolved for human review. Triggers when
+ * a flow exceeds the maximum investigation steps, falls below the ambiguity
+ * confidence threshold, or exceeds the max hop depth. Produces AmbiguityGap
+ * records with the reason type (STEPS_EXCEEDED, LOW_CONFIDENCE, HOP_DEPTH)
+ * for inclusion in the spec's "Unresolved Dependencies" section.
+ */
 public class QuarantineFlowAction {
 
     private static final Logger log = LoggerFactory.getLogger(QuarantineFlowAction.class);
@@ -40,6 +48,7 @@ public class QuarantineFlowAction {
 
                 gaps.add(new AmbiguityGap(
                     flow.flowId(),
+                    flow.entryPoint().filePath(),
                     reason.description,
                     reason.suggestedApproach,
                     reason.confidence,
@@ -72,12 +81,12 @@ public class QuarantineFlowAction {
                 QuarantineReason reason = evaluateQuarantine(f);
                 if (reason != null) {
                     return new AmbiguityGap(
-                        f.flowId(), reason.description, reason.suggestedApproach,
+                        f.flowId(), f.entryPoint().filePath(), reason.description, reason.suggestedApproach,
                         reason.confidence, reason.gapReason
                     );
                 }
                 return new AmbiguityGap(
-                    f.flowId(), "Unknown quarantine reason", "Manual review required",
+                    f.flowId(), f.entryPoint().filePath(), "Unknown quarantine reason", "Manual review required",
                     0.0, GapReason.LOW_CONFIDENCE
                 );
             })
@@ -128,7 +137,7 @@ public class QuarantineFlowAction {
         return null;
     }
 
-    private record QuarantineReason(
+    record QuarantineReason(
         String description,
         String suggestedApproach,
         double confidence,

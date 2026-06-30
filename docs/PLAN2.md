@@ -12,7 +12,7 @@
   
 ## Prerequisites (Already Done in Phase 1)
 - SQLite store with `tasks`, `execution_findings`, `topic_links`, `floating_links`, `metrics` tables
-- `TaskStore` with `PENDING`/`ENRICHING`/`INDEXED`/`ENRICHED`/`FAILED` status queries (`findByStatus`)
+- `TaskStore` with status queries (`findByStatus`). Statuses: `PENDING`, `INDEXED`, `SKIPPED`, `ENRICH_PENDING`, `ENRICHING`, `ENRICHED`, `FAILED`, `ENRICH_FAILED`, `AWAITING_HUMAN_REVIEW`
 - `ExecutionFindingStore` (save, saveAllForTask, countByType)
 - `MetricsStore` (save, getLatestForPhase)
 - `TaskIdHasher` (deterministic SHA-256 — needed for discovered_dependency tasks)
@@ -155,7 +155,7 @@ Key behaviors:
 - `status` — extend existing command to show Phase 2 metrics (enriched tasks, tokens consumed, estimated cost, pending/complete counts)
 
 - **US046** (must): `plan` command displays qualified tasks grouped by target with qualification reasons — zero LLM calls, zero SQLite mutations
-- **US047** (must): `run` command orchestrates Phase 2 → Phase 3 with `--dry-run`, `--llm-threshold N` support; `status` shows Phase 2+3 counters
+- **US047** (must): `run` command orchestrates all 3 phases with fail-stop guards (stops on FAILED after scan, 0 ENRICH_PENDING after plan, ENRICH_FAILED after enrich). Supports `--dry-run`, `--llm-threshold N`, `--force`, `--resume`. Strips intermediate "=== Suggested Next ===" sections — only the final suggestion appears. `status` shows Phase 2+3 counters.
 - [x] Gherkin: `docs/sdlc/features/E003-F019-cli-run-command.feature`
 - [x] Depends on: F016, F017, F018, E004 (Phase 3 output — **Phase3Orchestrator placeholder created**)
 - [x] Classes: `PlanCommand`, `RunCommand`
@@ -596,7 +596,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `Application.java` | Add `@EnableAsync`. Add `@EnableAgents` (F023 Embabel annotation scanning). |
 | ✓ `infrastructure/config/AppConfig.java` | Add `@Bean("orchestratorTaskExecutor")` `ThreadPoolTaskExecutor` (core=5, max=10, queue=1000) |
 | ✓ `application.properties` | Add OpenRouter config (`spring.ai.openai.base-url`, `spring.ai.openai.api-key`, `spring.ai.openai.chat.options.model`, `spring.config.import=optional:file:.env`); rename thread prefix to `c2r-orchestrator-`; add `code2req.output.*` properties |
-| ✓ `common/domain/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW` |
+| ✓ `common/domain/TaskStatus.java` | Add `AWAITING_HUMAN_REVIEW`. Add `SKIPPED` for plan-evaluated-but-not-qualified tasks. |
 | ✓ `common/domain/AnalysisFinding.java` | Add `default boolean isResolved() { return true; }` |
 | ✓ `indexing/domain/analyzer/callgraph/CallGraphEdge.java` | Override `isResolved()` to return `STATUS_RESOLVED.equals(resolvedStatus)` |
 | ✓ `infrastructure/persistence/ExecutionFindingStore.java` | `saveAllForTask` uses `finding.isResolved()` instead of hardcoded `true`. Added `countByTaskIdAndType()` query for planner. **Added `findAllByType()` query for Phase 3 CodebaseKnowledge aggregation.** |
@@ -647,7 +647,7 @@ The Embabel agent handles ONLY decision-making (what to investigate, goal tracki
 | ✓ `extraction/domain/model/` | **`EntryPoint` (F022 — unified entry point record), `EntryPointType` (F022 — enum: HTTP, SCHEDULED, KAFKA, RABBITMQ, ACTIVEMQ, EVENT_LISTENER).** Also used by F023 domain records (`FunctionalFlow`, `BusinessRule`, etc.). |
 | ✓ `infrastructure/persistence/TopicLinkStore.java` | **Added `findAll()` query for Phase 3 LinkRegistry** |
 | `infrastructure/persistence/UserResponseStore.java` | `findBySignature()`, `save()` for user interaction cache (F023). |
-| ✓ `infrastructure/cli/command/RunCommand.java` | `--resume` now handles `AWAITING_HUMAN_REVIEW` → `INDEXED` (F026). `--resume` also calls `recoverPhase3Marker()` (ENRICHING → PENDING, clean .tmp files). `--force-phase3`, `--interactive`, `--interactive-timeout` flags. Phase 3 skip-if-ENRICHED guard. |
+| ✓ `infrastructure/cli/command/RunCommand.java` | `--resume` now handles `AWAITING_HUMAN_REVIEW` → `INDEXED` (F026). `--resume` also calls `recoverPhase3Marker()` (ENRICHING → PENDING, clean .tmp files). `--force-phase3`, `--interactive`, `--interactive-timeout` flags. Phase 3 skip-if-ENRICHED guard. Added fail-stop guards (FAILED/ENRICH_PENDING/ENRICH_FAILED) and `stripSuggestions()` helper. |
 | ✓ `infrastructure/cli/command/RunCommandTest.java` | **Updated `Phase3Orchestrator` constructor to pass all 5 stores** |
  
 ## Verification Guide

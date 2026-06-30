@@ -2,7 +2,6 @@ package com.github.ehdez73.code2req.enrichment.domain.planner;
 
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestFileMatcher;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
-import com.github.ehdez73.code2req.enrichment.domain.model.PlannerDecision;
 import com.github.ehdez73.code2req.enrichment.domain.model.QualificationReason;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
@@ -25,13 +24,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class Phase2PlannerTest {
+class EnrichmentPlannerTest {
 
     @TempDir
     Path tempDir;
@@ -68,8 +66,8 @@ class Phase2PlannerTest {
         );
     }
 
-    private Phase2Planner createPlanner() {
-        return new Phase2Planner(taskStore, jdbc, defaultRules, findingStore);
+    private EnrichmentPlanner createPlanner() {
+        return new EnrichmentPlanner(taskStore, jdbc, defaultRules, findingStore);
     }
 
     private void insertTask(String taskId, String filePath) {
@@ -104,7 +102,7 @@ class Phase2PlannerTest {
             assertEquals(1, decisions.size());
             assertFalse(decisions.get(0).qualified());
             assertEquals(List.of(QualificationReason.NONE), decisions.get(0).reasons());
-            assertEquals(TaskStatus.INDEXED, taskStore.findById("t1").get().status());
+            assertEquals(TaskStatus.SKIPPED, taskStore.findById("t1").get().status());
         }
 
         @Test
@@ -259,7 +257,7 @@ class Phase2PlannerTest {
             insertFinding("t1", "CALL_GRAPH_EDGE", false);
             insertFinding("t1", "CALL_GRAPH_EDGE", false);
             insertFinding("t1", "CALL_GRAPH_EDGE", false);
-            var planner = new Phase2Planner(taskStore, jdbc, rules, findingStore);
+            var planner = new EnrichmentPlanner(taskStore, jdbc, rules, findingStore);
             var decisions = planner.plan();
             assertTrue(decisions.get(0).qualified());
         }

@@ -1,4 +1,4 @@
-package com.github.ehdez73.code2req.extraction.adapter.agent;
+package com.github.ehdez73.code2req.extraction.adapter.agent.model;
 
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
 import org.springframework.stereotype.Component;

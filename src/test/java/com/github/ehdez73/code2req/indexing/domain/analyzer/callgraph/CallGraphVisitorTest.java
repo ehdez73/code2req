@@ -192,7 +192,11 @@ class CallGraphVisitorTest {
     }
 
     @Test
-    void selfCallWithoutScopeIsIgnored() {
+    void selfCallWithoutScopeIsCaptured() {
+        registry = new GlobalDeclarationRegistry();
+        registry.register(new DeclarationInfo("MyService", "helper", List.of(), "/app/MyService.java"));
+        registry.freeze();
+
         AnalysisResult result = analyze("MyService.java", """
             import org.springframework.stereotype.Service;
             @Service
@@ -204,7 +208,11 @@ class CallGraphVisitorTest {
             }
             """);
 
-        assertTrue(result.findings(CallGraphEdge.class).isEmpty());
+        List<CallGraphEdge> edges = result.findings(CallGraphEdge.class);
+        assertEquals(1, edges.size());
+        assertEquals("MyService", edges.get(0).sourceClassName());
+        assertEquals("MyService", edges.get(0).targetClassName());
+        assertEquals("helper", edges.get(0).targetMethodName());
     }
 
     @Test

@@ -4,6 +4,9 @@ import com.embabel.agent.api.annotation.AchievesGoal;
 import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.Agent;
 import com.embabel.agent.api.common.OperationContext;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.SuggestedAge;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.SuggestedName;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.SuggestedSurname;
 
 @Agent(description = "hello")
 public class HelloAgent {

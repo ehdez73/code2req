@@ -9,6 +9,7 @@ import com.github.ehdez73.code2req.infrastructure.persistence.TaskStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.TopicLinkStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellOption;
@@ -28,16 +29,19 @@ public class CleanCommand {
     private final FloatingLinkStore floatingLinkStore;
     private final MetricsStore metricsStore;
     private final OutputConfig outputConfig;
+    private final JdbcTemplate jdbc;
 
     public CleanCommand(TaskStore taskStore, ExecutionFindingStore executionFindingStore,
                         TopicLinkStore topicLinkStore, FloatingLinkStore floatingLinkStore,
-                        MetricsStore metricsStore, OutputConfig outputConfig) {
+                        MetricsStore metricsStore, OutputConfig outputConfig,
+                        JdbcTemplate jdbc) {
         this.taskStore = taskStore;
         this.executionFindingStore = executionFindingStore;
         this.topicLinkStore = topicLinkStore;
         this.floatingLinkStore = floatingLinkStore;
         this.metricsStore = metricsStore;
         this.outputConfig = outputConfig;
+        this.jdbc = jdbc;
     }
 
     @ShellMethod(key = "clean", value = "Deletes all scanned data: SQLite task store and output JSON files")
@@ -61,40 +65,28 @@ public class CleanCommand {
         floatingLinkStore.deleteAll();
         metricsStore.deleteAll();
         taskStore.deleteAll();
+        jdbc.execute("DELETE FROM sqlite_sequence");
 
         sb.append(String.format("  Rows removed: %d tasks, %d findings, %d topic links, %d floating links, %d metrics%n",
             tasksBefore, findingsBefore, topicLinksBefore, floatingLinksBefore, metricsBefore));
 
         Path specDir = Path.of(outputConfig.specDir());
-        Path indexPath = specDir.resolve(outputConfig.indexFile());
-
-        boolean indexDeleted = false;
-        try {
-            indexDeleted = Files.deleteIfExists(indexPath);
-        } catch (IOException e) {
-            log.warn("Failed to delete index file {}: {}", indexPath, e.getMessage());
-        }
-
-        if (indexDeleted) {
-            sb.append(String.format("  Index file deleted: %s%n", indexPath));
-        } else if (Files.exists(specDir)) {
-            sb.append(String.format("  Index file not found: %s%n", indexPath));
-        }
-
-        boolean dirRemoved = false;
         if (Files.isDirectory(specDir)) {
-            try (var files = Files.list(specDir)) {
-                if (files.findAny().isEmpty()) {
-                    Files.delete(specDir);
-                    dirRemoved = true;
-                }
+            try (var files = Files.walk(specDir)) {
+                files.sorted(java.util.Comparator.reverseOrder())
+                    .forEach(p -> {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException e) {
+                            log.warn("Failed to delete {}: {}", p, e.getMessage());
+                        }
+                    });
+                sb.append(String.format("  Output directory removed: %s%n", specDir.toAbsolutePath()));
             } catch (IOException e) {
-                log.warn("Failed to inspect or remove spec dir {}: {}", specDir, e.getMessage());
+                log.warn("Failed to walk spec dir {}: {}", specDir, e.getMessage());
             }
-        }
-
-        if (dirRemoved) {
-            sb.append(String.format("  Output directory removed: %s%n", specDir.toAbsolutePath()));
+        } else {
+            sb.append(String.format("  Output directory not found: %s%n", specDir));
         }
 
         sb.append("\nClean complete.");

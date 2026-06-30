@@ -1,5 +1,6 @@
-package com.github.ehdez73.code2req.extraction.adapter.agent;
+package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.EntryPointDiscoveryResult;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.MethodIdentifier;
@@ -15,6 +16,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Scans CodebaseKnowledge for all entry points (HTTP endpoints, @Scheduled,
+ * @KafkaListener, @RabbitListener, @JmsListener, @EventListener), filters
+ * trivial endpoints (actuator, health, metrics), scores each by priority,
+ * and detects orphaned methods not reachable from any entry point.
+ */
 public class DiscoverEntryPointsAction {
 
     private static final Logger log = LoggerFactory.getLogger(DiscoverEntryPointsAction.class);

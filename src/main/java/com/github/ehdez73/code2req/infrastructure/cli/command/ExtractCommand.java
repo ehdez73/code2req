@@ -67,6 +67,12 @@ public class ExtractCommand {
         }
         sb.append(String.format("  Ambiguity gaps: %d%n", result.ambiguityGaps()));
         sb.append(String.format("  Awaiting review: %d%n", result.awaitingReview()));
+        if (!result.generatedFiles().isEmpty()) {
+            sb.append("  Generated files:\n");
+            for (var f : result.generatedFiles()) {
+                sb.append(String.format("    - %s%n", f));
+            }
+        }
         sb.append(String.format("  Phase 3 elapsed: %ds%n%n", p3Elapsed));
 
         long totalElapsed = Duration.between(start, Instant.now()).toSeconds();

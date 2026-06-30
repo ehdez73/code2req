@@ -5,7 +5,7 @@ import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
-import com.github.ehdez73.code2req.extraction.adapter.agent.SpecResult;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.SpecResult;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
@@ -138,8 +138,10 @@ public class ExtractionOrchestrator {
             int ambiguityGaps = knowledge.findUnresolvedLinks().size()
                 + knowledge.findUnresolvedTopicLinks().size();
 
+            List<Path> generatedFiles = specResult != null ?
+                List.of(specResult.markdownPath(), specResult.manifestPath()) : List.of();
             ExtractionResult result = new ExtractionResult(
-                flowCount, ambiguityGaps, 0, flowNames);
+                flowCount, ambiguityGaps, 0, flowNames, generatedFiles);
             markPhase3Tasks(TaskStatus.ENRICHED);
             persistMetrics(result, false);
             return result;

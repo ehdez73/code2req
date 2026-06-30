@@ -93,7 +93,7 @@ public class ScanCommand {
         return executeScan(manifestPath, resume);
     }
 
-    String executeScan(String manifestPath, boolean resume) {
+    public String executeScan(String manifestPath, boolean resume) {
         var report = new StringBuilder(resume ? "=== Resume Pipeline ===\n\n" : "=== Scan Pipeline ===\n\n");
         var scanStart = Instant.now();
 

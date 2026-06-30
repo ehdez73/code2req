@@ -17,18 +17,18 @@ import java.util.Collections;
 import java.util.List;
 
 @Component
-public class Phase2Planner {
+public class EnrichmentPlanner {
 
-    private static final Logger log = LoggerFactory.getLogger(Phase2Planner.class);
+    private static final Logger log = LoggerFactory.getLogger(EnrichmentPlanner.class);
 
     private final TaskStore taskStore;
     private final JdbcTemplate jdbc;
     private final List<QualificationRule> rules;
     private final ExecutionFindingStore findingStore;
 
-    public Phase2Planner(TaskStore taskStore, JdbcTemplate jdbcTemplate,
-                         List<QualificationRule> rules,
-                         ExecutionFindingStore findingStore) {
+    public EnrichmentPlanner(TaskStore taskStore, JdbcTemplate jdbcTemplate,
+                             List<QualificationRule> rules,
+                             ExecutionFindingStore findingStore) {
         this.taskStore = taskStore;
         this.jdbc = jdbcTemplate;
         this.rules = rules;
@@ -60,6 +60,10 @@ public class Phase2Planner {
             if (decision.qualified()) {
                 taskStore.updateStatus(task.taskId(), TaskStatus.ENRICH_PENDING);
                 log.debug("Transitioned task {} ({}) from INDEXED to ENRICH_PENDING",
+                    task.taskId(), task.filePath());
+            } else {
+                taskStore.updateStatus(task.taskId(), TaskStatus.SKIPPED);
+                log.debug("Transitioned task {} ({}) from INDEXED to SKIPPED",
                     task.taskId(), task.filePath());
             }
             decisions.add(decision);

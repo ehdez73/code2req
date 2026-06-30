@@ -1,6 +1,8 @@
-package com.github.ehdez73.code2req.extraction.adapter.agent;
+package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.AnalyzedFlowResult;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.GroupedFlowsResult;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFeature;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
 import org.slf4j.Logger;
@@ -9,6 +11,12 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Clusters related FunctionalFlows into FunctionalFeatures using semantic
+ * similarity from Phase 2 enrichment (keyword overlap). Assigns feature
+ * names and descriptions. Falls back to package/directory proximity when
+ * enrichment data is unavailable.
+ */
 public class GroupFlowsAction {
 
     private static final Logger log = LoggerFactory.getLogger(GroupFlowsAction.class);
@@ -139,9 +147,9 @@ public class GroupFlowsAction {
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
-    public record GroupingResponse(List<GroupDto> groups) {}
+    record GroupingResponse(List<GroupDto> groups) {}
 
-    public record GroupDto(
+    record GroupDto(
         String featureName,
         String featureDescription,
         List<String> flowIds

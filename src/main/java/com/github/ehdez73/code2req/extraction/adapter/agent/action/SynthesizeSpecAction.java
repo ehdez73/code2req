@@ -1,6 +1,8 @@
-package com.github.ehdez73.code2req.extraction.adapter.agent;
+package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.CrossReferencedResult;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.SpecResult;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFeature;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
@@ -16,6 +18,13 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * Aggregates all resolved knowledge (FunctionalFeatures, FlowRelationships,
+ * AmbiguityGaps, OrphanedMethods) and invokes pure-Java writers to produce
+ * the final output artifacts: spec-output/spec.md (Markdown specification)
+ * and spec-output/semantic_manifest.json (machine-readable manifest).
+ * Validates JSON output against the bundled schema before persisting.
+ */
 public class SynthesizeSpecAction {
 
     private static final Logger log = LoggerFactory.getLogger(SynthesizeSpecAction.class);
@@ -27,9 +36,9 @@ public class SynthesizeSpecAction {
     }
 
     public SpecResult synthesize(CrossReferencedResult crossRefResult,
-                                  List<OrphanedMethod> orphanedMethods,
-                                  List<AmbiguityGap> quarantineGaps,
-                                  OperationContext context) throws IOException {
+                                 List<OrphanedMethod> orphanedMethods,
+                                 List<AmbiguityGap> quarantineGaps,
+                                 OperationContext context) throws IOException {
         Files.createDirectories(outputDir);
 
         Path markdownPath = outputDir.resolve("spec.md");
@@ -172,7 +181,7 @@ public class SynthesizeSpecAction {
             sb.append("## Unresolved Dependencies\n\n");
             sb.append("Flows flagged for human review:\n\n");
             quarantineGaps.forEach(gap -> {
-                sb.append("- **").append(gap.flowId()).append("**: ").append(gap.missingContext()).append("\n");
+                sb.append("- **").append(gap.flowId()).append("** (`").append(gap.filePath()).append("`): ").append(gap.missingContext()).append("\n");
                 sb.append("  - Suggested: ").append(gap.suggestedApproach()).append("\n");
                 sb.append("  - Confidence: ").append(String.format("%.0f", gap.confidence() * 100)).append("%\n");
                 sb.append("  - Reason: ").append(gap.reason()).append("\n\n");

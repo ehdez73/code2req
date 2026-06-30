@@ -380,47 +380,40 @@ CREATE TABLE IF NOT EXISTS metrics (
 
 ### 2.1.8 Task State Machine
 
-The following state machine governs task lifecycle across all phases:
+The following state machine governs task lifecycle across all phases. Each transition represents a CLI command:
 
 ```
                          scan
       PENDING ──────────────────────► INDEXED
-         ▲                     ▲          │
-         │                     │          │
-         │              OrphanRecovery   plan (Planner)
-         │                     │          │
-         │                     │          ▼
-         │                     │   ENRICH_PENDING
-         │                     │          │
-         │                     │         run
-         │                     │          │
-         │                     │          ├──────────────────┐
-         │                     │          │                  │
-         │                     │          ▼                  ▼
-         │                     │     ENRICHING      AWAITING_HUMAN_REVIEW
-         │                     │          │          (depth exceeded)
-         │                     │          │
-         │                     │    SemanticExecutor
-         │                     │          │
-         │                     │     ┌────┴────┐
-         │                     │     ▼         ▼
-         │                     │  ENRICHED   FAILED
-         │                     │          ───┼───
-         │                     │         │       │
-         │                     │    resume      resume
-         │                     │  (findings)  (no findings)
-         │                     │    │             │
-         │                     │    ▼             ▼
-         │                     │  ENRICH_     INDEXED
-         │                     │  PENDING
-         │                     │
-          │                     │
-         │               OrphanRecovery ◄───────┘
-         │         (ENRICHING→ENRICH_PENDING)
+         ▲                              │
+         │                            plan
+         │                              │
+         │                         ┌────┴────┐
+         │                         ▼         ▼
+         │                    ENRICH_     SKIPPED
+         │                    PENDING
+         │                         │
+         │                       enrich
+         │                         │
+         │                    ┌────┴────┐
+         │                    ▼         ▼
+         │                ENRICHED   ENRICH_FAILED
+         │                    │
+         │                  extract
+         │                    │
+         │                    ▼
+         │             (spec output)
          │
-         └──── OrphanRecovery ◄──── ENRICHING
-                (ENRICHING→ENRICH_PENDING)
+         ├──── scan --resume ──► INDEXED ──┐
+         │      (from FAILED)               │
+         │                                  │
+         ├──── enrich --resume ──► ENRICH_  │
+         │      (from ENRICH_FAILED)   PENDING
+         │                                  │
+         └──── clean ───────────────────────┘
 ```
+
+The planner evaluates INDEXED tasks and transitions qualified ones to `ENRICH_PENDING` and non-qualified ones to `SKIPPED`. The `SKIPPED` state distinguishes tasks that have been evaluated but did not meet enrichment criteria from tasks that have not yet been evaluated (INDEXED). This prevents redundant planner evaluation and provides clear visibility into why a task was skipped.
 
 ---
 
@@ -583,6 +576,11 @@ If an Executor uncovers an unindexed runtime dependency during LLM file analysis
 * **Branch Isolation:** The Orchestrator pauses execution **only for that specific branch**, registers the new file tasks into the SQLite store as `PENDING`, updates task priorities, and triggers them asynchronously. Other branches of the DAG continue running completely uninterrupted.
 * **Phase 2 Threshold Guard:** The Phase 1 linker does not perform dynamic re-planning. If a deterministic resolution fails (unresolved signature), it is logged and counted. Only when the unresolved count per file exceeds `llm-unresolved-threshold` (default: 5) does the file qualify for Phase 2 enrichment.
 * **Phase Synchronization Barrier:** To prevent Phase 3 (Map-Reduce consolidation) from building partial or corrupted system maps, a strict execution barrier is enforced via Spring-managed completion frameworks. The engine is completely blocked from initiating Phase 3 if *any* task in the state store is flagged as `PENDING`, `ENRICH_PENDING`, or `ENRICHING`. Using `CompletableFuture.allOf(...)`, synthesis only triggers when all futures across all branches have completed successfully and resolved.
+
+  The `run` command also enforces fail-stop guards between each phase:
+  - **After scan:** if any tasks are `FAILED`, execution halts with a suggestion to run `scan --resume`.
+  - **After plan:** if 0 tasks qualified for enrichment (`ENRICH_PENDING == 0`), execution halts — nothing to enrich.
+  - **After enrich:** if any tasks remain `ENRICH_FAILED`, execution halts with a suggestion to run `enrich --resume`.
 
 ### 3.6 Automated Constraint Extraction & Context Budgeting
 
@@ -842,7 +840,7 @@ If an asset has no paired test class, `SHA-256(test_file_content)` is replaced w
 
 ### 5.2 Infinite Loop & Graph Prevention
 
-* **Visited Registry:** The Planner maintains an active thread-safe set of file hashes currently flagged as `INDEXED`, `ENRICHED`, or `ENRICHING`. Redundant evaluation requests targeting an active hash are discarded immediately.
+* **Visited Registry:** The Planner maintains an active thread-safe set of file hashes currently flagged as `INDEXED`, `SKIPPED`, `ENRICHED`, or `ENRICHING`. Redundant evaluation requests targeting an active hash are discarded immediately.
 * **Max Hop Depth:** A configurable `max-discovery-depth` parameter (default: `3`) tracks boundary crossings (e.g., repository transitions, synchronous-to-asynchronous transformations). If a discovery sequence exceeds $N$ hops from its root entry point, processing for that branch is frozen, an alert is logged, and the task status is set to `AWAITING_HUMAN_REVIEW`.
 
 ### 5.3 Data Integrity & Schema Validation
@@ -982,14 +980,14 @@ To avoid "black box" silence during long evaluation windows on deep workspaces (
 The application must expose the following commands via Spring Shell:
 
 | Command | Arguments | Purpose |
-|---|---|---|
+|---|---|---|---|
 | `scan` | `[--manifest path] [--resume]` | Run Phase 1 (indexing) only — produces `code-graph-index.json` and populates SQLite. `--resume` skips already-completed files. |
-| `plan` | `[--manifest path]` | Evaluate INDEXED tasks, transition qualified ones to ENRICH_PENDING, and show the enrichment plan |
-| `run` | `[--manifest path] [--dry-run] [--resume] [--llm-threshold N] [--force-phase3] [--interactive] [--interactive-timeout N]` | Execute all 3 phases end-to-end. Phase 2 LLM enrichment only activates for files exceeding N unresolved signatures (default: 5). `--resume` recovers orphaned tasks (ENRICHING, ENRICH_PENDING, FAILED, PENDING) before Phase 2 and Phase 3 (ENRICHING marker). ENRICH_PENDING orphans self-heal automatically via the planner. `--force-phase3` re-runs Phase 3 even if completed. `--interactive` enables Phase 3 user prompts (deferred). |
+| `plan` | `[--manifest path]` | Evaluate INDEXED tasks, transition qualified ones to ENRICH_PENDING and non-qualified ones to SKIPPED, and show the enrichment plan |
+| `run` | `[--manifest path] [--dry-run] [--resume] [--llm-threshold N] [--force] [--force-phase3] [--interactive] [--interactive-timeout N]` | Execute all 3 phases end-to-end. Halts on FAILED tasks after scan, 0 qualified tasks after plan, or ENRICH_FAILED tasks after enrich. Phase 2 LLM enrichment only activates for files exceeding N unresolved signatures (default: 5). `--resume` recovers orphaned tasks (ENRICHING, ENRICH_PENDING, FAILED, PENDING) before Phase 2 and Phase 3 (ENRICHING marker). ENRICH_PENDING orphans self-heal automatically via the planner. `--force-phase3` re-runs Phase 3 even if completed. `--interactive` enables Phase 3 user prompts (deferred). |
 | `status` | | Show current SQLite task state summary and counters |
 | `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `ENRICHING`, `ENRICH_PENDING`, `FAILED`, and `PENDING` tasks, skip completed files. Delegates to `scan --resume`. |
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |
-| `clear` | `[--manifest path]` | Delete all tasks in SQLite store and remove output JSON index files |
+| `clean` | `[--manifest path]` | Delete all tasks in SQLite store, remove output JSON index files, and reset AUTOINCREMENT counters via sqlite_sequence |
 | `snapshot create` | `[--name label]` | Create a point-in-time snapshot of local state (DB + JSON index) |
 | `snapshot list` | | List available snapshots with name, date, and metadata |
 | `snapshot restore` | `<name>` | Restore local state (DB + JSON index) from a named snapshot |

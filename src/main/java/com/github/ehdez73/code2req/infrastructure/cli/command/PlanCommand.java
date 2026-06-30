@@ -3,9 +3,8 @@ package com.github.ehdez73.code2req.infrastructure.cli.command;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestLoader;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestValidator;
 import com.github.ehdez73.code2req.enrichment.domain.model.PlannerDecision;
-import com.github.ehdez73.code2req.common.domain.ProjectManifest;
 import com.github.ehdez73.code2req.enrichment.domain.model.QualificationReason;
-import com.github.ehdez73.code2req.enrichment.domain.planner.Phase2Planner;
+import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.shell.standard.ShellComponent;
@@ -16,7 +15,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @ShellComponent
@@ -24,16 +22,13 @@ public class PlanCommand {
 
     private static final Logger log = LoggerFactory.getLogger(PlanCommand.class);
 
-    private final Phase2Planner planner;
-    private final ManifestLoader manifestLoader;
+    private final EnrichmentPlanner planner;
     private final ManifestValidator manifestValidator;
 
-    public PlanCommand(Phase2Planner planner,
-                       ManifestLoader manifestLoader,
+    public PlanCommand(EnrichmentPlanner planner,
                        ManifestValidator manifestValidator) {
         this.planner = planner;
-        this.manifestLoader = manifestLoader;
-        this.manifestValidator = manifestValidator;
+       this.manifestValidator = manifestValidator;
     }
 
     @ShellMethod(key = "plan", value = "Evaluate INDEXED tasks, transition qualified ones to ENRICH_PENDING, and show the enrichment plan")

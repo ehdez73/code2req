@@ -52,6 +52,7 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
         private final String filePath;
         private final GlobalDeclarationRegistry registry;
         private final Map<String, String> fieldTypes = new HashMap<>();
+        private final Map<String, String> parameterTypes = new HashMap<>();
         private String currentClassName = "";
         private String currentMethodName = "";
 
@@ -80,6 +81,13 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
         @Override
         public void visit(MethodDeclaration n, List<CallGraphEdge> collector) {
             currentMethodName = n.getNameAsString();
+            parameterTypes.clear();
+            for (var param : n.getParameters()) {
+                String rawType = param.getType().asString();
+                int genericStart = rawType.indexOf('<');
+                String paramType = genericStart > 0 ? rawType.substring(0, genericStart).strip() : rawType.strip();
+                parameterTypes.put(param.getNameAsString(), paramType);
+            }
             super.visit(n, collector);
         }
 
@@ -90,23 +98,46 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
                 return;
             }
 
-            n.getScope().ifPresent(scope -> {
-                String fieldName = resolveScopeName(scope);
-                if (fieldName == null) return;
+            String calledMethod = n.getNameAsString();
+            int argCount = n.getArguments().size();
 
-                String targetType = fieldTypes.get(fieldName);
-                if (targetType == null) return;
+            var scope = n.getScope().orElse(null);
+            String targetType = resolveTargetType(scope);
 
-                if (isJdkType(targetType)) return;
-
-                String calledMethod = n.getNameAsString();
-                int argCount = n.getArguments().size();
-
-                resolveCall(targetType, calledMethod, argCount)
+            if (targetType != null) {
+                if (!isJdkType(targetType)) {
+                    resolveCall(targetType, calledMethod, argCount)
+                        .ifPresent(collector::add);
+                }
+            } else if (scope == null) {
+                // No scope → same-class call (e.g., method() without this.)
+                resolveCall(currentClassName, calledMethod, argCount)
                     .ifPresent(collector::add);
-            });
+            }
 
             super.visit(n, collector);
+        }
+
+        private String resolveTargetType(com.github.javaparser.ast.expr.Expression scope) {
+            if (scope == null) return null;
+
+            String name = resolveScopeName(scope);
+            if (name == null) return null;
+
+            // "this" scope → current class
+            if ("this".equals(name)) {
+                return currentClassName;
+            }
+
+            // Field-scoped call
+            String fieldType = fieldTypes.get(name);
+            if (fieldType != null) return fieldType;
+
+            // Parameter-scoped call
+            String paramType = parameterTypes.get(name);
+            if (paramType != null) return paramType;
+
+            return null;
         }
 
         private static String resolveScopeName(com.github.javaparser.ast.expr.Expression scope) {

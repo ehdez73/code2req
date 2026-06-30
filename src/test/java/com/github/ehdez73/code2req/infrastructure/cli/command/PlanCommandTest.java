@@ -6,7 +6,7 @@ import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestFileMat
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
-import com.github.ehdez73.code2req.enrichment.domain.planner.Phase2Planner;
+import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import com.github.ehdez73.code2req.enrichment.domain.planner.QualificationRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.CustomConstraintValidatorRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.JpqlHqlQueryRule;
@@ -39,7 +39,6 @@ class PlanCommandTest {
     private JdbcTemplate jdbc;
     private TaskStore taskStore;
     private PlanCommand command;
-    private int initialTaskCount;
 
     @BeforeEach
     void setUp() {
@@ -68,12 +67,10 @@ class PlanCommandTest {
             new JpqlHqlQueryRule()
         );
 
-        var planner = new Phase2Planner(taskStore, jdbc, rules, findingStore);
+        var planner = new EnrichmentPlanner(taskStore, jdbc, rules, findingStore);
         var manifestLoader = new ManifestLoader();
         var manifestValidator = new ManifestValidator(manifestLoader);
-        command = new PlanCommand(planner, manifestLoader, manifestValidator);
-
-        initialTaskCount = taskStore.count();
+        command = new PlanCommand(planner, manifestValidator);
     }
 
     @Test
@@ -149,15 +146,15 @@ class PlanCommandTest {
     }
 
     @Test
-    void planLeavesNonQualifiedAsIndexed() {
+    void planMarksNonQualifiedAsSkipped() {
         insertTask("t1", "/src/Foo.java");
         insertFinding("t1", "CALL_GRAPH_EDGE", true);
 
         command.plan("project-manifest.yaml");
 
         Task task = taskStore.findById("t1").orElseThrow();
-        assertEquals(TaskStatus.INDEXED, task.status(),
-            "non-qualified task should remain INDEXED");
+        assertEquals(TaskStatus.SKIPPED, task.status(),
+            "non-qualified task should be marked SKIPPED");
     }
 
     private void insertTask(String taskId, String filePath) {

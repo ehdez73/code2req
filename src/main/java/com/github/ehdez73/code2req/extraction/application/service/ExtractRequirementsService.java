@@ -1,7 +1,6 @@
 package com.github.ehdez73.code2req.extraction.application.service;
 
 import com.embabel.agent.core.*;
-import com.github.ehdez73.code2req.extraction.application.port.input.ExtractRequirementsUseCase;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
@@ -18,7 +17,7 @@ import com.github.ehdez73.code2req.common.domain.Metric;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.enrichment.domain.model.CompletionStatus;
-import com.github.ehdez73.code2req.extraction.adapter.agent.SpecResult;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.SpecResult;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionResult;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.StructuralGraph;
@@ -38,7 +37,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
-import java.util.Optional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;

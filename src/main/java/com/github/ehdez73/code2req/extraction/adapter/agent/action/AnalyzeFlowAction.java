@@ -1,7 +1,9 @@
-package com.github.ehdez73.code2req.extraction.adapter.agent;
+package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.AnalyzedFlowResult;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.BusinessRule;
 import com.github.ehdez73.code2req.extraction.domain.model.ComplexityLevel;
@@ -18,6 +20,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * For a traced execution flow, extracts business semantics: user story
+ * ("As a [role], I want [feature], so that [benefit]"), Gherkin scenarios
+ * (Given/When/Then), business rules matrix, and edge cases. Uses Phase 2
+ * enrichment when available, otherwise falls back to LLM inference.
+ * Applies progressive disclosure based on flow complexity.
+ */
 public class AnalyzeFlowAction {
 
     private static final Logger log = LoggerFactory.getLogger(AnalyzeFlowAction.class);
@@ -215,14 +224,14 @@ public class AnalyzeFlowAction {
         return sb.toString();
     }
 
-    public record FlowAnalysisResponse(
+    record FlowAnalysisResponse(
         String userStory,
         List<GherkinScenarioDto> gherkinScenarios,
         List<BusinessRuleDto> businessRules,
         List<EdgeCaseDto> edgeCases
     ) {}
 
-    public record GherkinScenarioDto(
+    record GherkinScenarioDto(
         String scenarioId,
         String name,
         List<String> givenSteps,
@@ -230,7 +239,7 @@ public class AnalyzeFlowAction {
         List<String> thenSteps
     ) {}
 
-    public record BusinessRuleDto(
+    record BusinessRuleDto(
         String ruleId,
         String description,
         String precondition,
@@ -238,7 +247,7 @@ public class AnalyzeFlowAction {
         String errorBehavior
     ) {}
 
-    public record EdgeCaseDto(
+    record EdgeCaseDto(
         String scenario,
         String businessConsequence
     ) {}
