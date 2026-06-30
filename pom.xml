@@ -199,6 +199,27 @@
                 </plugins>
             </build>
         </profile>
+        <profile>
+            <id>opencode-free</id>
+            <dependencies>
+                <dependency>
+                    <groupId>com.embabel.agent</groupId>
+                    <artifactId>embabel-agent-starter-openai-custom</artifactId>
+                    <version>${embabel-agent.version}</version>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <configuration>
+                            <jvmArguments>-Dspring.profiles.active=opencode-free</jvmArguments>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
 
     </profiles>
 
