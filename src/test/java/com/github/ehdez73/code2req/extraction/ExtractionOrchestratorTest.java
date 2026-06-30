@@ -2,6 +2,7 @@ package com.github.ehdez73.code2req.extraction;
 
 import com.embabel.agent.core.AgentPlatform;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
+import static org.mockito.Mockito.when;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink;
@@ -46,6 +47,7 @@ class ExtractionOrchestratorTest {
     private FloatingLinkStore floatingLinkStore;
     private TopicLinkStore topicLinkStore;
     private MetricsStore metricsStore;
+    private AgentPlatform agentPlatform;
     private ObjectMapper mapper;
 
     @BeforeEach
@@ -64,7 +66,7 @@ class ExtractionOrchestratorTest {
         metricsStore = new MetricsStore(jdbc);
         mapper = new ObjectMapper();
 
-        AgentPlatform agentPlatform = mock(AgentPlatform.class);
+        agentPlatform = mock(AgentPlatform.class);
         var executionConfig = new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null);
 
         orchestrator = new ExtractionOrchestrator(
@@ -274,8 +276,53 @@ class ExtractionOrchestratorTest {
         assertEquals(0, result.awaitingReview());
     }
 
+    @Test
+    void executeWithPendingTaskBlocksPhase3() {
+        insertTask("pending-task", "/src/PendingFile.java", TaskStatus.PENDING);
+        floatingLinkStore.saveAll(List.of(
+            new FloatingLinkInfo("GET", "http://external/api", false, "RestTemplate",
+                "src/Client.java", "callExternal", null, 0.0, "PENDING")));
+
+        ExtractionResult result = orchestrator.execute();
+
+        assertTrue(result.isBlocked());
+        assertEquals("All tasks must be SKIPPED or ENRICHED before Phase 3. Run 'enrich --resume' first.",
+            result.blockedReason());
+    }
+
+    @Test
+    void executeWithAllTerminalTasksProceeds() {
+        insertTask("task-enriched", "/src/EnrichedFile.java", TaskStatus.ENRICHED);
+        insertTask("task-skipped", "/src/SkippedFile.java", TaskStatus.SKIPPED);
+        floatingLinkStore.saveAll(List.of(
+            new FloatingLinkInfo("GET", "http://external/api", false, "RestTemplate",
+                "src/Client.java", "callExternal", null, 0.0, "PENDING")));
+        when(agentPlatform.agents()).thenReturn(List.of());
+
+        ExtractionResult result = orchestrator.execute();
+
+        assertFalse(result.isBlocked());
+    }
+
+    @Test
+    void executeWithForceBypassesTaskStateGate() {
+        insertTask("pending-task", "/src/PendingFile.java", TaskStatus.PENDING);
+        floatingLinkStore.saveAll(List.of(
+            new FloatingLinkInfo("GET", "http://external/api", false, "RestTemplate",
+                "src/Client.java", "callExternal", null, 0.0, "PENDING")));
+        when(agentPlatform.agents()).thenReturn(List.of());
+
+        ExtractionResult result = orchestrator.execute(false, true);
+
+        assertFalse(result.isBlocked());
+    }
+
     private void insertTask(String taskId, String filePath) {
         taskStore.save(new Task(taskId, filePath, TaskStatus.ENRICHED, "java", "hash-" + taskId, "test"));
+    }
+
+    private void insertTask(String taskId, String filePath, TaskStatus status) {
+        taskStore.save(new Task(taskId, filePath, status, "java", "hash-" + taskId, "test"));
     }
 
     private void saveFinding(String taskId, String findingType, Object finding)

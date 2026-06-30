@@ -97,8 +97,6 @@ public class ExtractRequirementsService {
             return ExtractionResult.empty();
         }
 
-        markPhase3Tasks(TaskStatus.PENDING);
-
         if (agentPlatform == null) {
             log.info("Phase 3: AgentPlatform not available (Embabel not configured), skipping agent");
             ExtractionResult noAgentResult = ExtractionResult.empty();
@@ -109,8 +107,6 @@ public class ExtractRequirementsService {
         log.info("Phase 3: launching GOAP agent (FunctionalRequirementAgent)");
 
         try {
-            markPhase3Tasks(TaskStatus.ENRICHING);
-
             Agent agent = agentPlatform.agents().stream()
                 .filter(a -> "functional-requirement-extractor".equals(a.getName()))
                 .findFirst()
@@ -136,12 +132,10 @@ public class ExtractRequirementsService {
             ExtractionResult result = new ExtractionResult(
                 flowCount, ambiguityGaps, awaitingReview, flowNames
             );
-            markPhase3Tasks(TaskStatus.ENRICHED);
             persistMetrics(result, false);
             return result;
         } catch (Exception e) {
             log.error("Phase 3 synthesis failed: {}", e.getMessage(), e);
-            markPhase3Tasks(TaskStatus.FAILED);
             ExtractionResult result = ExtractionResult.empty();
             persistMetrics(result, false);
             return result;
@@ -156,13 +150,6 @@ public class ExtractRequirementsService {
             && knowledge.findUnresolvedLinks().isEmpty()
             && knowledge.findUnresolvedTopicLinks().isEmpty()
             && knowledge.getEntryPoints().isEmpty();
-    }
-
-    private void markPhase3Tasks(TaskStatus status) {
-        int count = taskStore.updateStatusByOldStatus(TaskStatus.ENRICHED, status);
-        if (count > 0) {
-            log.info("Phase 3 crash marker: {} tasks marked as {}", count, status);
-        }
     }
 
     CodebaseKnowledge buildCodebaseKnowledge() {

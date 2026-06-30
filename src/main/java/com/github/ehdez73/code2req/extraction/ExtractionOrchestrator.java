@@ -12,6 +12,7 @@ import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
 import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;
 import com.github.ehdez73.code2req.extraction.domain.model.StructuralGraph;
 import com.github.ehdez73.code2req.common.domain.Metric;
+import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
@@ -96,20 +97,20 @@ public class ExtractionOrchestrator {
             return empty;
         }
 
-        markPhase3Tasks(TaskStatus.PENDING);
-
-        if (agentPlatform == null) {
-            log.info("Phase 3: AgentPlatform not available (Embabel not configured), skipping agent");
-            ExtractionResult noAgentResult = ExtractionResult.empty();
-            persistMetrics(noAgentResult, false);
-            return noAgentResult;
+        if (!requireAllTasksTerminal(force)) {
+            return ExtractionResult.blocked("All tasks must be SKIPPED or ENRICHED before Phase 3. Run 'enrich --resume' first.");
         }
+
+//        if (agentPlatform == null) {
+//            log.info("Phase 3: AgentPlatform not available (Embabel not configured), skipping agent");
+//            ExtractionResult noAgentResult = ExtractionResult.empty();
+//            persistMetrics(noAgentResult, false);
+//            return noAgentResult;
+//        }
 
         log.info("Phase 3: launching GOAP agent (FunctionalRequirementAgent)");
 
         try {
-            markPhase3Tasks(TaskStatus.ENRICHING);
-
             var agent = agentPlatform.agents().stream()
                 .filter(a -> "functional-requirement-extractor".equals(a.getName()))
                 .findFirst()
@@ -142,12 +143,10 @@ public class ExtractionOrchestrator {
                 List.of(specResult.markdownPath(), specResult.manifestPath()) : List.of();
             ExtractionResult result = new ExtractionResult(
                 flowCount, ambiguityGaps, 0, flowNames, generatedFiles);
-            markPhase3Tasks(TaskStatus.ENRICHED);
             persistMetrics(result, false);
             return result;
         } catch (Exception e) {
             log.error("Phase 3 synthesis failed: {}", e.getMessage(), e);
-            markPhase3Tasks(TaskStatus.FAILED);
             ExtractionResult result = ExtractionResult.empty();
             persistMetrics(result, false);
             return result;
@@ -172,11 +171,21 @@ public class ExtractionOrchestrator {
             && knowledge.getEntryPoints().isEmpty();
     }
 
-    private void markPhase3Tasks(TaskStatus status) {
-        int count = taskStore.updateStatusByOldStatus(TaskStatus.ENRICHED, status);
-        if (count > 0) {
-            log.info("Phase 3 crash marker: {} tasks marked as {}", count, status);
+    boolean requireAllTasksTerminal(boolean force) {
+        if (force) return true;
+        List<Task> allTasks = taskStore.findAll();
+        List<Task> nonTerminal = allTasks.stream()
+            .filter(t -> t.status() != TaskStatus.SKIPPED && t.status() != TaskStatus.ENRICHED)
+            .toList();
+        if (!nonTerminal.isEmpty()) {
+            String reportLine = nonTerminal.stream()
+                .map(t -> "  " + t.taskId() + " (" + t.filePath() + ") — " + t.status().name())
+                .collect(Collectors.joining("\n"));
+            log.warn("Phase 3 blocked: {} task(s) not in SKIPPED or ENRICHED:\n{}\n" +
+                "Run 'enrich --resume' first.", nonTerminal.size(), reportLine);
+            return false;
         }
+        return true;
     }
 
     public CodebaseKnowledge buildCodebaseKnowledge() {

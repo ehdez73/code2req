@@ -59,6 +59,14 @@ public class ExtractCommand {
         ExtractionResult result = extractionOrchestrator.execute(dryRun, force);
         long p3Elapsed = Duration.between(phase3Start, Instant.now()).toSeconds();
 
+        if (result.isBlocked()) {
+            sb.append("  Phase 3 BLOCKED: ").append(result.blockedReason()).append("\n");
+            sb.append(String.format("  Phase 3 elapsed: %ds%n%n", p3Elapsed));
+            long totalElapsed = Duration.between(start, Instant.now()).toSeconds();
+            sb.append(String.format("=== Extract Complete (%ds) ===%n", totalElapsed));
+            return sb.toString();
+        }
+
         sb.append(String.format("  Flows extracted: %d%n", result.flowsExtracted()));
         if (!result.flowNames().isEmpty()) {
             sb.append("  Flows: ");
