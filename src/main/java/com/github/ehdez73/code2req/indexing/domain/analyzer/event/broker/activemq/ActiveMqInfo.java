@@ -6,5 +6,6 @@ public record ActiveMqInfo(
     String destination,
     String methodName,
     String className,
-    String filePath
+    String filePath,
+    String payloadType
 ) implements AnalysisFinding {}

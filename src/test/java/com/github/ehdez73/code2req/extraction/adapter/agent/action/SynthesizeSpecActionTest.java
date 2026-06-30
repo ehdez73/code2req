@@ -6,7 +6,8 @@ import com.github.ehdez73.code2req.extraction.domain.model.BusinessRule;
 import com.github.ehdez73.code2req.extraction.domain.model.ComplexityLevel;
 import com.github.ehdez73.code2req.extraction.domain.model.EdgeCase;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
-import com.github.ehdez73.code2req.extraction.domain.model.EntryPointType;
+import com.github.ehdez73.code2req.extraction.domain.model.EventListenerEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowRelationship;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowRelationshipType;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
@@ -40,9 +41,8 @@ class SynthesizeSpecActionTest {
     @BeforeEach
     void setUp() {
         action = new SynthesizeSpecAction(tempDir);
-        entryPoint = new EntryPoint("GET /test", EntryPointType.HTTP, "GET", "/test",
-            "TestController", "handle", "/src/TestController.java",
-            0.5, false, List.of(), null, null);
+        entryPoint = new HttpEntryPoint("GET /test", "TestController", "handle", "/src/TestController.java",
+            0.5, false, "GET", "/test", List.of(), List.of());
         step1 = new FlowStep(0, FlowStepComponentType.REST_ENDPOINT,
             "TestController", "handle", null, "/src/TestController.java", 0, 0, List.of());
         step2 = new FlowStep(1, FlowStepComponentType.SERVICE,
@@ -263,9 +263,8 @@ class SynthesizeSpecActionTest {
 
     @Test
     void generateMarkdownIncludesEventListenerEventType() throws IOException {
-        var eventListenerEp = new EntryPoint("OrderPlacedEvent", EntryPointType.EVENT_LISTENER, null, null,
-            "OrderEventListener", "handleOrderPlaced", "/src/OrderEventListener.java",
-            0.0, false, List.of(), null, null);
+        var eventListenerEp = new EventListenerEntryPoint("OrderPlacedEvent", "OrderEventListener", "handleOrderPlaced", "/src/OrderEventListener.java",
+            0.0, false, "OrderPlacedEvent");
         var serviceStep = new FlowStep(0, FlowStepComponentType.SERVICE,
             "OrderService", "processOrder", null, "/src/OrderService.java", 0, 0, List.of());
         var flow = new FunctionalFlow("flow-1", "Order Event Flow", eventListenerEp, List.of(serviceStep),

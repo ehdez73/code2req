@@ -43,7 +43,7 @@ class StructuralGraphTest {
         var edges = List.of(
             CallGraphEdge.resolved("A", "m1", "/src/A.java", "B", "m2", "/src/B.java", 1));
         var endpoints = List.of(
-            new EndpointInfo("GET", "/api", "C", List.of(), List.of(), "/src/C.java", false, null));
+            new EndpointInfo("GET", "/api", "C", List.of(), List.of(), "/src/C.java", false, null, List.of()));
         var dbAccess = List.of(
             new DbAccessInfo("JPA", null, "table", null, "find", "D", "/src/D.java", "E", false));
         var components = List.of(
@@ -67,7 +67,7 @@ class StructuralGraphTest {
         var edges = List.of(
             CallGraphEdge.resolved("A", "m", "/src/A.java", "B", "n", "/src/B.java", 1));
         var endpoints = List.of(
-            new EndpointInfo("GET", "/api", "C", List.of(), List.of(), "/src/C.java", false, null));
+            new EndpointInfo("GET", "/api", "C", List.of(), List.of(), "/src/C.java", false, null, List.of()));
         var dbAccess = List.of(
             new DbAccessInfo("JPA", null, "t", null, "f", "D", "/src/D.java", "E", false));
         var components = List.of(
@@ -75,11 +75,11 @@ class StructuralGraphTest {
         var scheduled = List.of(
             new ScheduledTaskInfo("run", "G", "0 * * * *", null, null, "cron", "/src/G.java"));
         var kafka = List.of(
-            new KafkaInfo("topic", "listen", "H", "/src/H.java", false));
+            new KafkaInfo("topic", "listen", "H", "/src/H.java", false, ""));
         var rabbit = List.of(
-            new RabbitMqInfo("queue", "handle", "I", "/src/I.java"));
+            new RabbitMqInfo("queue", "handle", "I", "/src/I.java", ""));
         var activeMq = List.of(
-            new ActiveMqInfo("dest", "onMsg", "J", "/src/J.java"));
+            new ActiveMqInfo("dest", "onMsg", "J", "/src/J.java", ""));
         var events = List.of(
             new EventListenerInfo("AppEvent", "onEvent", "K", "/src/K.java", List.of()));
 
@@ -136,9 +136,9 @@ class StructuralGraphTest {
         var graph = new StructuralGraph(
             List.of(),
             List.of(
-                new EndpointInfo("GET", "/api/a", "C1", List.of(), List.of(), "/src/C1.java", false, null),
-                new EndpointInfo("get", "/api/b", "C2", List.of(), List.of(), "/src/C2.java", false, null),
-                new EndpointInfo("POST", "/api/c", "C3", List.of(), List.of(), "/src/C3.java", false, null)),
+                new EndpointInfo("GET", "/api/a", "C1", List.of(), List.of(), "/src/C1.java", false, null, List.of()),
+                new EndpointInfo("get", "/api/b", "C2", List.of(), List.of(), "/src/C2.java", false, null, List.of()),
+                new EndpointInfo("POST", "/api/c", "C3", List.of(), List.of(), "/src/C3.java", false, null, List.of())),
             List.of(), List.of());
 
         assertEquals(2, graph.getEndpointsByHttpMethod("GET").size());
@@ -194,12 +194,12 @@ class StructuralGraphTest {
     void getEntryPointsIncludesAllSixTypes() {
         var graph = new StructuralGraph(
             List.of(), List.of(
-                new EndpointInfo("GET", "/orders", "OrderCtrl", List.of(), List.of(), "/src/OrderCtrl.java", false, null)),
+                new EndpointInfo("GET", "/orders", "OrderCtrl", List.of(), List.of(), "/src/OrderCtrl.java", false, null, List.of())),
             List.of(), List.of(),
             List.of(new ScheduledTaskInfo("process", "Scheduler", "0 * * * *", null, null, "cron", "/src/Scheduler.java")),
-            List.of(new KafkaInfo("events", "onEvent", "Listener", "/src/Listener.java", false)),
-            List.of(new RabbitMqInfo("alerts", "handleAlert", "AlertListener", "/src/AlertListener.java")),
-            List.of(new ActiveMqInfo("queue.dlq", "onDlq", "DlqHandler", "/src/DlqHandler.java")),
+            List.of(new KafkaInfo("events", "onEvent", "Listener", "/src/Listener.java", false, "")),
+            List.of(new RabbitMqInfo("alerts", "handleAlert", "AlertListener", "/src/AlertListener.java", "")),
+            List.of(new ActiveMqInfo("queue.dlq", "onDlq", "DlqHandler", "/src/DlqHandler.java", "")),
             List.of(new EventListenerInfo("MyEvent", "onMyEvent", "EventHandler", "/src/EventHandler.java", List.of())));
 
         var entryPoints = graph.getEntryPoints();
@@ -217,7 +217,7 @@ class StructuralGraphTest {
     void getEntryPointsReturnsCorrectIdentifiers() {
         var graph = new StructuralGraph(
             List.of(), List.of(
-                new EndpointInfo("POST", "/api/orders", "Ctrl", List.of(), List.of(), "/src/Ctrl.java", false, null)),
+                new EndpointInfo("POST", "/api/orders", "Ctrl", List.of(), List.of(), "/src/Ctrl.java", false, null, List.of())),
             List.of(), List.of(),
             List.of(new ScheduledTaskInfo("run", "Task", null, 5000L, null, "fixedRate", "/src/Task.java")),
             List.of(), List.of(), List.of(), List.of());
@@ -239,9 +239,9 @@ class StructuralGraphTest {
         var graph = new StructuralGraph(
             List.of(), List.of(), List.of(), List.of(),
             List.of(new ScheduledTaskInfo("run", "Task1", "0 * * * *", null, null, "cron", "/src/Task1.java")),
-            List.of(new KafkaInfo("topic", "consume", "Task2", "/src/Task2.java", false)),
-            List.of(new RabbitMqInfo("queue", "receive", "Task3", "/src/Task3.java")),
-            List.of(new ActiveMqInfo("dest", "onMsg", "Task4", "/src/Task4.java")),
+            List.of(new KafkaInfo("topic", "consume", "Task2", "/src/Task2.java", false, "")),
+            List.of(new RabbitMqInfo("queue", "receive", "Task3", "/src/Task3.java", "")),
+            List.of(new ActiveMqInfo("dest", "onMsg", "Task4", "/src/Task4.java", "")),
             List.of(new EventListenerInfo("Event", "handle", "Task5", "/src/Task5.java", List.of())));
 
         var methods = graph.getAllKnownMethods();
@@ -264,7 +264,7 @@ class StructuralGraphTest {
     void getEntryPointPriorityEnrichmentWeight() {
         var graph = new StructuralGraph(
             List.of(CallGraphEdge.resolved("A", "m", "/src/A.java", "B", "n", "/src/B.java", 1)),
-            List.of(new EndpointInfo("GET", "/api", "C", List.of(), List.of(), "/src/C.java", false, null)),
+            List.of(new EndpointInfo("GET", "/api", "C", List.of(), List.of(), "/src/C.java", false, null, List.of())),
             List.of(), List.of());
         var enrichment = new SemanticEnrichment(Map.of("/src/C.java",
             new ExecutionFinding(
@@ -290,7 +290,7 @@ class StructuralGraphTest {
             CallGraphEdge.resolved("A", "m", "/src/A.java", "B1", "n", "/src/B1.java", 1),
             CallGraphEdge.resolved("A", "m", "/src/A.java", "B2", "n", "/src/B2.java", 1));
         var graph = new StructuralGraph(edges,
-            List.of(new EndpointInfo("GET", "/api", "A", List.of(), List.of(), "/src/A.java", false, null)),
+            List.of(new EndpointInfo("GET", "/api", "A", List.of(), List.of(), "/src/A.java", false, null, List.of())),
             List.of(), List.of());
         var enrichment = new SemanticEnrichment(Map.of());
 
@@ -304,7 +304,7 @@ class StructuralGraphTest {
     void getEntryPointPriorityHttpVsNonHttp() {
         var graph = new StructuralGraph(
             List.of(), List.of(
-                new EndpointInfo("GET", "/api", "C", List.of(), List.of(), "/src/C.java", false, null)),
+                new EndpointInfo("GET", "/api", "C", List.of(), List.of(), "/src/C.java", false, null, List.of())),
             List.of(), List.of(),
             List.of(new ScheduledTaskInfo("run", "S", "0 * * * *", null, null, "cron", "/src/S.java")),
             List.of(), List.of(), List.of(), List.of());
@@ -324,7 +324,7 @@ class StructuralGraphTest {
     void getEntryPointPriorityTestFileWeight() {
         var graph = new StructuralGraph(
             List.of(), List.of(
-                new EndpointInfo("GET", "/api", "C", List.of(), List.of(), "/src/C.java", false, null)),
+                new EndpointInfo("GET", "/api", "C", List.of(), List.of(), "/src/C.java", false, null, List.of())),
             List.of(), List.of());
         var enrichment = new SemanticEnrichment(Map.of());
 

@@ -155,7 +155,7 @@ class CodebaseKnowledgeTest {
     void getEntryPointsDelegatesToStructuralGraph() {
         var graph = new StructuralGraph(
             List.of(), List.of(
-                new EndpointInfo("GET", "/api", "Ctrl", List.of(), List.of(), "/src/Ctrl.java", false, null)),
+                new EndpointInfo("GET", "/api", "Ctrl", List.of(), List.of(), "/src/Ctrl.java", false, null, List.of())),
             List.of(), List.of(),
             List.of(new ScheduledTaskInfo("run", "Task", "0 * * * *", null, null, "cron", "/src/Task.java")),
             List.of(), List.of(), List.of(), List.of());

@@ -7,6 +7,7 @@ import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFeature;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -159,8 +160,14 @@ public class GroupFlowsAction {
             Return only the description text, no JSON.
             """.formatted(
             flow.name(),
-            flow.entryPoint().httpMethod() != null ? flow.entryPoint().httpMethod() : flow.entryPoint().type(),
-            flow.entryPoint().path() != null ? flow.entryPoint().path() : flow.entryPoint().className(),
+            switch (flow.entryPoint()) {
+                case HttpEntryPoint h -> h.httpMethod();
+                default -> flow.entryPoint().type().name();
+            },
+            switch (flow.entryPoint()) {
+                case HttpEntryPoint h -> h.path();
+                default -> flow.entryPoint().className();
+            },
             stepsSummary,
             externalCount,
             dbCount,
@@ -179,8 +186,8 @@ public class GroupFlowsAction {
     }
 
     private String deriveFeatureName(FunctionalFlow flow) {
-        if (flow.entryPoint().path() != null) {
-            String path = flow.entryPoint().path();
+        if (flow.entryPoint() instanceof HttpEntryPoint h) {
+            String path = h.path();
             String[] segments = path.split("/");
             for (int i = segments.length - 1; i >= 0; i--) {
                 if (!segments[i].isEmpty() && !segments[i].startsWith("{")) {

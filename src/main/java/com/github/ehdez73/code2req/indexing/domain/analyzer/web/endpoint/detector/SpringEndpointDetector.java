@@ -54,6 +54,7 @@ public class SpringEndpointDetector implements EndpointDetector {
             String fullPath = combinePaths(classLevelPath, methodPath);
             List<String> pathVars = extractPathVariables(method);
             List<String> queryParams = extractQueryParams(method);
+            List<String> requestBodies = extractRequestBodies(method);
 
             boolean servesView = false;
             String viewName = "";
@@ -64,7 +65,7 @@ public class SpringEndpointDetector implements EndpointDetector {
                 }
             }
 
-            result.add(new EndpointInfo(httpMethod, fullPath, className, pathVars, queryParams, filePath, servesView, viewName));
+            result.add(new EndpointInfo(httpMethod, fullPath, className, pathVars, queryParams, filePath, servesView, viewName, requestBodies));
         }
     }
 
@@ -204,5 +205,17 @@ public class SpringEndpointDetector implements EndpointDetector {
             });
         });
         return params;
+    }
+
+    static List<String> extractRequestBodies(MethodDeclaration n) {
+        List<String> bodies = new ArrayList<>();
+        n.getParameters().forEach(param -> {
+            param.getAnnotations().forEach(ann -> {
+                if ("RequestBody".equals(ann.getNameAsString())) {
+                    bodies.add(param.getType().toString());
+                }
+            });
+        });
+        return bodies;
     }
 }

@@ -4,7 +4,9 @@ import com.github.ehdez73.code2req.extraction.adapter.agent.model.GroupedFlowsRe
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.ComplexityLevel;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
-import com.github.ehdez73.code2req.extraction.domain.model.EntryPointType;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowRelationshipType;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
@@ -24,13 +26,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class CrossReferenceFlowsActionTest {
 
-    private final EntryPoint httpEntry = new EntryPoint("GET /orders", EntryPointType.HTTP, "GET", "/orders",
-        "OrderController", "get", "/src/OrderController.java",
-        0.5, false, List.of(), null, null);
+    private final EntryPoint httpEntry = new HttpEntryPoint("GET /orders", "OrderController", "get", "/src/OrderController.java",
+        0.5, false, "GET", "/orders", List.of(), List.of());
 
-    private final EntryPoint schedEntry = new EntryPoint("scheduled-task", EntryPointType.SCHEDULED, null, null,
-        "OrderScheduler", "process", "/src/OrderScheduler.java",
-        0.5, false, List.of(), "0 * * * *", null);
+    private final EntryPoint schedEntry = new ScheduledEntryPoint("scheduled-task", "OrderScheduler", "process", "/src/OrderScheduler.java",
+        0.5, false, "0 * * * *");
 
     private final FlowStep step = new FlowStep(0, FlowStepComponentType.SERVICE, "OrderService", "process",
         null, "/src/OrderService.java", 0, 0, List.of());
@@ -54,16 +54,15 @@ class CrossReferenceFlowsActionTest {
     @Test
     void crossReferenceHttpLinkCreatesRelationship() {
         var endpoints = List.of(
-            new EndpointInfo("GET", "/api/payment", "PaymentController", List.of(), List.of(), "/src/PaymentController.java", false, null));
+            new EndpointInfo("GET", "/api/payment", "PaymentController", List.of(), List.of(), "/src/PaymentController.java", false, null, List.of()));
         var graph = new StructuralGraph(List.of(), endpoints, List.of(), List.of());
         var floatingLinks = List.of(
             new FloatingLinkInfo("POST", "/api/payment", false, "RestTemplate", "/src/OrderService.java", "process", null, 0.9, "PENDING"));
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry(floatingLinks, List.of()));
         var action = new CrossReferenceFlowsAction(knowledge);
 
-        var targetEp = new EntryPoint("GET /api/payment", EntryPointType.HTTP, "GET", "/api/payment",
-            "PaymentController", "handle", "/src/PaymentController.java",
-            0.5, false, List.of(), null, null);
+        var targetEp = new HttpEntryPoint("GET /api/payment", "PaymentController", "handle", "/src/PaymentController.java",
+            0.5, false, "GET", "/api/payment", List.of(), List.of());
         var targetFlow = new FunctionalFlow("flow-2", "GET /api/payment", targetEp, List.of(step),
             null, List.of(), List.of(), List.of(), ComplexityLevel.MINIMAL, null);
         var sourceFlow = new FunctionalFlow("flow-1", "GET /orders", httpEntry, List.of(
@@ -87,9 +86,8 @@ class CrossReferenceFlowsActionTest {
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry(List.of(), topicLinks));
         var action = new CrossReferenceFlowsAction(knowledge);
 
-        var consumerEp = new EntryPoint("orders-topic", EntryPointType.KAFKA, null, null,
-            "OrderListener", "onMessage", "/src/OrderListener.java",
-            0.5, false, List.of(), null, "orders-topic");
+        var consumerEp = new KafkaEntryPoint("orders-topic", "OrderListener", "onMessage", "/src/OrderListener.java",
+            0.5, false, "orders-topic", false, "");
         var consumerFlow = new FunctionalFlow("flow-2", "Consume orders", consumerEp, List.of(step),
             null, List.of(), List.of(), List.of(), ComplexityLevel.MINIMAL, null);
         var producerFlow = new FunctionalFlow("flow-1", "GET /orders", httpEntry, List.of(
@@ -110,7 +108,7 @@ class CrossReferenceFlowsActionTest {
     @Test
     void crossReferenceSkipsSelfRelationships() {
         var endpoints = List.of(
-            new EndpointInfo("GET", "/api/orders", "OrderController", List.of(), List.of(), "/src/OrderController.java", false, null));
+            new EndpointInfo("GET", "/api/orders", "OrderController", List.of(), List.of(), "/src/OrderController.java", false, null, List.of()));
         var graph = new StructuralGraph(List.of(), endpoints, List.of(), List.of());
         var floatingLinks = List.of(
             new FloatingLinkInfo("GET", "/api/orders", false, "RestTemplate", "/src/OrderService.java", "process", null, 0.9, "PENDING"));

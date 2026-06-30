@@ -76,7 +76,7 @@ public class ServletEndpointDetector implements EndpointDetector {
         }
 
         for (String path : paths) {
-            result.add(new EndpointInfo(httpMethod, path, className, List.of(), List.of(), filePath, false, ""));
+            result.add(new EndpointInfo(httpMethod, path, className, List.of(), List.of(), filePath, false, "", List.of()));
         }
     }
 

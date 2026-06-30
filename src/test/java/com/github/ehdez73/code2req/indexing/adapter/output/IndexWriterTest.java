@@ -69,16 +69,16 @@ class IndexWriterTest {
 
         List<AnalysisFinding> findings = List.of(
             new ComponentInfo("RestController", "UserController", "com.app", filePath),
-            new EndpointInfo("GET", "/api/users", "UserController", List.of(), List.of(), filePath, false, ""),
+            new EndpointInfo("GET", "/api/users", "UserController", List.of(), List.of(), filePath, false, "", List.of()),
             new ScheduledTaskInfo("cleanup", "CleanupTask", "0 0 * * *", null, null, "cron", filePath),
             new EventListenerInfo("UserCreatedEvent", "onUserCreated", "UserEventListener", filePath, List.of(
                 new MethodCallInfo("EmailService", "sendWelcomeEmail", 1)
             )),
             new ValidatorInfo("EmailValidator", filePath, "Constraint", "email", "return value != null && value.contains(\"@\");", false),
-            new KafkaInfo("orders", "handleOrder", "OrderListener", filePath, false),
+            new KafkaInfo("orders", "handleOrder", "OrderListener", filePath, false, ""),
             new BeanMethodInfo("dataSource", "javax.sql.DataSource", "AppConfig", filePath),
-            new RabbitMqInfo("order.queue", "handleOrder", "OrderMqListener", filePath),
-            new ActiveMqInfo("order.queue", "handleJmsOrder", "OrderJmsListener", filePath)
+            new RabbitMqInfo("order.queue", "handleOrder", "OrderMqListener", filePath, ""),
+            new ActiveMqInfo("order.queue", "handleJmsOrder", "OrderJmsListener", filePath, "")
         );
         AnalysisResult result = new AnalysisResult(filePath, findings);
 
@@ -100,7 +100,7 @@ class IndexWriterTest {
         assertEquals("cleanup", targetNode.get("scheduled_tasks").get(0).get("methodName").asText());
 
         assertEquals(1, targetNode.get("event_listeners").size());
-        assertEquals("UserCreatedEvent", targetNode.get("event_listeners").get(0).get("eventType").asText());
+        assertEquals("UserCreatedEvent", targetNode.get("event_listeners").get(0).get("payLoadType").asText());
 
         assertEquals(1, targetNode.get("validators").size());
         assertEquals("EmailValidator", targetNode.get("validators").get(0).get("className").asText());

@@ -2,7 +2,7 @@ package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
-import com.github.ehdez73.code2req.extraction.domain.model.EntryPointType;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStatus;
 import com.github.ehdez73.code2req.extraction.domain.model.GapReason;
@@ -14,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class QuarantineFlowActionTest {
 
-    private final EntryPoint entryPoint = new EntryPoint("id", EntryPointType.HTTP, "GET", "/test",
-        "Ctrl", "m", "/f.java", 0.5, false, List.of(), null, null);
+    private final EntryPoint entryPoint = new HttpEntryPoint("id", "Ctrl", "m", "/f.java",
+        0.5, false, "GET", "/test", List.of(), List.of());
 
     private ExecutionFlow flow(FlowStatus status, int stepCount, int depth, int unresolvedCount) {
         var steps = java.util.stream.IntStream.range(0, stepCount)

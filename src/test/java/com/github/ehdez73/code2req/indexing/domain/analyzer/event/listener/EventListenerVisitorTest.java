@@ -34,7 +34,7 @@ class EventListenerVisitorTest {
 
         assertEquals(1, result.findings(EventListenerInfo.class).size());
         EventListenerInfo el = result.findings(EventListenerInfo.class).getFirst();
-        assertEquals("UserCreatedEvent", el.eventType());
+        assertEquals("UserCreatedEvent", el.payLoadType());
         assertEquals("handleUserCreated", el.methodName());
         assertEquals("MyListener", el.className());
         assertEquals("MyListener.java", el.filePath());
@@ -55,7 +55,7 @@ class EventListenerVisitorTest {
 
         assertEquals(1, result.findings(EventListenerInfo.class).size());
         EventListenerInfo el = result.findings(EventListenerInfo.class).getFirst();
-        assertEquals("OrderPlacedEvent", el.eventType());
+        assertEquals("OrderPlacedEvent", el.payLoadType());
         assertEquals("onOrderPlaced", el.methodName());
         assertEquals("OrderListener", el.className());
     }
@@ -73,7 +73,7 @@ class EventListenerVisitorTest {
             """);
 
         assertEquals(1, result.findings(EventListenerInfo.class).size());
-        assertEquals("PaymentReceivedEvent", result.findings(EventListenerInfo.class).getFirst().eventType());
+        assertEquals("PaymentReceivedEvent", result.findings(EventListenerInfo.class).getFirst().payLoadType());
     }
 
     @Test

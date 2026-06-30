@@ -9,8 +9,6 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.event.broker.rabbitm
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.listener.EventListenerInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.scheduledtask.ScheduledTaskInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
-import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
-import com.github.ehdez73.code2req.extraction.domain.model.EntryPointType;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -120,19 +118,10 @@ public class StructuralGraph {
 
         for (EndpointInfo ep : endpoints) {
             String id = ep.httpMethod() + " " + ep.path();
-            entryPoints.add(new EntryPoint(
-                id,
-                EntryPointType.HTTP,
-                ep.httpMethod(),
-                ep.path(),
-                ep.className(),
-                null,
-                ep.filePath(),
-                0.0,
-                false,
-                new ArrayList<>(),
-                null,
-                null
+            entryPoints.add(new HttpEntryPoint(
+                id, ep.className(), null, ep.filePath(),
+                0.0, false,
+                ep.httpMethod(), ep.path(), ep.pathVariables(), ep.requestBodies()
             ));
         }
 
@@ -143,87 +132,41 @@ public class StructuralGraph {
             String schedule = st.cron() != null ? st.cron()
                 : (st.fixedRate() != null ? "fixedRate=" + st.fixedRate()
                 : "fixedDelay=" + st.fixedDelay());
-            entryPoints.add(new EntryPoint(
-                id,
-                EntryPointType.SCHEDULED,
-                null,
-                null,
-                st.className(),
-                st.methodName(),
-                st.filePath(),
-                0.0,
-                false,
-                new ArrayList<>(),
-                schedule,
-                null
+            entryPoints.add(new ScheduledEntryPoint(
+                id, st.className(), st.methodName(), st.filePath(),
+                0.0, false, schedule
             ));
         }
 
         for (KafkaInfo k : kafkaListeners) {
-            entryPoints.add(new EntryPoint(
-                k.topics(),
-                EntryPointType.KAFKA,
-                null,
-                null,
-                k.className(),
-                k.methodName(),
-                k.filePath(),
-                0.0,
-                false,
-                new ArrayList<>(),
-                null,
-                k.topics()
+            entryPoints.add(new KafkaEntryPoint(
+                k.topics(), k.className(), k.methodName(), k.filePath(),
+                0.0, false,
+                k.topics(), k.isPattern(), k.payloadType()
             ));
         }
 
         for (RabbitMqInfo r : rabbitmqListeners) {
-            entryPoints.add(new EntryPoint(
-                r.queues(),
-                EntryPointType.RABBITMQ,
-                null,
-                null,
-                r.className(),
-                r.methodName(),
-                r.filePath(),
-                0.0,
-                false,
-                new ArrayList<>(),
-                null,
-                r.queues()
+            entryPoints.add(new RabbitMqEntryPoint(
+                r.queues(), r.className(), r.methodName(), r.filePath(),
+                0.0, false,
+                r.queues(), r.payloadType()
             ));
         }
 
         for (ActiveMqInfo a : activemqListeners) {
-            entryPoints.add(new EntryPoint(
-                a.destination(),
-                EntryPointType.ACTIVEMQ,
-                null,
-                null,
-                a.className(),
-                a.methodName(),
-                a.filePath(),
-                0.0,
-                false,
-                new ArrayList<>(),
-                null,
-                a.destination()
+            entryPoints.add(new ActiveMqEntryPoint(
+                a.destination(), a.className(), a.methodName(), a.filePath(),
+                0.0, false,
+                a.destination(), a.payloadType()
             ));
         }
 
         for (EventListenerInfo el : eventListeners) {
-            entryPoints.add(new EntryPoint(
-                el.eventType(),
-                EntryPointType.EVENT_LISTENER,
-                null,
-                null,
-                el.className(),
-                el.methodName(),
-                el.filePath(),
-                0.0,
-                false,
-                new ArrayList<>(),
-                null,
-                null
+            entryPoints.add(new EventListenerEntryPoint(
+                el.payLoadType(), el.className(), el.methodName(), el.filePath(),
+                0.0, false,
+                el.payLoadType()
             ));
         }
 
@@ -270,7 +213,7 @@ public class StructuralGraph {
             .count();
         score += 0.3 * Math.min(downstreamCount / 10.0, 1.0);
 
-        score += 0.2 * (entryPoint.type() == EntryPointType.HTTP ? 1.0 : 0.5);
+        score += 0.2 * (entryPoint instanceof HttpEntryPoint ? 1.0 : 0.5);
 
         boolean hasTestFile = testFileMapping.containsKey(entryPoint.filePath());
         score += 0.2 * (hasTestFile ? 1.0 : 0.0);

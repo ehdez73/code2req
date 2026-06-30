@@ -11,7 +11,8 @@ public record EndpointInfo(
     List<String> queryParameters,
     String filePath,
     boolean servesView,
-    String viewName
+    String viewName,
+    List<String> requestBodies
 ) implements AnalysisFinding {
     @Override
     public String className() { return controllerName; }

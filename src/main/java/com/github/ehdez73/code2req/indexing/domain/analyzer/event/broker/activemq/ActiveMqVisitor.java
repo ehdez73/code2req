@@ -65,11 +65,13 @@ public class ActiveMqVisitor implements AstAnalysisVisitor {
             for (AnnotationExpr ann : n.getAnnotations()) {
                 if ("JmsListener".equals(ann.getNameAsString())) {
                     String destination = extractDestination(ann);
+                    String payloadType = n.getParameters().isEmpty() ? "" : n.getParameter(0).getTypeAsString();
                     collector.listeners.add(new ActiveMqInfo(
                         destination,
                         n.getNameAsString(),
                         className,
-                        filePath
+                        filePath,
+                        payloadType
                     ));
                 }
             }

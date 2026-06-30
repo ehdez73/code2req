@@ -16,7 +16,7 @@ class ActiveMqTopicLinkResolverTest {
     @Test
     void publisherAndListenerShareSameDestination() {
         var producer = new ActiveMqPublisherInfo("order.queue", "sendOrder", "OrderJmsService", "/app/OrderJmsService.java");
-        var consumer = new ActiveMqInfo("order.queue", "handleJmsOrder", "OrderJmsListener", "/app/OrderJmsListener.java");
+        var consumer = new ActiveMqInfo("order.queue", "handleJmsOrder", "OrderJmsListener", "/app/OrderJmsListener.java", "");
         var results = List.of(
             new AnalysisResult("/app/OrderJmsService.java", List.of(producer)),
             new AnalysisResult("/app/OrderJmsListener.java", List.of(consumer))
@@ -50,7 +50,7 @@ class ActiveMqTopicLinkResolverTest {
 
     @Test
     void orphanConsumerWithoutMatchingProducer() {
-        var consumer = new ActiveMqInfo("standalone.dest", "handleStandalone", "StandaloneListener", "/app/StandaloneListener.java");
+        var consumer = new ActiveMqInfo("standalone.dest", "handleStandalone", "StandaloneListener", "/app/StandaloneListener.java", "");
         var results = List.of(
             new AnalysisResult("/app/StandaloneListener.java", List.of(consumer))
         );

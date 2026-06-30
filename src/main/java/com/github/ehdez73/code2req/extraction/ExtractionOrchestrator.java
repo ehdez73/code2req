@@ -35,6 +35,7 @@ import com.github.ehdez73.code2req.infrastructure.persistence.TopicLinkStore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -174,7 +175,13 @@ public class ExtractionOrchestrator {
                 "No extraction cache found at " + CACHE_PATH + ". Run 'extract' first.");
         }
 
-        ExtractionCache cache = objectMapper.readValue(CACHE_PATH.toFile(), ExtractionCache.class);
+        ExtractionCache cache;
+        try {
+            cache = objectMapper.readValue(CACHE_PATH.toFile(), ExtractionCache.class);
+        } catch (InvalidTypeIdException e) {
+            throw new IllegalStateException(
+                "Extraction cache is in an incompatible format. Run 'extract' again to regenerate it.", e);
+        }
         SynthesizeSpecAction action = new SynthesizeSpecAction(CACHE_PATH.getParent());
         return action.synthesize(
             cache.crossRefResult(), cache.orphanedMethods(), cache.quarantineGaps(), null);

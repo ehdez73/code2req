@@ -27,11 +27,11 @@ class TopicLinkResolverTest {
         ));
 
         var kafkaProducer = new KafkaPublisherInfo("events", "sendEvent", "KafkaService", "/app/KafkaService.java");
-        var kafkaConsumer = new KafkaInfo("events", "handleEvent", "KafkaHandler", "/app/KafkaHandler.java", false);
+        var kafkaConsumer = new KafkaInfo("events", "handleEvent", "KafkaHandler", "/app/KafkaHandler.java", false, "");
         var rabbitProducer = new RabbitMqPublisherInfo("ex", "q1", "sendQ", "RabbitService", "/app/RabbitService.java");
-        var rabbitConsumer = new RabbitMqInfo("q1", "handleQ", "RabbitHandler", "/app/RabbitHandler.java");
+        var rabbitConsumer = new RabbitMqInfo("q1", "handleQ", "RabbitHandler", "/app/RabbitHandler.java", "");
         var activeProducer = new ActiveMqPublisherInfo("dest", "sendDest", "ActiveService", "/app/ActiveService.java");
-        var activeConsumer = new ActiveMqInfo("dest", "handleDest", "ActiveHandler", "/app/ActiveHandler.java");
+        var activeConsumer = new ActiveMqInfo("dest", "handleDest", "ActiveHandler", "/app/ActiveHandler.java", "");
 
         var results = List.of(
             new AnalysisResult("/app/KafkaService.java", List.of(kafkaProducer)),
@@ -62,7 +62,7 @@ class TopicLinkResolverTest {
         var resolver = new TopicLinkResolver(List.of(new KafkaTopicLinkResolver()));
 
         var producer = new KafkaPublisherInfo("events", "sendEvent", "KafkaService", "/app/KafkaService.java");
-        var consumer = new KafkaInfo("events", "handleEvent", "KafkaHandler", "/app/KafkaHandler.java", false);
+        var consumer = new KafkaInfo("events", "handleEvent", "KafkaHandler", "/app/KafkaHandler.java", false, "");
         var results = List.of(
             new AnalysisResult("/app/KafkaService.java", List.of(producer)),
             new AnalysisResult("/app/KafkaHandler.java", List.of(consumer))

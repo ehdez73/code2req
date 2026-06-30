@@ -89,8 +89,9 @@ public class SuggestionService {
             sb.append("    extract\n");
             hasActionable = true;
         } else if (allEnriched && p3 != null) {
-            sb.append("  Pipeline complete. Clean up to reset for a fresh scan:\n");
-            sb.append("    clean\n");
+            sb.append("  Pipeline complete. Next steps:\n");
+            sb.append("    generate\n");
+            sb.append("    clean  (reset for a fresh scan)\n");
             hasActionable = true;
         }
 

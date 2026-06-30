@@ -119,6 +119,7 @@ class SuggestionServiceTest {
 
         String result = suggestionService.suggest();
         assertTrue(result.contains("Pipeline complete"));
+        assertTrue(result.contains("generate"));
         assertTrue(result.contains("clean"));
     }
 
@@ -154,6 +155,7 @@ class SuggestionServiceTest {
 
         String result = suggestionService.suggest();
         assertTrue(result.contains("Pipeline complete"));
+        assertTrue(result.contains("generate"));
         assertTrue(result.contains("clean"));
     }
 }

@@ -4,6 +4,7 @@ import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPointType;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
 import com.github.ehdez73.code2req.extraction.domain.model.OrphanedMethod;
 import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;
@@ -34,7 +35,7 @@ class DiscoverEntryPointsActionTest {
     @Test
     void discoverReturnsHttpEndpoints() {
         var endpoints = List.of(
-            new EndpointInfo("GET", "/api/orders", "OrderController", List.of(), List.of(), "/src/OrderController.java", false, null));
+            new EndpointInfo("GET", "/api/orders", "OrderController", List.of(), List.of(), "/src/OrderController.java", false, null, List.of()));
         var graph = new StructuralGraph(List.of(), endpoints, List.of(), List.of());
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
 
@@ -42,8 +43,8 @@ class DiscoverEntryPointsActionTest {
 
         assertEquals(1, result.entryPoints().size());
         assertEquals(EntryPointType.HTTP, result.entryPoints().get(0).type());
-        assertEquals("GET", result.entryPoints().get(0).httpMethod());
-        assertEquals("/api/orders", result.entryPoints().get(0).path());
+        assertEquals("GET", ((HttpEntryPoint) result.entryPoints().get(0)).httpMethod());
+        assertEquals("/api/orders", ((HttpEntryPoint) result.entryPoints().get(0)).path());
     }
 
     @Test
@@ -62,15 +63,15 @@ class DiscoverEntryPointsActionTest {
     @Test
     void discoverFiltersTrivialActuatorPaths() {
         var endpoints = List.of(
-            new EndpointInfo("GET", "/actuator/health", "HealthController", List.of(), List.of(), "/src/HealthController.java", false, null),
-            new EndpointInfo("GET", "/api/orders", "OrderController", List.of(), List.of(), "/src/OrderController.java", false, null));
+            new EndpointInfo("GET", "/actuator/health", "HealthController", List.of(), List.of(), "/src/HealthController.java", false, null, List.of()),
+            new EndpointInfo("GET", "/api/orders", "OrderController", List.of(), List.of(), "/src/OrderController.java", false, null, List.of()));
         var graph = new StructuralGraph(List.of(), endpoints, List.of(), List.of());
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
 
         var result = new DiscoverEntryPointsAction(knowledge).discover();
 
         assertEquals(1, result.entryPoints().size());
-        assertEquals("/api/orders", result.entryPoints().get(0).path());
+        assertEquals("/api/orders", ((HttpEntryPoint) result.entryPoints().get(0)).path());
     }
 
     @Test
@@ -91,8 +92,8 @@ class DiscoverEntryPointsActionTest {
     @Test
     void discoverSortsByPriorityDescending() {
         var endpoints = List.of(
-            new EndpointInfo("GET", "/api/a", "AController", List.of(), List.of(), "/src/AController.java", false, null),
-            new EndpointInfo("GET", "/api/b", "BController", List.of(), List.of(), "/src/BController.java", false, null));
+            new EndpointInfo("GET", "/api/a", "AController", List.of(), List.of(), "/src/AController.java", false, null, List.of()),
+            new EndpointInfo("GET", "/api/b", "BController", List.of(), List.of(), "/src/BController.java", false, null, List.of()));
         var graph = new StructuralGraph(List.of(), endpoints, List.of(), List.of());
         var enrichment = new SemanticEnrichment(Map.of(
             "/src/AController.java", new ExecutionFinding(

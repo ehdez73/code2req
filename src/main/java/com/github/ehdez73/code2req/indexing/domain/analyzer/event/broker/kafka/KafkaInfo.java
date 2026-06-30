@@ -7,5 +7,6 @@ public record KafkaInfo(
     String methodName,
     String className,
     String filePath,
-    boolean isPattern
+    boolean isPattern,
+    String payloadType
 ) implements AnalysisFinding {}

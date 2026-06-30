@@ -1,6 +1,5 @@
 package com.github.ehdez73.code2req.extraction.domain.model;
 
-import com.github.ehdez73.code2req.extraction.domain.model.MethodIdentifier;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -21,10 +20,9 @@ class DomainRecordsTest {
     }
 
     @Test
-    void entryPointConstructsCorrectly() {
-        var ep = new EntryPoint("GET /api", EntryPointType.HTTP, "GET", "/api",
-            "Controller", "handle", "/src/Controller.java", 0.75,
-            false, List.of(), null, null);
+    void httpEntryPointConstructsCorrectly() {
+        var ep = new HttpEntryPoint("GET /api", "Controller", "handle", "/src/Controller.java",
+            0.75, false, "GET", "/api", List.of("id"), List.of("CreateUserRequest"));
 
         assertEquals("GET /api", ep.id());
         assertEquals(EntryPointType.HTTP, ep.type());
@@ -35,31 +33,50 @@ class DomainRecordsTest {
         assertEquals("/src/Controller.java", ep.filePath());
         assertEquals(0.75, ep.priorityScore());
         assertFalse(ep.trivial());
-        assertTrue(ep.pathVariables().isEmpty());
-        assertNull(ep.schedule());
-        assertNull(ep.topicOrQueue());
+        assertEquals(List.of("id"), ep.pathVariables());
+        assertEquals(List.of("CreateUserRequest"), ep.requestBodies());
     }
 
     @Test
-    void entryPointSupportsNullMethodName() {
-        var ep = new EntryPoint("GET /api", EntryPointType.HTTP, "GET", "/api",
-            "Controller", null, "/src/Controller.java", 0.0,
-            false, List.of(), null, null);
+    void httpEntryPointSupportsNullMethodName() {
+        var ep = new HttpEntryPoint("GET /api", "Controller", null, "/src/Controller.java",
+            0.0, false, "GET", "/api", List.of(), List.of());
 
         assertNull(ep.methodName());
     }
 
     @Test
     void entryPointEquality() {
-        var ep1 = new EntryPoint("id1", EntryPointType.HTTP, "GET", "/api",
-            "Ctrl", "m", "/f.java", 0.5, false, List.of(), null, null);
-        var ep2 = new EntryPoint("id1", EntryPointType.HTTP, "GET", "/api",
-            "Ctrl", "m", "/f.java", 0.5, false, List.of(), null, null);
-        var ep3 = new EntryPoint("id2", EntryPointType.SCHEDULED, null, null,
-            "Ctrl", "m", "/f.java", 0.5, false, List.of(), "0 0 * * *", null);
+        var ep1 = new HttpEntryPoint("id1", "Ctrl", "m", "/f.java",
+            0.5, false, "GET", "/api", List.of(), List.of());
+        var ep2 = new HttpEntryPoint("id1", "Ctrl", "m", "/f.java",
+            0.5, false, "GET", "/api", List.of(), List.of());
+        var ep3 = new ScheduledEntryPoint("id2", "Ctrl", "m", "/f.java",
+            0.5, false, "0 0 * * *");
 
         assertEquals(ep1, ep2);
         assertNotEquals(ep1, ep3);
+    }
+
+    @Test
+    void sealedInterfacePermitsAllSixTypes() {
+        EntryPoint ep = new HttpEntryPoint("id", "C", null, "/f.java", 0, false, "GET", "/", List.of(), List.of());
+        assertInstanceOf(HttpEntryPoint.class, ep);
+
+        ep = new ScheduledEntryPoint("id", "C", "m", "/f.java", 0, false, "0 * * * *");
+        assertInstanceOf(ScheduledEntryPoint.class, ep);
+
+        ep = new KafkaEntryPoint("events", "C", "m", "/f.java", 0, false, "events", false, "OrderCreated");
+        assertInstanceOf(KafkaEntryPoint.class, ep);
+
+        ep = new RabbitMqEntryPoint("q", "C", "m", "/f.java", 0, false, "q", "PaymentProcessed");
+        assertInstanceOf(RabbitMqEntryPoint.class, ep);
+
+        ep = new ActiveMqEntryPoint("d", "C", "m", "/f.java", 0, false, "d", "InventoryUpdated");
+        assertInstanceOf(ActiveMqEntryPoint.class, ep);
+
+        ep = new EventListenerEntryPoint("MyEvent", "C", "m", "/f.java", 0, false, "MyEvent");
+        assertInstanceOf(EventListenerEntryPoint.class, ep);
     }
 
     @Test

@@ -2,6 +2,10 @@ package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.CrossReferencedResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.GroupedFlowsResult;
+import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.RabbitMqEntryPoint;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
@@ -58,9 +62,9 @@ public class CrossReferenceFlowsAction {
 
         Map<String, List<FunctionalFlow>> flowsByPath = groupedResult.features().stream()
             .flatMap(f -> f.flows().stream())
-            .filter(f -> f.entryPoint().path() != null)
+            .filter(f -> f.entryPoint() instanceof HttpEntryPoint)
             .collect(Collectors.toMap(
-                f -> normalizePath(f.entryPoint().path()),
+                f -> normalizePath(((HttpEntryPoint) f.entryPoint()).path()),
                 f -> List.of(f),
                 (a, b) -> { List<FunctionalFlow> merged = new ArrayList<>(a); merged.addAll(b); return merged; }
             ));
@@ -130,9 +134,16 @@ public class CrossReferenceFlowsAction {
 
         Map<String, List<FunctionalFlow>> flowsByTopic = groupedResult.features().stream()
             .flatMap(f -> f.flows().stream())
-            .filter(f -> f.entryPoint().topicOrQueue() != null)
+            .filter(f -> f.entryPoint() instanceof KafkaEntryPoint
+                || f.entryPoint() instanceof RabbitMqEntryPoint
+                || f.entryPoint() instanceof ActiveMqEntryPoint)
             .collect(Collectors.toMap(
-                f -> f.entryPoint().topicOrQueue(),
+                f -> switch (f.entryPoint()) {
+                    case KafkaEntryPoint k -> k.topics();
+                    case RabbitMqEntryPoint r -> r.queues();
+                    case ActiveMqEntryPoint a -> a.destination();
+                    default -> throw new IllegalStateException();
+                },
                 f -> List.of(f),
                 (a, b) -> { List<FunctionalFlow> merged = new ArrayList<>(a); merged.addAll(b); return merged; }
             ));

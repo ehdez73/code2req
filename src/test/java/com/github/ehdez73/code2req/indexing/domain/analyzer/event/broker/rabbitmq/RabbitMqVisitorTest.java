@@ -28,7 +28,7 @@ class RabbitMqVisitorTest {
             @Component
             public class OrderConsumer {
                 @RabbitListener(queues = "order.queue")
-                public void onOrderEvent(String message) {}
+                public void onOrderEvent(PaymentProcessed message) {}
             }
             """);
 
@@ -38,6 +38,7 @@ class RabbitMqVisitorTest {
         assertEquals("onOrderEvent", ri.methodName());
         assertEquals("OrderConsumer", ri.className());
         assertEquals("OrderConsumer.java", ri.filePath());
+        assertEquals("PaymentProcessed", ri.payloadType());
     }
 
     @Test
@@ -57,6 +58,7 @@ class RabbitMqVisitorTest {
         assertTrue(ri.queues().contains("order.queue"));
         assertTrue(ri.queues().contains("notification.queue"));
         assertEquals("onEvent", ri.methodName());
+        assertEquals("String", ri.payloadType());
     }
 
     @Test
@@ -139,6 +141,8 @@ class RabbitMqVisitorTest {
         assertEquals(2, result.findings(RabbitMqInfo.class).size());
         assertEquals("handleOrders", result.findings(RabbitMqInfo.class).get(0).methodName());
         assertEquals("handlePayments", result.findings(RabbitMqInfo.class).get(1).methodName());
+        assertEquals("String", result.findings(RabbitMqInfo.class).get(0).payloadType());
+        assertEquals("String", result.findings(RabbitMqInfo.class).get(1).payloadType());
     }
 
     @Test
@@ -155,6 +159,7 @@ class RabbitMqVisitorTest {
 
         assertEquals(1, result.findings(RabbitMqInfo.class).size());
         assertEquals("", result.findings(RabbitMqInfo.class).getFirst().queues());
+        assertEquals("String", result.findings(RabbitMqInfo.class).getFirst().payloadType());
     }
 
     @Test

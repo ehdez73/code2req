@@ -3,11 +3,14 @@ package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.EntryPointDiscoveryResult;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
-import com.github.ehdez73.code2req.extraction.domain.model.EntryPointType;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
+import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;
 import com.github.ehdez73.code2req.extraction.domain.model.StructuralGraph;
+import com.github.ehdez73.code2req.extraction.domain.model.EventListenerEntryPoint;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
@@ -33,9 +36,8 @@ class TraceFlowActionTest {
     void schedulerEntryPointClassifiedAsSCHEDULED_TASK() {
         var edge = CallGraphEdge.resolved("Scheduler", "performTask", "/src/Scheduler.java", "OrderService", "process", "/src/OrderService.java", 1);
         var graph = new StructuralGraph(List.of(edge), List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("performTask", EntryPointType.SCHEDULED, null, null,
-            "Scheduler", "performTask", "/src/Scheduler.java",
-            0.5, false, List.of(), "0 * * * *", null);
+        var entryPoint = new ScheduledEntryPoint("performTask", "Scheduler", "performTask", "/src/Scheduler.java",
+            0.5, false, "0 * * * *");
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -47,9 +49,8 @@ class TraceFlowActionTest {
     void controllerEntryPointClassifiedAsREST_ENDPOINT() {
         var edge = CallGraphEdge.resolved("OrderController", "get", "/src/OrderController.java", "OrderService", "find", "/src/OrderService.java", 1);
         var graph = new StructuralGraph(List.of(edge), List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("GET /orders", EntryPointType.HTTP, "GET", "/orders",
-            "OrderController", "get", "/src/OrderController.java",
-            0.5, false, List.of(), null, null);
+        var entryPoint = new HttpEntryPoint("GET /orders", "OrderController", "get", "/src/OrderController.java",
+            0.5, false, "GET", "/orders", List.of(), List.of());
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -60,9 +61,8 @@ class TraceFlowActionTest {
     void serviceEntryPointClassifiedAsSERVICE() {
         var edge = CallGraphEdge.resolved("EventService", "onEvent", "/src/EventService.java", "AuditRepo", "save", "/src/AuditRepo.java", 1);
         var graph = new StructuralGraph(List.of(edge), List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("MyEvent", EntryPointType.EVENT_LISTENER, null, null,
-            "EventService", "onEvent", "/src/EventService.java",
-            0.5, false, List.of(), null, "MyEvent");
+        var entryPoint = new EventListenerEntryPoint("MyEvent", "EventService", "onEvent", "/src/EventService.java",
+            0.5, false, "MyEvent");
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -73,9 +73,8 @@ class TraceFlowActionTest {
     void repositoryEntryPointClassifiedAsREPOSITORY() {
         var edge = CallGraphEdge.resolved("AuditRepo", "save", "/src/AuditRepo.java", "JdbcTemplate", "execute", "/src/JdbcTemplate.java", 1);
         var graph = new StructuralGraph(List.of(edge), List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("AuditRepo.save", EntryPointType.SCHEDULED, null, null,
-            "AuditRepo", "save", "/src/AuditRepo.java",
-            0.5, false, List.of(), "0 0 * * *", null);
+        var entryPoint = new ScheduledEntryPoint("AuditRepo.save", "AuditRepo", "save", "/src/AuditRepo.java",
+            0.5, false, "0 0 * * *");
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -86,9 +85,8 @@ class TraceFlowActionTest {
     void listenerEntryPointClassifiedAsEVENT_PUBLISHER() {
         var edge = CallGraphEdge.resolved("OrderListener", "handle", "/src/OrderListener.java", "OrderService", "process", "/src/OrderService.java", 1);
         var graph = new StructuralGraph(List.of(edge), List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("topic", EntryPointType.KAFKA, null, null,
-            "OrderListener", "handle", "/src/OrderListener.java",
-            0.5, false, List.of(), null, "topic");
+        var entryPoint = new KafkaEntryPoint("topic", "OrderListener", "handle", "/src/OrderListener.java",
+            0.5, false, "topic", false, "");
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -100,9 +98,8 @@ class TraceFlowActionTest {
         var edge1 = CallGraphEdge.resolved("SomeController", "get", "/src/SomeController.java", "OrderService", "find", "/src/OrderService.java", 1);
         var edge2 = CallGraphEdge.resolved("OrderService", "find", "/src/OrderService.java", "UserController", "lookup", "/src/UserController.java", 1);
         var graph = new StructuralGraph(List.of(edge1, edge2), List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("GET /orders", EntryPointType.HTTP, "GET", "/orders",
-            "SomeController", "get", "/src/SomeController.java",
-            0.5, false, List.of(), null, null);
+        var entryPoint = new HttpEntryPoint("GET /orders", "SomeController", "get", "/src/SomeController.java",
+            0.5, false, "GET", "/orders", List.of(), List.of());
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -116,9 +113,8 @@ class TraceFlowActionTest {
         var edge1 = CallGraphEdge.resolved("SomeController", "get", "/src/SomeController.java", "OrderService", "find", "/src/OrderService.java", 1);
         var edge2 = CallGraphEdge.resolved("OrderService", "find", "/src/OrderService.java", "Scheduler", "run", "/src/Scheduler.java", 1);
         var graph = new StructuralGraph(List.of(edge1, edge2), List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("GET /orders", EntryPointType.HTTP, "GET", "/orders",
-            "SomeController", "get", "/src/SomeController.java",
-            0.5, false, List.of(), null, null);
+        var entryPoint = new HttpEntryPoint("GET /orders", "SomeController", "get", "/src/SomeController.java",
+            0.5, false, "GET", "/orders", List.of(), List.of());
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -132,9 +128,8 @@ class TraceFlowActionTest {
         var edge1 = CallGraphEdge.resolved("SomeController", "get", "/src/SomeController.java", "OrderService", "find", "/src/OrderService.java", 1);
         var edge2 = CallGraphEdge.resolved("OrderService", "find", "/src/OrderService.java", "PaymentClient", "charge", "/src/PaymentClient.java", 1);
         var graph = new StructuralGraph(List.of(edge1, edge2), List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("GET /orders", EntryPointType.HTTP, "GET", "/orders",
-            "SomeController", "get", "/src/SomeController.java",
-            0.5, false, List.of(), null, null);
+        var entryPoint = new HttpEntryPoint("GET /orders", "SomeController", "get", "/src/SomeController.java",
+            0.5, false, "GET", "/orders", List.of(), List.of());
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -148,9 +143,8 @@ class TraceFlowActionTest {
         var edge1 = CallGraphEdge.resolved("SomeController", "get", "/src/SomeController.java", "OrderService", "find", "/src/OrderService.java", 1);
         var edge2 = CallGraphEdge.resolved("OrderService", "find", "/src/OrderService.java", "OrderRepo", "findById", "/src/OrderRepo.java", 1);
         var graph = new StructuralGraph(List.of(edge1, edge2), List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("GET /orders", EntryPointType.HTTP, "GET", "/orders",
-            "SomeController", "get", "/src/SomeController.java",
-            0.5, false, List.of(), null, null);
+        var entryPoint = new HttpEntryPoint("GET /orders", "SomeController", "get", "/src/SomeController.java",
+            0.5, false, "GET", "/orders", List.of(), List.of());
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -163,9 +157,8 @@ class TraceFlowActionTest {
     void downstreamDefaultClassifiedAsSERVICE() {
         var edge1 = CallGraphEdge.resolved("OrderController", "get", "/src/OrderController.java", "Helper", "help", "/src/Helper.java", 1);
         var graph = new StructuralGraph(List.of(edge1), List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("GET /orders", EntryPointType.HTTP, "GET", "/orders",
-            "OrderController", "get", "/src/OrderController.java",
-            0.5, false, List.of(), null, null);
+        var entryPoint = new HttpEntryPoint("GET /orders", "OrderController", "get", "/src/OrderController.java",
+            0.5, false, "GET", "/orders", List.of(), List.of());
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -185,9 +178,8 @@ class TraceFlowActionTest {
         var edges = List.of(
             CallGraphEdge.resolved("OrderController", "get", "/src/OrderController.java", "OrderService", "find", "/src/OrderService.java", 1));
         var graph = new StructuralGraph(edges, List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("GET /orders", EntryPointType.HTTP, "GET", "/orders",
-            "OrderController", "get", "/src/OrderController.java",
-            0.5, false, List.of(), null, null);
+        var entryPoint = new HttpEntryPoint("GET /orders", "OrderController", "get", "/src/OrderController.java",
+            0.5, false, "GET", "/orders", List.of(), List.of());
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -205,9 +197,8 @@ class TraceFlowActionTest {
         var dbAccess = List.of(
             new DbAccessInfo("JPA", "SELECT * FROM orders", "orders", null, "find", "OrderService", "/src/OrderService.java", "Order", false));
         var graph = new StructuralGraph(edges, List.of(), dbAccess, List.of());
-        var entryPoint = new EntryPoint("GET /orders", EntryPointType.HTTP, "GET", "/orders",
-            "OrderController", "get", "/src/OrderController.java",
-            0.5, false, List.of(), null, null);
+        var entryPoint = new HttpEntryPoint("GET /orders", "OrderController", "get", "/src/OrderController.java",
+            0.5, false, "GET", "/orders", List.of(), List.of());
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -221,9 +212,8 @@ class TraceFlowActionTest {
         var graph = new StructuralGraph(edges, List.of(), List.of(), List.of());
         var floatingLinks = List.of(
             new FloatingLinkInfo("POST", "/api/payment", false, "RestTemplate", "/src/OrderService.java", "process", null, 0.9, "PENDING"));
-        var entryPoint = new EntryPoint("GET /orders", EntryPointType.HTTP, "GET", "/orders",
-            "OrderController", "get", "/src/OrderController.java",
-            0.5, false, List.of(), null, null);
+        var entryPoint = new HttpEntryPoint("GET /orders", "OrderController", "get", "/src/OrderController.java",
+            0.5, false, "GET", "/orders", List.of(), List.of());
 
         var result = action(graph, new LinkRegistry(floatingLinks, List.of()))
             .traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
@@ -241,8 +231,8 @@ class TraceFlowActionTest {
             CallGraphEdge.resolved("E4", "m", "/src/E4.java", "E5", "m", "/src/E5.java", 0),
             CallGraphEdge.resolved("E5", "m", "/src/E5.java", "E6", "m", "/src/E6.java", 0));
         var graph = new StructuralGraph(edges, List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("ep", EntryPointType.HTTP, "GET", "/test",
-            "E0", "m", "/src/E0.java", 0.5, false, List.of(), null, null);
+        var entryPoint = new HttpEntryPoint("ep", "E0", "m", "/src/E0.java",
+            0.5, false, "GET", "/test", List.of(), List.of());
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
@@ -254,9 +244,8 @@ class TraceFlowActionTest {
         var edges = List.of(
             CallGraphEdge.unresolved("OrderController", "get", "/src/OrderController.java", "ExternalService", "call", 0));
         var graph = new StructuralGraph(edges, List.of(), List.of(), List.of());
-        var entryPoint = new EntryPoint("GET /orders", EntryPointType.HTTP, "GET", "/orders",
-            "OrderController", "get", "/src/OrderController.java",
-            0.5, false, List.of(), null, null);
+        var entryPoint = new HttpEntryPoint("GET /orders", "OrderController", "get", "/src/OrderController.java",
+            0.5, false, "GET", "/orders", List.of(), List.of());
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 

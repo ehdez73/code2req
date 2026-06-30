@@ -16,7 +16,7 @@ class KafkaTopicLinkResolverTest {
     @Test
     void publisherAndListenerShareSameTopic() {
         var producer = new KafkaPublisherInfo("order-events", "sendOrder", "OrderService", "/app/OrderService.java");
-        var consumer = new KafkaInfo("order-events", "handleOrder", "OrderHandler", "/app/OrderHandler.java", false);
+        var consumer = new KafkaInfo("order-events", "handleOrder", "OrderHandler", "/app/OrderHandler.java", false, "");
         var results = List.of(
             new AnalysisResult("/app/OrderService.java", List.of(producer)),
             new AnalysisResult("/app/OrderHandler.java", List.of(consumer))
@@ -35,7 +35,7 @@ class KafkaTopicLinkResolverTest {
     @Test
     void topicPatternIsSkippedForMatching() {
         var producer = new KafkaPublisherInfo("order-events", "sendOrder", "OrderService", "/app/OrderService.java");
-        var patternConsumer = new KafkaInfo("order.*", "handleAny", "PatternHandler", "/app/PatternHandler.java", true);
+        var patternConsumer = new KafkaInfo("order.*", "handleAny", "PatternHandler", "/app/PatternHandler.java", true, "");
         var results = List.of(
             new AnalysisResult("/app/OrderService.java", List.of(producer)),
             new AnalysisResult("/app/PatternHandler.java", List.of(patternConsumer))
@@ -51,7 +51,7 @@ class KafkaTopicLinkResolverTest {
 
     @Test
     void orphanConsumerWithoutMatchingProducer() {
-        var consumer = new KafkaInfo("standalone-topic", "listenStandalone", "StandaloneListener", "/app/StandaloneListener.java", false);
+        var consumer = new KafkaInfo("standalone-topic", "listenStandalone", "StandaloneListener", "/app/StandaloneListener.java", false, "");
         var results = List.of(
             new AnalysisResult("/app/StandaloneListener.java", List.of(consumer))
         );
@@ -69,7 +69,7 @@ class KafkaTopicLinkResolverTest {
     void multipleTopicsOnListener() {
         var producer1 = new KafkaPublisherInfo("topic-a", "sendA", "PublisherA", "/app/PublisherA.java");
         var producer2 = new KafkaPublisherInfo("topic-b", "sendB", "PublisherB", "/app/PublisherB.java");
-        var consumer = new KafkaInfo("topic-a, topic-b", "handleBoth", "MultiTopicListener", "/app/MultiTopicListener.java", false);
+        var consumer = new KafkaInfo("topic-a, topic-b", "handleBoth", "MultiTopicListener", "/app/MultiTopicListener.java", false, "");
         var results = List.of(
             new AnalysisResult("/app/PublisherA.java", List.of(producer1)),
             new AnalysisResult("/app/PublisherB.java", List.of(producer2)),
@@ -87,7 +87,7 @@ class KafkaTopicLinkResolverTest {
     @Test
     void listenerOnMultipleQueuesEachProducerCreatesLink() {
         var producer = new KafkaPublisherInfo("topic-a", "sendA", "Publisher", "/app/Publisher.java");
-        var consumer = new KafkaInfo("topic-a, topic-b", "handleBoth", "MultiTopicListener", "/app/MultiTopicListener.java", false);
+        var consumer = new KafkaInfo("topic-a, topic-b", "handleBoth", "MultiTopicListener", "/app/MultiTopicListener.java", false, "");
         var results = List.of(
             new AnalysisResult("/app/Publisher.java", List.of(producer)),
             new AnalysisResult("/app/MultiTopicListener.java", List.of(consumer))

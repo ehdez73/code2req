@@ -67,11 +67,13 @@ public class RabbitMqVisitor implements AstAnalysisVisitor {
             for (AnnotationExpr ann : n.getAnnotations()) {
                 if ("RabbitListener".equals(ann.getNameAsString())) {
                     String queues = extractQueues(ann);
+                    String payloadType = n.getParameters().isEmpty() ? "" : n.getParameter(0).getTypeAsString();
                     collector.listeners.add(new RabbitMqInfo(
                         queues,
                         n.getNameAsString(),
                         className,
-                        filePath
+                        filePath,
+                        payloadType
                     ));
                 }
             }

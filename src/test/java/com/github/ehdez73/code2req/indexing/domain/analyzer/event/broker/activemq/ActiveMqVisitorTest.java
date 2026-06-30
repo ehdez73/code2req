@@ -28,7 +28,7 @@ class ActiveMqVisitorTest {
             @Component
             public class OrderConsumer {
                 @JmsListener(destination = "order.queue")
-                public void onOrderEvent(String message) {}
+                public void onOrderEvent(InventoryUpdated message) {}
             }
             """);
 
@@ -38,6 +38,7 @@ class ActiveMqVisitorTest {
         assertEquals("onOrderEvent", ai.methodName());
         assertEquals("OrderConsumer", ai.className());
         assertEquals("OrderConsumer.java", ai.filePath());
+        assertEquals("InventoryUpdated", ai.payloadType());
     }
 
     @Test
@@ -57,6 +58,8 @@ class ActiveMqVisitorTest {
         assertEquals(2, result.findings(ActiveMqInfo.class).size());
         assertEquals("onOrderEvent", result.findings(ActiveMqInfo.class).get(0).methodName());
         assertEquals("onNotification", result.findings(ActiveMqInfo.class).get(1).methodName());
+        assertEquals("String", result.findings(ActiveMqInfo.class).get(0).payloadType());
+        assertEquals("String", result.findings(ActiveMqInfo.class).get(1).payloadType());
     }
 
     @Test
@@ -114,6 +117,8 @@ class ActiveMqVisitorTest {
         assertEquals(2, result.findings(ActiveMqInfo.class).size());
         assertEquals("handleOrders", result.findings(ActiveMqInfo.class).get(0).methodName());
         assertEquals("handlePayments", result.findings(ActiveMqInfo.class).get(1).methodName());
+        assertEquals("String", result.findings(ActiveMqInfo.class).get(0).payloadType());
+        assertEquals("String", result.findings(ActiveMqInfo.class).get(1).payloadType());
     }
 
     @Test
@@ -130,6 +135,7 @@ class ActiveMqVisitorTest {
 
         assertEquals(1, result.findings(ActiveMqInfo.class).size());
         assertEquals("", result.findings(ActiveMqInfo.class).getFirst().destination());
+        assertEquals("String", result.findings(ActiveMqInfo.class).getFirst().payloadType());
     }
 
     @Test

@@ -16,7 +16,7 @@ class RabbitMqTopicLinkResolverTest {
     @Test
     void publisherAndListenerShareSameQueue() {
         var producer = new RabbitMqPublisherInfo("order.exchange", "order.queue", "sendOrder", "OrderService", "/app/OrderService.java");
-        var consumer = new RabbitMqInfo("order.queue", "handleOrder", "OrderMqListener", "/app/OrderMqListener.java");
+        var consumer = new RabbitMqInfo("order.queue", "handleOrder", "OrderMqListener", "/app/OrderMqListener.java", "");
         var results = List.of(
             new AnalysisResult("/app/OrderService.java", List.of(producer)),
             new AnalysisResult("/app/OrderMqListener.java", List.of(consumer))
@@ -51,7 +51,7 @@ class RabbitMqTopicLinkResolverTest {
     @Test
     void crossTargetMatching() {
         var producer = new RabbitMqPublisherInfo("order.exchange", "order.queue", "sendOrder", "OrderService", "/target-a/src/OrderService.java");
-        var consumer = new RabbitMqInfo("order.queue", "handleOrder", "OrderMqListener", "/target-b/src/OrderMqListener.java");
+        var consumer = new RabbitMqInfo("order.queue", "handleOrder", "OrderMqListener", "/target-b/src/OrderMqListener.java", "");
         var results = List.of(
             new AnalysisResult("/target-a/src/OrderService.java", List.of(producer)),
             new AnalysisResult("/target-b/src/OrderMqListener.java", List.of(consumer))
@@ -68,7 +68,7 @@ class RabbitMqTopicLinkResolverTest {
 
     @Test
     void orphanConsumerWithoutMatchingProducer() {
-        var consumer = new RabbitMqInfo("standalone.queue", "handleStandalone", "StandaloneListener", "/app/StandaloneListener.java");
+        var consumer = new RabbitMqInfo("standalone.queue", "handleStandalone", "StandaloneListener", "/app/StandaloneListener.java", "");
         var results = List.of(
             new AnalysisResult("/app/StandaloneListener.java", List.of(consumer))
         );

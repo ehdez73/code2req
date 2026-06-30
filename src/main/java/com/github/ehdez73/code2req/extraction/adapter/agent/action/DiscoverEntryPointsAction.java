@@ -5,8 +5,14 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphE
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.MethodIdentifier;
 import com.github.ehdez73.code2req.extraction.domain.model.StructuralGraph;
+import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.EventListenerEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.OrphanedMethod;
+import com.github.ehdez73.code2req.extraction.domain.model.RabbitMqEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,16 +67,42 @@ public class DiscoverEntryPointsAction {
         double score = knowledge.structuralGraph().getEntryPointPriority(
             ep, knowledge.semanticEnrichment(), knowledge.getAllTestFilePaths());
 
-        boolean trivial = (ep.path() != null && TRIVIAL_PATHS.contains(ep.path()))
+        boolean trivial = (ep instanceof HttpEntryPoint h && TRIVIAL_PATHS.contains(h.path()))
             || (ep.className() != null && ep.className().contains("Health"))
             || (ep.className() != null && ep.className().contains("Metrics"))
             || (ep.className() != null && ep.className().contains("Info"));
 
-        return new EntryPoint(
-            ep.id(), ep.type(), ep.httpMethod(), ep.path(),
-            ep.className(), ep.methodName(), ep.filePath(),
-            score, trivial, ep.pathVariables(), ep.schedule(), ep.topicOrQueue()
-        );
+        return switch (ep) {
+            case HttpEntryPoint h -> new HttpEntryPoint(
+                h.id(), h.className(), h.methodName(), h.filePath(),
+                score, trivial,
+                h.httpMethod(), h.path(), h.pathVariables(), h.requestBodies()
+            );
+            case ScheduledEntryPoint s -> new ScheduledEntryPoint(
+                s.id(), s.className(), s.methodName(), s.filePath(),
+                score, trivial, s.schedule()
+            );
+            case KafkaEntryPoint k -> new KafkaEntryPoint(
+                k.id(), k.className(), k.methodName(), k.filePath(),
+                score, trivial,
+                k.topics(), k.isPattern(), k.payloadType()
+            );
+            case RabbitMqEntryPoint r -> new RabbitMqEntryPoint(
+                r.id(), r.className(), r.methodName(), r.filePath(),
+                score, trivial,
+                r.queues(), r.payloadType()
+            );
+            case ActiveMqEntryPoint a -> new ActiveMqEntryPoint(
+                a.id(), a.className(), a.methodName(), a.filePath(),
+                score, trivial,
+                a.destination(), a.payloadType()
+            );
+            case EventListenerEntryPoint e -> new EventListenerEntryPoint(
+                e.id(), e.className(), e.methodName(), e.filePath(),
+                score, trivial,
+                e.payloadType()
+            );
+        };
     }
 
     private List<OrphanedMethod> detectOrphanedMethods(List<EntryPoint> entryPoints) {

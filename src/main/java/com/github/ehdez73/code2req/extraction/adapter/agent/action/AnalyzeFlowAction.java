@@ -6,7 +6,14 @@ import com.github.ehdez73.code2req.extraction.adapter.agent.model.AnalyzedFlowRe
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.BusinessRule;
+import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.ComplexityLevel;
+import com.github.ehdez73.code2req.extraction.domain.model.EventListenerEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.RabbitMqEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.EdgeCase;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
@@ -54,9 +61,26 @@ public class AnalyzeFlowAction {
     private FunctionalFlow analyzeFlow(ExecutionFlow flow, OperationContext context) {
         ComplexityLevel complexity = assessComplexity(flow);
 
+        EntryPoint ep = flow.entryPoint();
         Optional<ExecutionFinding> enrichment = knowledge.semanticEnrichment()
-            .findByFilePath(flow.entryPoint().filePath());
+            .findByFilePath(ep.filePath());
 
+        String entryMethodOrType = switch (ep) {
+            case HttpEntryPoint h -> h.httpMethod();
+            default -> ep.type().name();
+        };
+        String entryPathOrClass = switch (ep) {
+            case HttpEntryPoint h -> h.path();
+            default -> ep.className();
+        };
+        String payloadType = switch (ep) {
+            case KafkaEntryPoint k -> !k.payloadType().isEmpty() ? k.payloadType() : k.topics();
+            case RabbitMqEntryPoint r -> !r.payloadType().isEmpty() ? r.payloadType() : r.queues();
+            case ActiveMqEntryPoint a -> !a.payloadType().isEmpty() ? a.payloadType() : a.destination();
+            case EventListenerEntryPoint e -> e.payloadType();
+            case HttpEntryPoint h -> !h.requestBodies().isEmpty() ? h.requestBodies().get(0) : "\u2014";
+            case ScheduledEntryPoint s -> "\u2014";
+        };
         String enrichmentContext = enrichment
             .map(ef -> formatEnrichmentContext(ef))
             .orElse("No Phase 2 enrichment available.");
@@ -96,6 +120,7 @@ public class AnalyzeFlowAction {
             Analyze this execution flow and extract functional requirements.
 
             Entry Point: %s %s (%s)
+            Payload Type: %s
             Complexity: %s
             Traced Steps:
             %s
@@ -123,9 +148,10 @@ public class AnalyzeFlowAction {
               "edgeCases": [{"scenario": "...", "businessConsequence": "..."}]
             }
             """.formatted(
-            flow.entryPoint().httpMethod() != null ? flow.entryPoint().httpMethod() : flow.entryPoint().type(),
-            flow.entryPoint().path() != null ? flow.entryPoint().path() : flow.entryPoint().className(),
+            entryMethodOrType,
+            entryPathOrClass,
             flow.entryPoint().filePath(),
+            payloadType,
             complexity,
             stepsContext,
             enrichmentContext,
@@ -175,11 +201,17 @@ public class AnalyzeFlowAction {
             ? generateMermaid(flow)
             : null;
 
+        String flowName = switch (flow.entryPoint()) {
+            case HttpEntryPoint h -> h.httpMethod() + " " + h.path();
+            case ScheduledEntryPoint s -> s.className() + "." + s.methodName();
+            case KafkaEntryPoint k -> k.className() + "." + k.methodName();
+            case RabbitMqEntryPoint r -> r.className() + "." + r.methodName();
+            case ActiveMqEntryPoint a -> a.className() + "." + a.methodName();
+            case EventListenerEntryPoint e -> e.className() + "." + e.methodName();
+        };
         return new FunctionalFlow(
             flow.flowId(),
-            flow.entryPoint().path() != null
-                ? flow.entryPoint().httpMethod() + " " + flow.entryPoint().path()
-                : flow.entryPoint().className() + "." + flow.entryPoint().methodName(),
+            flowName,
             flow.entryPoint(),
             flow.steps(),
             response.userStory(),

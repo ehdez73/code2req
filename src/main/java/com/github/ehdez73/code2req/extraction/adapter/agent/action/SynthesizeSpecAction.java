@@ -3,9 +3,14 @@ package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 import com.embabel.agent.api.common.OperationContext;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.CrossReferencedResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.SpecResult;
+import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
-import com.github.ehdez73.code2req.extraction.domain.model.EntryPointType;
+import com.github.ehdez73.code2req.extraction.domain.model.EventListenerEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.RabbitMqEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFeature;
@@ -217,30 +222,37 @@ public class SynthesizeSpecAction {
                       || s.componentType() == FlowStepComponentType.EVENT_PUBLISHER)
             .collect(java.util.stream.Collectors.toList());
 
-        EntryPointType epType = flow.entryPoint().type();
-        boolean hasMessagingEntryPoint = epType == EntryPointType.KAFKA
-            || epType == EntryPointType.RABBITMQ
-            || epType == EntryPointType.ACTIVEMQ
-            || epType == EntryPointType.EVENT_LISTENER;
+        EntryPoint entryPoint = flow.entryPoint();
+        boolean hasMessagingEntryPoint = entryPoint instanceof KafkaEntryPoint
+            || entryPoint instanceof RabbitMqEntryPoint
+            || entryPoint instanceof ActiveMqEntryPoint
+            || entryPoint instanceof EventListenerEntryPoint;
 
         if (eventSteps.isEmpty() && !hasMessagingEntryPoint) return;
+
+        String brokerType = switch (entryPoint) {
+            case ScheduledEntryPoint s -> "@Scheduled";
+            case EventListenerEntryPoint e -> "@EventListener";
+            case KafkaEntryPoint k -> "Kafka";
+            case RabbitMqEntryPoint r -> "RabbitMQ";
+            case ActiveMqEntryPoint a -> "ActiveMQ";
+            case HttpEntryPoint h -> "ApplicationEventPublisher";
+        };
 
         sb.append("#### Event/Message Details\n\n");
         sb.append("| Component Type | Broker / Mechanism | Topic / Queue | Schedule | Event Type | Source File |\n");
         sb.append("|---|---|---|---|---|---|\n");
 
         for (FlowStep step : eventSteps) {
-            String broker = brokerLabel(flow.entryPoint());
             String topic = step.componentType() == FlowStepComponentType.EVENT_PUBLISHER
-                ? (flow.entryPoint().topicOrQueue() != null ? flow.entryPoint().topicOrQueue() : "\u2014")
+                ? entryPointTopicOrQueue(entryPoint)
                 : "\u2014";
             String schedule = step.componentType() == FlowStepComponentType.SCHEDULED_TASK
-                ? (flow.entryPoint().schedule() != null ? flow.entryPoint().schedule() : "\u2014")
+                ? entryPointSchedule(entryPoint)
                 : "\u2014";
-            String eventType = epType == EntryPointType.EVENT_LISTENER && flow.entryPoint().id() != null
-                ? flow.entryPoint().id() : "\u2014";
+            String eventType = entryPointPayloadType(entryPoint);
             sb.append("| ").append(step.componentType())
-              .append(" | ").append(broker)
+              .append(" | ").append(brokerType)
               .append(" | ").append(topic)
               .append(" | ").append(schedule)
               .append(" | ").append(eventType)
@@ -249,13 +261,11 @@ public class SynthesizeSpecAction {
         }
 
         if (hasMessagingEntryPoint && eventSteps.stream().noneMatch(s -> s.componentType() == FlowStepComponentType.EVENT_PUBLISHER)) {
-            String broker = brokerLabel(flow.entryPoint());
-            String topic = flow.entryPoint().topicOrQueue() != null ? flow.entryPoint().topicOrQueue() : "\u2014";
+            String topic = entryPointTopicOrQueue(entryPoint);
             String sourceFile = !flow.steps().isEmpty() ? flow.steps().getFirst().sourceFile() : "";
-            String eventType = epType == EntryPointType.EVENT_LISTENER && flow.entryPoint().id() != null
-                ? flow.entryPoint().id() : "\u2014";
+            String eventType = entryPointPayloadType(entryPoint);
             sb.append("| SERVICE")
-              .append(" | ").append(broker)
+              .append(" | ").append(brokerType)
               .append(" | ").append(topic)
               .append(" | \u2014")
               .append(" | ").append(eventType)
@@ -264,6 +274,34 @@ public class SynthesizeSpecAction {
         }
 
         sb.append("\n");
+    }
+
+    private static String entryPointTopicOrQueue(EntryPoint entryPoint) {
+        return switch (entryPoint) {
+            case KafkaEntryPoint k -> k.topics();
+            case RabbitMqEntryPoint r -> r.queues();
+            case ActiveMqEntryPoint a -> a.destination();
+            default -> null;
+        };
+    }
+
+    private static String entryPointSchedule(EntryPoint entryPoint) {
+        return switch (entryPoint) {
+            case ScheduledEntryPoint s -> s.schedule();
+            default -> null;
+        };
+    }
+
+    private static String entryPointPayloadType(EntryPoint entryPoint) {
+        String type = switch (entryPoint) {
+            case KafkaEntryPoint k -> k.payloadType();
+            case RabbitMqEntryPoint r -> r.payloadType();
+            case ActiveMqEntryPoint a -> a.payloadType();
+            case EventListenerEntryPoint e -> e.payloadType();
+            case HttpEntryPoint h -> !h.requestBodies().isEmpty() ? h.requestBodies().get(0) : null;
+            default -> null;
+        };
+        return type != null && !type.isEmpty() ? type : "\u2014";
     }
 
     private void appendFlowStepsTable(StringBuilder sb, FunctionalFlow flow) {
@@ -415,7 +453,11 @@ public class SynthesizeSpecAction {
             FunctionalFlow flow = feature.flows().get(j);
             sb.append("        {\n");
             sb.append("          \"flow_id\": \"").append(flow.flowId()).append("\",\n");
-            sb.append("          \"entry_point\": \"").append(escapeJson(flow.entryPoint().path() != null ? flow.entryPoint().path() : flow.entryPoint().className())).append("\",\n");
+            String epPathOrClass = switch (flow.entryPoint()) {
+                case HttpEntryPoint h -> h.path();
+                default -> flow.entryPoint().className();
+            };
+            sb.append("          \"entry_point\": \"").append(escapeJson(epPathOrClass)).append("\",\n");
             sb.append("          \"user_story\": \"").append(escapeJson(flow.userStory())).append("\",\n");
             sb.append("          \"complexity\": \"").append(flow.complexity()).append("\",\n");
 
@@ -523,13 +565,13 @@ public class SynthesizeSpecAction {
     }
 
     private String brokerLabel(EntryPoint entryPoint) {
-        return switch (entryPoint.type()) {
-            case SCHEDULED -> "@Scheduled";
-            case EVENT_LISTENER -> "@EventListener";
-            case KAFKA -> "Kafka";
-            case RABBITMQ -> "RabbitMQ";
-            case ACTIVEMQ -> "ActiveMQ";
-            case HTTP -> "ApplicationEventPublisher";
+        return switch (entryPoint) {
+            case ScheduledEntryPoint s -> "@Scheduled";
+            case EventListenerEntryPoint e -> "@EventListener";
+            case KafkaEntryPoint k -> "Kafka";
+            case RabbitMqEntryPoint r -> "RabbitMQ";
+            case ActiveMqEntryPoint a -> "ActiveMQ";
+            case HttpEntryPoint h -> "ApplicationEventPublisher";
         };
     }
 }

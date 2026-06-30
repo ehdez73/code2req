@@ -67,12 +67,14 @@ public class KafkaVisitor implements AstAnalysisVisitor {
             for (AnnotationExpr ann : n.getAnnotations()) {
                 if ("KafkaListener".equals(ann.getNameAsString())) {
                     ParsedKafkaTopics parsed = extractTopics(ann);
+                    String payloadType = n.getParameters().isEmpty() ? "" : n.getParameter(0).getTypeAsString();
                     collector.listeners.add(new KafkaInfo(
                         parsed.topics(),
                         n.getNameAsString(),
                         className,
                         filePath,
-                        parsed.isPattern()
+                        parsed.isPattern(),
+                        payloadType
                     ));
                 }
             }

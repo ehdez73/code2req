@@ -28,7 +28,7 @@ class KafkaVisitorTest {
             @Component
             public class OrderConsumer {
                 @KafkaListener(topics = "order-events")
-                public void onOrderEvent(String message) {}
+                public void onOrderEvent(OrderCreated message) {}
             }
             """);
 
@@ -39,6 +39,7 @@ class KafkaVisitorTest {
         assertEquals("OrderConsumer", ki.className());
         assertEquals("OrderConsumer.java", ki.filePath());
         assertFalse(ki.isPattern());
+        assertEquals("OrderCreated", ki.payloadType());
     }
 
     @Test
@@ -59,6 +60,7 @@ class KafkaVisitorTest {
         assertTrue(ki.topics().contains("inventory-events"));
         assertEquals("onEvent", ki.methodName());
         assertFalse(ki.isPattern());
+        assertEquals("String", ki.payloadType());
     }
 
     @Test
@@ -78,6 +80,7 @@ class KafkaVisitorTest {
         assertEquals("orders-.*", ki.topics());
         assertTrue(ki.isPattern());
         assertEquals("PatternConsumer", ki.className());
+        assertEquals("String", ki.payloadType());
     }
 
     @Test
@@ -135,6 +138,8 @@ class KafkaVisitorTest {
         assertEquals(2, result.findings(KafkaInfo.class).size());
         assertEquals("handleOrders", result.findings(KafkaInfo.class).get(0).methodName());
         assertEquals("handlePayments", result.findings(KafkaInfo.class).get(1).methodName());
+        assertEquals("String", result.findings(KafkaInfo.class).get(0).payloadType());
+        assertEquals("String", result.findings(KafkaInfo.class).get(1).payloadType());
     }
 
     @Test
@@ -151,6 +156,7 @@ class KafkaVisitorTest {
 
         assertEquals(1, result.findings(KafkaInfo.class).size());
         assertEquals("", result.findings(KafkaInfo.class).getFirst().topics());
+        assertEquals("String", result.findings(KafkaInfo.class).getFirst().payloadType());
     }
 
     @Test
