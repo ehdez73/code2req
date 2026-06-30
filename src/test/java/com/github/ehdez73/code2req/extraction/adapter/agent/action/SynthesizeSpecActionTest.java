@@ -262,6 +262,26 @@ class SynthesizeSpecActionTest {
     }
 
     @Test
+    void generateMarkdownIncludesEventListenerEventType() throws IOException {
+        var eventListenerEp = new EntryPoint("OrderPlacedEvent", EntryPointType.EVENT_LISTENER, null, null,
+            "OrderEventListener", "handleOrderPlaced", "/src/OrderEventListener.java",
+            0.0, false, List.of(), null, null);
+        var serviceStep = new FlowStep(0, FlowStepComponentType.SERVICE,
+            "OrderService", "processOrder", null, "/src/OrderService.java", 0, 0, List.of());
+        var flow = new FunctionalFlow("flow-1", "Order Event Flow", eventListenerEp, List.of(serviceStep),
+            null, List.of(), List.of(), List.of(),
+            ComplexityLevel.MINIMAL, null);
+        var feature = new FunctionalFeature("feature-1", "Order Event Feature", "Listens for order events", List.of(flow), List.of());
+        var result = new CrossReferencedResult(List.of(feature), List.of());
+
+        var specResult = action.synthesize(result, List.of(), List.of(), null);
+        var content = Files.readString(specResult.markdownPath());
+
+        assertTrue(content.contains("Event/Message Details"));
+        assertTrue(content.contains("OrderPlacedEvent"));
+    }
+
+    @Test
     void generateManifestValidJson() throws IOException {
         var flow = new FunctionalFlow("flow-1", "Test Flow", entryPoint, List.of(step1, step2),
             null, List.of(), List.of(), List.of(),
