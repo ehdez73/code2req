@@ -13,6 +13,8 @@ import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -24,6 +26,8 @@ import java.util.Set;
 
 @Component
 public class CallGraphVisitor implements AstAnalysisVisitor {
+
+    private static final Logger log = LoggerFactory.getLogger(CallGraphVisitor.class);
 
     private static final Set<String> JDK_PREFIXES = Set.of(
         "java.", "javax.", "jakarta.", "org.springframework.", "org.slf4j.",
@@ -44,7 +48,10 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         List<CallGraphEdge> edges = new ArrayList<>();
         cu.accept(new CallGraphAstAdapter(context.filePath(), context.declarationRegistry()), edges);
-        edges.forEach(builder::addFinding);
+        if (!edges.isEmpty()) {
+            log.info("  CallGraphVisitor: found {} call graph edge(s) in {}", edges.size(), context.filePath());
+            edges.forEach(builder::addFinding);
+        }
     }
 
     static class CallGraphAstAdapter extends VoidVisitorAdapter<List<CallGraphEdge>> {

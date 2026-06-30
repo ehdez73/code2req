@@ -231,6 +231,7 @@ public class ExtractionOrchestrator {
     private SemanticEnrichment buildSemanticEnrichment() {
         List<Map<String, Object>> rows =
             executionFindingStore.findAllByType(FindingType.SEMANTIC_ENRICHMENT);
+        log.info("Phase 3: loading {} SEMANTIC_ENRICHMENT findings", rows.size());
         Map<String, ExecutionFinding> byPath = new HashMap<>();
         for (Map<String, Object> row : rows) {
             String json = (String) row.get("finding_json");
@@ -255,6 +256,7 @@ public class ExtractionOrchestrator {
 
     private <T> List<T> deserializeFindings(List<Map<String, Object>> rows, Class<T> type) {
         List<T> result = new ArrayList<>();
+        log.info("Phase 3: loading {} {} findings", rows.size(), type.getSimpleName());
         for (Map<String, Object> row : rows) {
             String json = (String) row.get("finding_json");
             if (json == null) continue;

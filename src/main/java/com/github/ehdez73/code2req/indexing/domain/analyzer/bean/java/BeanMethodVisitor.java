@@ -15,6 +15,8 @@ import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -25,6 +27,8 @@ import java.util.Set;
 @Component
 public class BeanMethodVisitor implements AstAnalysisVisitor {
 
+    private static final Logger log = LoggerFactory.getLogger(BeanMethodVisitor.class);
+
     private static final Set<String> CONFIG_ANNOTATIONS = Set.of(
         "Configuration", "SpringBootApplication"
     );
@@ -33,7 +37,10 @@ public class BeanMethodVisitor implements AstAnalysisVisitor {
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         List<BeanMethodInfo> beans = new ArrayList<>();
         cu.accept(new BeanMethodAstAdapter(context.filePath()), beans);
-        beans.forEach(builder::addFinding);
+        if (!beans.isEmpty()) {
+            log.info("  BeanMethodVisitor: found {} @Bean method(s) in {}", beans.size(), context.filePath());
+            beans.forEach(builder::addFinding);
+        }
     }
 
     static class BeanMethodAstAdapter extends VoidVisitorAdapter<List<BeanMethodInfo>> {

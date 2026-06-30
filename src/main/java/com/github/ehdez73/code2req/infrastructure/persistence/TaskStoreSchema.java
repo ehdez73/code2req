@@ -66,6 +66,8 @@ public class TaskStoreSchema {
                 url_or_path TEXT NOT NULL,
                 is_expression INTEGER NOT NULL DEFAULT 0,
                 source_task_id TEXT NOT NULL REFERENCES tasks(task_id),
+                client_type TEXT NOT NULL DEFAULT 'UNKNOWN',
+                source_method TEXT,
                 target_endpoint TEXT,
                 confidence REAL,
                 resolved_status TEXT NOT NULL DEFAULT 'PENDING',
@@ -93,11 +95,21 @@ public class TaskStoreSchema {
     }
 
     private void migrateSchema() {
-        List<String> columns = jdbc.queryForList(
+        List<String> tasksColumns = jdbc.queryForList(
             "SELECT name FROM pragma_table_info('tasks')", String.class);
-        if (!columns.contains("paired_test_path")) {
+        if (!tasksColumns.contains("paired_test_path")) {
             jdbc.execute("ALTER TABLE tasks ADD COLUMN paired_test_path TEXT");
             log.info("Migration: added paired_test_path column to tasks table");
+        }
+        List<String> floatingColumns = jdbc.queryForList(
+            "SELECT name FROM pragma_table_info('floating_links')", String.class);
+        if (!floatingColumns.contains("client_type")) {
+            jdbc.execute("ALTER TABLE floating_links ADD COLUMN client_type TEXT NOT NULL DEFAULT 'UNKNOWN'");
+            log.info("Migration: added client_type column to floating_links table");
+        }
+        if (!floatingColumns.contains("source_method")) {
+            jdbc.execute("ALTER TABLE floating_links ADD COLUMN source_method TEXT");
+            log.info("Migration: added source_method column to floating_links table");
         }
     }
 

@@ -7,6 +7,8 @@ import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -14,6 +16,8 @@ import java.util.List;
 
 @Component
 public class EndpointVisitor implements AstAnalysisVisitor {
+
+    private static final Logger log = LoggerFactory.getLogger(EndpointVisitor.class);
 
     private final List<EndpointDetector> detectors;
 
@@ -25,7 +29,10 @@ public class EndpointVisitor implements AstAnalysisVisitor {
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         List<EndpointInfo> endpoints = new ArrayList<>();
         cu.accept(new DelegatingAdapter(endpoints, context.filePath(), detectors), null);
-        endpoints.forEach(builder::addFinding);
+        if (!endpoints.isEmpty()) {
+            log.info("  EndpointVisitor: found {} endpoint(s) in {}", endpoints.size(), context.filePath());
+            endpoints.forEach(builder::addFinding);
+        }
     }
 
     private static class DelegatingAdapter extends VoidVisitorAdapter<Void> {

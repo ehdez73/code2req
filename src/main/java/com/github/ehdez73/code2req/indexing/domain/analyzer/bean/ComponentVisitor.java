@@ -7,6 +7,8 @@ import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -16,11 +18,16 @@ import java.util.Set;
 @Component
 public class ComponentVisitor implements AstAnalysisVisitor {
 
+    private static final Logger log = LoggerFactory.getLogger(ComponentVisitor.class);
+
     @Override
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         List<ComponentInfo> components = new ArrayList<>();
         cu.accept(new ComponentAstAdapter(context.filePath()), components);
-        components.forEach(builder::addFinding);
+        if (!components.isEmpty()) {
+            log.info("  ComponentVisitor: found {} component(s) in {}", components.size(), context.filePath());
+            components.forEach(builder::addFinding);
+        }
     }
 
     static class ComponentAstAdapter extends VoidVisitorAdapter<List<ComponentInfo>> {

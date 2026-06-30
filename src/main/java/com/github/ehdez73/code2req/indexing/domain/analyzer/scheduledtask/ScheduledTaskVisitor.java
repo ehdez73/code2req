@@ -13,6 +13,8 @@ import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -22,11 +24,16 @@ import java.util.Optional;
 @Component
 public class ScheduledTaskVisitor implements AstAnalysisVisitor {
 
+    private static final Logger log = LoggerFactory.getLogger(ScheduledTaskVisitor.class);
+
     @Override
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         List<ScheduledTaskInfo> tasks = new ArrayList<>();
         cu.accept(new ScheduledTaskAstAdapter(context.filePath()), tasks);
-        tasks.forEach(builder::addFinding);
+        if (!tasks.isEmpty()) {
+            log.info("  ScheduledTaskVisitor: found {} scheduled task(s) in {}", tasks.size(), context.filePath());
+            tasks.forEach(builder::addFinding);
+        }
     }
 
     static class ScheduledTaskAstAdapter extends VoidVisitorAdapter<List<ScheduledTaskInfo>> {

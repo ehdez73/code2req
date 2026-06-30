@@ -3,6 +3,8 @@ package com.github.ehdez73.code2req.indexing.domain.analyzer.db;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisContext;
@@ -16,6 +18,8 @@ import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 @Component
 public class DbAccessVisitor implements AstAnalysisVisitor {
 
+    private static final Logger log = LoggerFactory.getLogger(DbAccessVisitor.class);
+
     private final List<DbAccessDetector> detectors;
 
     public DbAccessVisitor(List<DbAccessDetector> detectors) {
@@ -26,7 +30,10 @@ public class DbAccessVisitor implements AstAnalysisVisitor {
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         List<DbAccessInfo> findings = new ArrayList<>();
         cu.accept(new DelegatingAdapter(findings, context.filePath(), detectors), null);
-        findings.forEach(builder::addFinding);
+        if (!findings.isEmpty()) {
+            log.info("  DbAccessVisitor: found {} DB access(es) in {}", findings.size(), context.filePath());
+            findings.forEach(builder::addFinding);
+        }
     }
 
     private static class DelegatingAdapter extends VoidVisitorAdapter<Void> {

@@ -15,6 +15,8 @@ import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -24,12 +26,20 @@ import java.util.stream.Collectors;
 @Component
 public class RabbitMqVisitor implements AstAnalysisVisitor {
 
+    private static final Logger log = LoggerFactory.getLogger(RabbitMqVisitor.class);
+
     @Override
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         RabbitMqCollector collector = new RabbitMqCollector();
         cu.accept(new RabbitMqAstAdapter(context.filePath()), collector);
-        collector.listeners.forEach(builder::addFinding);
-        collector.publishers.forEach(builder::addFinding);
+        if (!collector.listeners.isEmpty()) {
+            log.info("  RabbitMqVisitor: found {} listener(s) in {}", collector.listeners.size(), context.filePath());
+            collector.listeners.forEach(builder::addFinding);
+        }
+        if (!collector.publishers.isEmpty()) {
+            log.info("  RabbitMqVisitor: found {} publisher(s) in {}", collector.publishers.size(), context.filePath());
+            collector.publishers.forEach(builder::addFinding);
+        }
     }
 
     static class RabbitMqCollector {

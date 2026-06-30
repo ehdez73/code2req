@@ -16,6 +16,8 @@ import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -24,12 +26,20 @@ import java.util.List;
 @Component
 public class EventListenerVisitor implements AstAnalysisVisitor {
 
+    private static final Logger log = LoggerFactory.getLogger(EventListenerVisitor.class);
+
     @Override
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         EventListenerCollector collector = new EventListenerCollector();
         cu.accept(new EventListenerAstAdapter(context.filePath()), collector);
-        collector.listeners.forEach(builder::addFinding);
-        collector.publishers.forEach(builder::addFinding);
+        if (!collector.listeners.isEmpty()) {
+            log.info("  EventListenerVisitor: found {} listener(s) in {}", collector.listeners.size(), context.filePath());
+            collector.listeners.forEach(builder::addFinding);
+        }
+        if (!collector.publishers.isEmpty()) {
+            log.info("  EventListenerVisitor: found {} publisher(s) in {}", collector.publishers.size(), context.filePath());
+            collector.publishers.forEach(builder::addFinding);
+        }
     }
 
     static class EventListenerCollector {

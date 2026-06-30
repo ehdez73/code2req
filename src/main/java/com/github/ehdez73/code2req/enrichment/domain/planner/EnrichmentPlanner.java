@@ -49,6 +49,7 @@ public class EnrichmentPlanner {
         List<PlannerDecision> decisions = new ArrayList<>(tasks.size());
         int priorPending = 0;
         for (Task task : tasks) {
+            log.info("Planner: evaluating {} ({})", task.taskId(), task.filePath());
             if (task.status() == TaskStatus.ENRICH_PENDING) {
                 decisions.add(PlannerDecision.qualified(
                     task.taskId(), task.filePath(), task.targetName(), List.of()));

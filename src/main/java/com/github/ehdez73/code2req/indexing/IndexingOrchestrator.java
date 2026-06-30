@@ -138,6 +138,7 @@ public class IndexingOrchestrator {
         registry.freeze();
 
         for (Path file : allFiles) {
+            log.info("Pass 2: analyzing {}", file.toAbsolutePath().normalize());
             configureParserForFile(file, targets);
             String targetName = targetNameForFile(file, targets);
             var result = analyzeSingleFile(file, registry, targetName);
@@ -149,11 +150,13 @@ public class IndexingOrchestrator {
             }
         }
 
+        topicLinkStore.deleteAll();
         List<TopicLink> topicLinks = topicLinkResolver.resolve(allResults);
         topicLinkStore.saveAll(topicLinks);
         long topicResolved = topicLinks.stream().filter(l -> TopicLink.STATUS_RESOLVED.equals(l.resolvedStatus())).count();
         long topicPending = topicLinks.size() - topicResolved;
 
+        floatingLinkStore.deleteAll();
         List<FloatingLinkInfo> floatingLinks = floatingLinkResolver.resolve(allResults);
         floatingLinkStore.saveAll(floatingLinks);
         long floatResolved = floatingLinks.stream().filter(l -> FloatingLinkInfo.STATUS_RESOLVED.equals(l.resolvedStatus())).count();
@@ -222,6 +225,7 @@ public class IndexingOrchestrator {
         int failed = 0;
         for (Path file : files) {
             String fp = file.toAbsolutePath().normalize().toString();
+            log.info("Pass 1: collecting declarations from {}", fp);
             try {
                 String content = Files.readString(file, StandardCharsets.UTF_8);
                 String redacted = secretRedactor.redact(content);
@@ -256,6 +260,7 @@ public class IndexingOrchestrator {
 
         transactionTemplate.executeWithoutResult(status -> {
             taskStore.save(new Task(taskId, fp, TaskStatus.INDEXED, "java", contentHash, targetName));
+            executionFindingStore.deleteByTaskId(taskId);
             persistFindings(taskId, result);
             reclassifyFindings(taskId, result);
         });

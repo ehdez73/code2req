@@ -9,6 +9,8 @@ import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -17,6 +19,8 @@ import java.util.Set;
 
 @Component
 public class ValidatorVisitor implements AstAnalysisVisitor {
+
+    private static final Logger log = LoggerFactory.getLogger(ValidatorVisitor.class);
 
     private static final Set<String> BUILT_IN_ANNOTATIONS = Set.of(
         "NotNull", "NotEmpty", "NotBlank", "Size", "Min", "Max",
@@ -30,7 +34,10 @@ public class ValidatorVisitor implements AstAnalysisVisitor {
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         ValidatorCollector collector = new ValidatorCollector();
         cu.accept(new ValidatorAstAdapter(context.filePath()), collector);
-        collector.findings.forEach(builder::addFinding);
+        if (!collector.findings.isEmpty()) {
+            log.info("  ValidatorVisitor: found {} validator annotation(s) in {}", collector.findings.size(), context.filePath());
+            collector.findings.forEach(builder::addFinding);
+        }
     }
 
     static class ValidatorCollector {

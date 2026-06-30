@@ -7,6 +7,8 @@ import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -14,6 +16,8 @@ import java.util.List;
 
 @Component
 public class OutboundHttpVisitor implements AstAnalysisVisitor {
+
+    private static final Logger log = LoggerFactory.getLogger(OutboundHttpVisitor.class);
 
     private final List<HttpClientDetector> detectors;
 
@@ -25,7 +29,10 @@ public class OutboundHttpVisitor implements AstAnalysisVisitor {
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         List<OutboundHttpCallInfo> findings = new ArrayList<>();
         cu.accept(new DelegatingAdapter(findings, context.filePath(), detectors), null);
-        findings.forEach(builder::addFinding);
+        if (!findings.isEmpty()) {
+            log.info("  OutboundHttpVisitor: found {} outbound HTTP call(s) in {}", findings.size(), context.filePath());
+            findings.forEach(builder::addFinding);
+        }
     }
 
     private static class DelegatingAdapter extends VoidVisitorAdapter<Void> {
