@@ -4,6 +4,8 @@ import com.embabel.agent.api.common.OperationContext;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.CrossReferencedResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.SpecResult;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
+import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
+import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFeature;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowRelationship;
@@ -100,21 +102,96 @@ public class SynthesizeSpecAction {
                     sb.append("**User Story:** ").append(flow.userStory()).append("\n\n");
                 }
 
+                // Flow summary bar
+                long externalCount = flow.steps().stream()
+                    .filter(s -> s.componentType() == FlowStepComponentType.EXTERNAL_CALL).count();
+                long dbCount = flow.steps().stream()
+                    .filter(s -> s.componentType() == FlowStepComponentType.DATABASE).count();
+                long stepCount = flow.steps().size();
+                sb.append("**Flow Summary:** Complexity: ").append(flow.complexity())
+                    .append(" | Steps: ").append(stepCount)
+                    .append(" | External Calls: ").append(externalCount)
+                    .append(" | Database Operations: ").append(dbCount)
+                    .append("\n\n");
+
                 if (flow.mermaidDiagram() != null) {
                     sb.append("#### Execution Flow\n\n");
                     sb.append("```mermaid\n").append(flow.mermaidDiagram()).append("\n```\n\n");
                 }
 
+                // External Dependencies section
+                List<FlowStep> externalSteps = flow.steps().stream()
+                    .filter(s -> s.componentType() == FlowStepComponentType.EXTERNAL_CALL)
+                    .collect(java.util.stream.Collectors.toList());
+                if (!externalSteps.isEmpty()) {
+                    sb.append("#### External Dependencies\n\n");
+                    sb.append("| Method | URL / Path | Client Type | Source File |\n");
+                    sb.append("|---|---|---|---|\n");
+                    for (FlowStep step : externalSteps) {
+                        String method = "";
+                        String url = "";
+                        for (String e : step.enrichments()) {
+                            if (e.matches("^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\\s.*")) {
+                                String[] parts = e.split("\\s+", 2);
+                                method = parts[0];
+                                url = parts.length > 1 ? parts[1] : e;
+                            } else {
+                                url = e;
+                            }
+                        }
+                        sb.append("| ").append(method)
+                          .append(" | ").append(url)
+                          .append(" | External Service")
+                          .append(" | ").append(step.sourceFile() != null ? step.sourceFile() : "")
+                          .append(" |\n");
+                    }
+                    sb.append("\n");
+                }
+
+                // Database Operations section
+                List<FlowStep> dbSteps = flow.steps().stream()
+                    .filter(s -> s.componentType() == FlowStepComponentType.DATABASE)
+                    .collect(java.util.stream.Collectors.toList());
+                if (!dbSteps.isEmpty()) {
+                    sb.append("#### Database Operations\n\n");
+                    sb.append("| Class | Method | SQL / Details | Source File |\n");
+                    sb.append("|---|---|---|---|\n");
+                    for (FlowStep step : dbSteps) {
+                        String sql = !step.enrichments().isEmpty() ? step.enrichments().get(0) : "";
+                        sb.append("| ").append(step.className())
+                          .append(" | ").append(step.methodName())
+                          .append(" | ").append(sql)
+                          .append(" | ").append(step.sourceFile() != null ? step.sourceFile() : "")
+                          .append(" |\n");
+                    }
+                    sb.append("\n");
+                }
+
+                // Flow Steps traceability table
+                sb.append("#### Flow Steps\n\n");
+                sb.append("| # | Component Type | Class | Method | Source File |\n");
+                sb.append("|---|---|---|---|---|\n");
+                for (FlowStep step : flow.steps()) {
+                    sb.append("| ").append(step.stepIndex())
+                      .append(" | ").append(step.componentType())
+                      .append(" | ").append(step.className())
+                      .append(" | ").append(step.methodName() != null ? step.methodName() : "-")
+                      .append(" | ").append(step.sourceFile() != null ? step.sourceFile() : "")
+                      .append(" |\n");
+                }
+                sb.append("\n");
+
                 if (!flow.businessRules().isEmpty()) {
                     sb.append("#### Business Rules\n\n");
-                    sb.append("| ID | Rule | Precondition | Postcondition | Error Behavior |\n");
-                    sb.append("|---|---|---|---|---|\n");
+                    sb.append("| ID | Rule | Precondition | Postcondition | Error Behavior | Source |\n");
+                    sb.append("|---|---|---|---|---|---|\n");
                     flow.businessRules().forEach(rule ->
                         sb.append("| ").append(rule.ruleId())
                           .append(" | ").append(rule.description())
                           .append(" | ").append(rule.precondition())
                           .append(" | ").append(rule.postcondition())
                           .append(" | ").append(rule.errorBehavior())
+                          .append(" | ").append(formatSourceRef(rule.sourceFile(), rule.startLine(), rule.endLine()))
                           .append(" |\n")
                     );
                     sb.append("\n");
@@ -122,11 +199,12 @@ public class SynthesizeSpecAction {
 
                 if (!flow.edgeCases().isEmpty()) {
                     sb.append("#### Edge Cases\n\n");
-                    sb.append("| Scenario | Business Consequence |\n");
-                    sb.append("|---|---|\n");
+                    sb.append("| Scenario | Business Consequence | Source |\n");
+                    sb.append("|---|---|---|\n");
                     flow.edgeCases().forEach(ec ->
                         sb.append("| ").append(ec.scenario())
                           .append(" | ").append(ec.businessConsequence())
+                          .append(" | ").append(formatSourceRef(ec.sourceFile(), ec.startLine(), ec.endLine()))
                           .append(" |\n")
                     );
                     sb.append("\n");
@@ -305,5 +383,13 @@ public class SynthesizeSpecAction {
         if (text == null) return "";
         return text.replace("\\", "\\\\").replace("\"", "\\\"")
             .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+    }
+
+    private String formatSourceRef(String file, int startLine, int endLine) {
+        if (file == null || file.isBlank()) return "";
+        if (startLine > 0 && endLine > 0) {
+            return file + ":" + startLine + "-" + endLine;
+        }
+        return file;
     }
 }

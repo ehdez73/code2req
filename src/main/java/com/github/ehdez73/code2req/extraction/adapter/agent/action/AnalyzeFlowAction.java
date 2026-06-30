@@ -62,8 +62,15 @@ public class AnalyzeFlowAction {
             .orElse("No Phase 2 enrichment available.");
 
         String stepsContext = flow.steps().stream()
-            .map(s -> "  - " + s.componentType() + ": " + s.className() + "." + s.methodName()
-                + (s.sourceFile() != null ? " (" + s.sourceFile() + ")" : ""))
+            .map(s -> {
+                String base = "  - " + s.componentType() + ": " + s.className() + "."
+                    + (s.methodName() != null ? s.methodName() : "(external call)")
+                    + (s.sourceFile() != null ? " (" + s.sourceFile() + ")" : "");
+                if (!s.enrichments().isEmpty()) {
+                    base += "\n    Details: " + String.join(", ", s.enrichments());
+                }
+                return base;
+            })
             .reduce((a, b) -> a + "\n" + b)
             .orElse("  (no steps traced)");
 
@@ -80,9 +87,12 @@ public class AnalyzeFlowAction {
 
             Extract:
             1. A concise user story (1-2 sentences) describing what this flow does for the user
-            2. 1-3 Gherkin scenarios with Given/When/Then steps
+            2. 1-3 Gherkin scenarios with Given/When/Then steps covering success, failure, and fallback paths
             3. Business rules with ID, description, precondition, postcondition, error behavior
             4. Edge cases with scenario and business consequence
+            5. For every external service call, include in business rules: the HTTP method and URL, timeout expectations, retry strategy (if any), and the exact fallback behavior when the external service is unavailable
+            6. Non-functional requirements where inferable: expected response times, security constraints (e.g. input sanitization against XSS), logging/monitoring needs
+            7. Include the source code file path reference in business rule descriptions where relevant
 
             Format your response as a JSON object with these fields:
             {
@@ -200,6 +210,26 @@ public class AnalyzeFlowAction {
             if (ef.businessRulesAndGuardrails().edgeCases() != null) {
                 for (ExecutionFinding.EdgeCase ec : ef.businessRulesAndGuardrails().edgeCases()) {
                     sb.append("Edge case: ").append(ec.scenario()).append(" - ").append(ec.businessConsequence()).append("\n");
+                }
+            }
+        }
+        if (ef.architecturalConnections() != null && ef.architecturalConnections().outbound() != null) {
+            var outbound = ef.architecturalConnections().outbound();
+            if (outbound.httpCalls() != null && !outbound.httpCalls().isEmpty()) {
+                sb.append("Outbound HTTP calls:\n");
+                for (ExecutionFinding.HttpCall call : outbound.httpCalls()) {
+                    sb.append("  - ").append(call.method()).append(" ").append(call.urlOrPath());
+                    if (call.isExternal()) sb.append(" [external]");
+                    if (call.externalContractHint() != null) {
+                        sb.append(" (").append(call.externalContractHint()).append(")");
+                    }
+                    sb.append("\n");
+                }
+            }
+            if (outbound.eventPublications() != null && !outbound.eventPublications().isEmpty()) {
+                sb.append("Event publications:\n");
+                for (ExecutionFinding.EventPublication pub : outbound.eventPublications()) {
+                    sb.append("  - ").append(pub.broker()).append(": ").append(pub.topicOrQueue()).append("\n");
                 }
             }
         }
