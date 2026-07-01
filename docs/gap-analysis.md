@@ -56,7 +56,7 @@ Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin
 | Requirement / Capability | PRD | User Story | Feature (Gherkin) | ADR | Code Reference | Status |
 |---|---|---|---|---|---|---|
 | Manifest parsing (F001) | §3.1, §2.1.7 | US001/US002/US003 | E001-F001 (10 scen) | — | `ManifestLoader`, `ManifestValidator` | ✅ |
-| Maven depgraph (F002) | §2.1.1 | US004/US005 | E001-F002 (4 scen) | — | `MavenDependencyResolver` (**not wired**; uses `dependency:tree` not `depgraph-maven-plugin`) | ◑ ≢ |
+| Maven depgraph (F002) | §2.1.1 | US004/US005 | E001-F002 (4 scen) | — | **REMOVED** — `MavenDependencyResolver` was dead code (zero callers, never wired) | ❌ |
 | Java AST analysis (F003) | §2.1.2 | US006/7/8/9/10/23/26/27 | E001-F003 (26 scen) | ADR-001 | `AstAnalysisVisitor`, `EndpointVisitor`, broker visitors, etc. | ✅ |
 | Secret redaction + exclude (F004) | §2.1.4/5 | US011/US012 | E001-F004 (6 scen) | ADR-005 | `SecretRedactor`, `ExcludeFilter` | ✅ |
 | Index output + SQLite (F005) | §2.1.3/6 | US013/US014/US017 | E001-F005 (7 scen) | ADR-003/004 | `JsonIndexWriter`, `TaskStore`, `TaskStoreSchema` (≢ schema) | ✅ ≢ |
@@ -198,7 +198,7 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 
 | Item | Implemented | Missing |
 |---|---|---|
-| F002 Maven depgraph | `MavenDependencyResolver` runs `mvn dependency:tree --batch-mode` (30s timeout, graceful fallback) | **Not wired** into scan (zero callers); uses `dependency:tree` not PRD-mandated `depgraph-maven-plugin:4.0.3:graph`; `DependencyGraph` never read by pipeline. |
+| F002 Maven depgraph | **REMOVED** — `MavenDependencyResolver` was dead code (zero callers, never wired); class and tests deleted 2026-07-01 | — |
 | F019 plan + run | `plan` ✅; `run` chains scan→plan→enrich→extract→generate with `--dry-run/--resume/--llm-threshold/--force` | `--force-phase3`, `--interactive`, `--interactive-timeout`; PRD §3.5 fail-stop guards. |
 | F023 Embabel agent | 6 GOAP actions + quarantine; priority scoring; sub-chain cache; orphan detection; progressive disclosure | `SynthesizeSpec` not an agent action (per ADR-006 — intentional); `UserInteractionService`/`NoOp` missing; guardrails hardcoded `MAX_DEPTH=5`/`LOW_CONFIDENCE_THRESHOLD=0.3` (PRD §2.3 §9 says 0.7, and config exists). |
 | F027 Domain model + writers | All PRD §2.3 records present (29 model files); `generate` command ✅; `spec.md` produced | `semantic_manifest.json` **≢ PRD §6.2** (entry_point is string not object; no `steps`; truncated `acceptance_criteria`/`business_rules`/`edge_cases`; missing `traceability_graph`/`review_required`/`unresolved_reason`/`mermaid_diagram`); markdown header differs from §6.1. |
@@ -206,7 +206,7 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 
 ### 4.4 Implementation Deviations
 
-1. **Maven plugin**: `MavenDependencyResolver.java:55` runs `mvn dependency:tree --batch-mode`; PRD §2.1.1 mandates `com.github.ferstl:depgraph-maven-plugin:4.0.3:graph -DgraphFormat=json -DoutputDirectory=.`. Not invoked by pipeline. (High confidence.)
+1. **Maven plugin**: `MavenDependencyResolver.java:55` runs `mvn dependency:tree --batch-mode`; PRD §2.1.1 mandates `com.github.ferstl:depgraph-maven-plugin:4.0.3:graph -DgraphFormat=json -DoutputDirectory=.`. **REMOVED** — resolver deleted 2026-07-01 (dead code). (High confidence.)
 2. **`@Async` vs manual executor**: PRD §2.2 says `@Async("orchestratorTaskExecutor")`. `LlmEnrichmentService:61,116` uses manual `taskExecutor.execute(work)`. `@EnableAsync` present but `@Async` unused. (High.)
 3. **`tasks` schema**: `source_hash`→`content_hash`; no `json_payload`; extra `content_type`; `target_name` defaults `''`. (High.)
 4. **`floating_links` schema**: extra `client_type`, `source_method` (not in PRD §2.1.6). (High.)
@@ -221,7 +221,7 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 
 ### 4.5 Potentially Obsolete or Dead Functionality
 
-- **`MavenDependencyResolver`** — exists with tests but **zero callers** in pipeline. Dead code unless wiring is planned.
+- **`MavenDependencyResolver`** — **REMOVED 2026-07-01** (was dead code, zero callers).
 - **`common/port/*Repository` interfaces** — 5 ports defined; stores do **not** implement them. Possibly abandoned hexagonal skeleton.
 - **`indexing/application/port/input/ScanProjectUseCase` + `ScanProjectService`** — DDD skeleton bypassed by `ScanCommand` calling `IndexingOrchestrator` directly. Appears unused.
 - **`synthesis/` test package** — `LinkRegistryTest`/`SemanticEnrichmentTest` with **no corresponding main-source `synthesis/` package**. Tested classes live in `extraction/domain/model`. Stale package layout.
@@ -239,7 +239,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | Feature | Scenarios | PRD Alignment | Story Alignment | Implementation | Missing Scenarios | Key Issue |
 |---|---|---|---|---|---|---|
 | F001 | 10 | ✅ | ✅ US001-3 | ✅ | web.xml not covered | — |
-| F002 | 4 | ✅ | ✅ US004-5 | ◑ (not wired) | depgraph-maven-plugin exact behavior | Plugin mismatch; dead code |
+| F002 | 4 | ✅ | ✅ US004-5 | ❌ (removed) | — | Class and tests deleted 2026-07-01 (was dead code) |
 | F003 | 26 | ✅ | ⚠ US023 uncatalogued | ✅ | @NamedQuery, raw JDBC, web.xml | — |
 | F004 | 6 | ✅ | ✅ | ✅ | — | — |
 | F005 | 7 | ✅ | ✅ | ✅ (≢ schema) | `json_payload` persistence | Schema deviations |
@@ -278,7 +278,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | Stories | Feature | Coverage | Issues |
 |---|---|---|---|
 | US001-003 | F001 | ✅ | — |
-| US004-005 | F002 | ◑ | US004 "coordinates include group/artifact/version" unverifiable end-to-end; depgraph-maven-plugin specifics missing from AC |
+| US004-005 | F002 | ❌ | **REMOVED** — `MavenDependencyResolver` deleted 2026-07-01 (dead code) |
 | US006-010, US023, US026-027 | F003 | ✅ | Code implements additional patterns (web.xml, @NamedQuery, raw JDBC) not in AC |
 | US011-012 | F004 | ✅ | — |
 | US013-014, US017 | F005 | ✅ | `source_hash` vs `content_hash` gap; no `json_payload` column |
@@ -379,7 +379,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | 3 | F026/US055/PRD §5.5a | **Review command**: `review list/show/accept/accept-all/reset/reset-all`; persist quarantine as `HUMAN_REVIEW_REASON` `execution_findings` | High | Medium | F023 (exists) | Add `ReviewCommand` + `FindingType` |
 | 4 | F028/US057/PRD §5.5b | **Interactive mode**: `UserInteractionService` SPI + `NoOpUserInteractionService` + `InteractiveUserInteractionService` + `UserResponseStore` + `user_responses` table + `--interactive`/`--interactive-timeout` | Medium | Medium | #3 | Add SPI + NoOp first (unblocks F023 conformance) |
 | 5 | F007-009/US018-022 | **Parser SPI**: `LanguageParser` interface, extension→parser registry, routing, shared pipeline integration | Medium | High | — | Define SPI; refactor `ScanCommand` routing |
-| 6 | F002/US004-005/PRD §2.1.1 | **Wire `MavenDependencyResolver`** into scan; switch to `depgraph-maven-plugin:4.0.3:graph` | Medium | Medium | — | Wire + swap plugin |
+| 6 | F002/US004-005/PRD §2.1.1 | **`MavenDependencyResolver` removed** — was dead code, deleted 2026-07-01 | — | — | — | Done (removed) |
 | 7 | PRD §5.7 | **`resume` standalone command** | Low | Low | — | Add `ResumeCommand` |
 | 8 | PRD §5.7/§3.5 | **`run --force-phase3`** + Phase 3 marker task (`__phase3_marker__`) + `.tmp.` cleanup + fail-stop guards | High | Medium | #1 (marker FAILED) | Add marker + flag + guards |
 | 9 | PRD §5.7 | **`validate` should validate `code-graph-index.json`** | Low | Low | — | Extend `ValidateCommand` |
@@ -414,7 +414,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 
 ### Reduce Technical Debt
 
-10. **Wire or remove `MavenDependencyResolver`** and the `common/port/*Repository` + `ScanProjectService` DDD skeleton.
+10. **`MavenDependencyResolver` removed** (dead code); also address the `common/port/*Repository` + `ScanProjectService` DDD skeleton.
 11. **Fix `application.properties:72`** concatenated-line bug and dual DB-path ambiguity (`sqlite.db` vs `./spec-output/sqlite.db`).
 12. **Add `.gitignore` entries for `sqlite.db*`** and remove committed runtime DB/log files.
 13. **Make guardrails config-driven** in `TraceFlowAction`/`QuarantineFlowAction` (Backlog #10) — hardcoded 0.3 vs PRD's 0.7 is a latent behavioral bug.

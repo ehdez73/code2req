@@ -11,7 +11,7 @@
 - Run: launch shell, then `scan --manifest project-manifest.yaml`
 
 ## Decisions Made
-- F002 placed before F003 (feeds `CombinedTypeSolver`)
+- F002 removed — `MavenDependencyResolver` was dead code (zero callers, never wired into pipeline)
 - F005 Part 1 (TaskStore) in Phase 1 — needed by ScanCommand mid-scan progress and F003 test verification
 - F003 split: 4a = US006+US007+US010, 4b = US008, 4c = US009
 - Command priority: `scan` → `resume` → `validate` → `status`
@@ -47,11 +47,7 @@
 ### Phase 2 — Dependency Resolution
 
 #### 2.1 F002: Maven Dep Graph (US004, US005)
-- [x] Gherkin: [`docs/sdlc/features/E001-F002-dependency-graph-resolution.feature`](sdlc/features/E001-F002-dependency-graph-resolution.feature)
-- [x] Depends on: 1.1, 1.2
-- [x] Classes: `MavenDependencyResolver`, `Dependency`, `DependencyGraph`
-- [x] Verify: `mvn test` (12 tests — parse tree, heuristic fallback, maven availability check)
-- [x] Manual: run scan with/without `mvn` on PATH, confirm warning logged when absent
+- **REMOVED** — `MavenDependencyResolver` was dead code (zero callers, never wired); tests and class deleted.
 
 ### Phase 3 — Pre-processing
 
@@ -66,7 +62,7 @@
 
 #### 4a F003: Components + Endpoints + Scheduled Tasks (US006, US007, US010)
 - [x] Gherkin: [`docs/sdlc/features/E001-F003-java-source-ast-analysis.feature`](sdlc/features/E001-F003-java-source-ast-analysis.feature)
-- [x] Depends on: 1.1, 1.2, 2.1, 3.1
+- [x] Depends on: 1.1, 1.2, 3.1
 - [x] Classes: `JavaAstAnalyzer`, `AnalysisContext`, `AnalysisResult`, `ComponentVisitor`, `EndpointVisitor`, `ScheduledTaskVisitor`, `EndpointDetector` (SPI), `SpringEndpointDetector`, `ServletEndpointDetector`, `WebXmlAnalyzer`
 - [x] Architecture: `EndpointVisitor` refactored from monolithic adapter to thin delegator — injects `List<EndpointDetector>` (Spring-collected `@Component` implementations), mirroring `DbAccessVisitor`/`OutboundHttpVisitor` OCP pattern. Adding a new endpoint type requires only a new `@Component` implementing `EndpointDetector`; zero changes to `EndpointVisitor`.
 - [x] Spring detection: `@RestController`, `@Controller`, `@RequestMapping`, `@GetMapping`/`@PostMapping`/`@PutMapping`/`@DeleteMapping`/`@PatchMapping`, `@PathVariable`, `@RequestParam`, `@ResponseBody`, view return detection (`servesView`/`viewName`). Extracted into `SpringEndpointDetector`.
@@ -139,7 +135,7 @@
 
 #### 6.1 F006: `scan` command (US015, US016)
 - [x] Gherkin: [`docs/sdlc/features/E001-F006-cli-scan-orchestration.feature`](sdlc/features/E001-F006-cli-scan-orchestration.feature)
-- [x] Depends on: 1.1, 2.1, 3.1, 4a, 5.1
+- [x] Depends on: 1.1, 3.1, 4a, 5.1
 - [x] Classes: `ScanCommand` (key: `scan`)
 - [x] Verify: `mvn test` (7 new tests) + `mvn spring-boot:run` then `scan` against petclinic
 - [ ] Manual: confirm per-stage progress output, zero network calls, exits 0
@@ -332,8 +328,7 @@ Depends on: TaskStore (Phase 1.2), ExecutionFindingStore + TopicLinkStore + Floa
 | US001 | F001 | must | 1.1 |
 | US002 | F001 | should | 1.1 |
 | US003 | F001 | should | 1.1 |
-| US004 | F002 | should | 2.1 |
-| US005 | F002 | should | 2.1 |
+
 | US006 | F003 | must | 4a |
 | US007 | F003 | must | 4a |
 | US008 | F003 | should | 4b |
@@ -409,7 +404,7 @@ Phase 11c.1 (Template File Parsing) ── depends on Phase 4a + Phase 6.1 + Pha
 
 - 2026-06-12 — **Phase 1.1 F001** (Manifest Parsing): `ScanTarget`, `ProjectManifest`, `ManifestLoader`, `ManifestValidator`, `ValidateCommand`, `ManifestValidationResult` — 17 tests ✓
 - 2026-06-12 — **Phase 1.2 F005 Part 1** (SQLite Task Store): `Task`, `TaskStatus`, `TaskIdHasher`, `TaskStoreSchema`, `TaskStore` — 18 tests ✓
-- 2026-06-12 — **Phase 2.1 F002** (Maven Dependency Resolution): `MavenDependencyResolver`, `Dependency`, `DependencyGraph` — 12 tests ✓
+- 2026-06-12 — **Phase 2.1 F002** (Maven Dependency Resolution): `MavenDependencyResolver`, `Dependency`, `DependencyGraph` — **REMOVED** (dead code, never wired)
 - 2026-06-12 — **Phase 3.1 F004** (Secret Redaction & Exclude Filtering): `SecretRedactor`, `RedactionResult`, `ExcludeFilter`, `ExcludeResult` — 18 tests (10 SecretRedactor + 8 ExcludeFilter) ✓
 - 2026-06-13 — **Phase 4a F003** (Components + Endpoints + Scheduled Tasks): `JavaAstAnalyzer`, `ComponentVisitor`, `EndpointVisitor`, `ScheduledTaskVisitor`, `AnalysisContext`, `AnalysisResult`, `ComponentInfo`, `EndpointInfo`, `ScheduledTaskInfo` — 28 new tests ✓
 - 2026-06-14 — **Phase 4b F003** (Event Listeners): `EventListenerVisitor`, `EventListenerInfo`, `EventPublisherInfo`, `MethodCallInfo` — 10 new tests ✓
