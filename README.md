@@ -16,8 +16,15 @@ Development (SDD).
 | Command | Description |
 |---------|-------------|
 | `scan` | Parse Java sources via JavaParser AST, redact secrets, store in embedded SQLite, export JSON code graph |
-| `resume` | Incremental re-scan — skips already-completed files using deterministic SHA-256 task IDs |
-| `status` | Query task store by status (`PENDING`, `ENRICHING`, `INDEXED`, `ENRICHED`, `FAILED`) |
+| `scan --resume` / `enrich --resume` | Incremental re-scan / re-enrich — skips already-completed files using deterministic SHA-256 task IDs |
+| `status` | Query task store by status (`PENDING`, `INDEXED`, `ENRICH_PENDING`, `ENRICHING`, `ENRICHED`, `FAILED`, `ENRICH_FAILED`, `SKIPPED`) |
+| `enrich` | LLM-powered per-file semantic enrichment via Spring AI + OpenRouter |
+| `plan` | Evaluate INDEXED tasks and qualify candidates for enrichment |
+| `run` | Execute full pipeline: scan → plan → enrich → extract |
+| `extract` | Embabel agentic functional requirement extraction (GOAP planning) |
+| `generate` | Synthesize spec documents from enriched data |
+| `snapshot create` / `snapshot list` | Create and list SQLite snapshots for crash recovery |
+| `task list` / `task findings` / `task set-status` | Inspect and manage individual tasks |
 | `clean` | Wipe all scanned data (SQLite store + output files) |
 | `validate` | Verify project manifest YAML structure |
 
@@ -40,11 +47,12 @@ status
 
 ## Architecture (3-Phase Pipeline)
 
-| Phase | What it does | Status |
-|-------|-------------|--------|
-| **1** | Deterministic indexing — AST parsing, secret redaction, SQLite task store, JSON index export | ✅ Active |
-| **2** | LLM-powered per-file analysis via Spring `@Async` | 🔜 Future |
-| **3** | Map-Reduce semantic synthesis | 🔜 Future |
+| Phase | What it does | Commands | Status |
+|-------|-------------|----------|--------|
+| **1** | Deterministic indexing — AST parsing, secret redaction, SQLite task store, JSON index export | `scan`, `scan --resume`, `validate`, `clean` | ✅ Active |
+| **2** | LLM-powered per-file enrichment via Spring AI (OpenRouter), `CompletableFuture` orchestration on a dedicated executor pool | `plan`, `enrich`, `enrich --resume` | ✅ Active |
+| **3** | Embabel GOAP agent — entry-point-driven functional requirement extraction with dynamic flow tracing and spec synthesis | `extract`, `generate` | ✅ Active |
+| **All** | End-to-end pipeline orchestration | `run` (scan → plan → enrich → extract) | ✅ Active |
 
 ## Key Design Decisions
 
@@ -53,7 +61,6 @@ status
 - **Idempotent tasks** — SHA-256 composite hash of path + content
 - **In-memory redaction** — files on disk never modified
 - **Fault-tolerant** — single-file failures never block the full scan
-- **Maven depgraph** — optional / non-blocking
 
 See [`docs/sdlc/adrs/`](docs/sdlc/adrs/) and [`docs/sdlc/tech-stack.md`](docs/sdlc/tech-stack.md) for full rationale.
 
