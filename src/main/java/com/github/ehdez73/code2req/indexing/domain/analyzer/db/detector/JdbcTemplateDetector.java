@@ -26,6 +26,8 @@ public class JdbcTemplateDetector implements DbAccessDetector {
     public void detect(List<DbAccessInfo> result, MethodDeclaration method,
                        String className, String filePath) {
         String methodName = method.getNameAsString();
+        int startLine = method.getBegin().map(r -> r.line).orElse(0);
+        int endLine = method.getEnd().map(r -> r.line).orElse(0);
         method.getBody().ifPresent(body ->
             body.findAll(MethodCallExpr.class).forEach(mce -> {
                 String callName = mce.getNameAsString();
@@ -38,13 +40,13 @@ public class JdbcTemplateDetector implements DbAccessDetector {
                     result.add(new DbAccessInfo(
                         DbAccessType.JDBC_TEMPLATE_QUERY.name(), sql,
                         DbAccessHelper.inferTableHint(sql), "",
-                        methodName, className, filePath, "", false));
+                        methodName, className, filePath, "", false, startLine, endLine));
                 } else if (UPDATE_METHODS.contains(callName)) {
                     String sql = DbAccessHelper.extractFirstStringArg(mce);
                     result.add(new DbAccessInfo(
                         DbAccessType.JDBC_TEMPLATE_UPDATE.name(), sql,
                         DbAccessHelper.inferTableHint(sql), "",
-                        methodName, className, filePath, "", false));
+                        methodName, className, filePath, "", false, startLine, endLine));
                 }
             })
         );

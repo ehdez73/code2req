@@ -9,8 +9,17 @@ public record FloatingLinkInfo(
     String sourceMethod,
     String targetEndpoint,
     double confidence,
-    String resolvedStatus
+    String resolvedStatus,
+    int startLine,
+    int endLine
 ) {
     public static final String STATUS_RESOLVED = "RESOLVED";
     public static final String STATUS_PENDING = "PENDING";
+
+    public FloatingLinkInfo(String method, String urlPattern, boolean isExpression, String clientType,
+                            String sourceFilePath, String sourceMethod, String targetEndpoint,
+                            double confidence, String resolvedStatus) {
+        this(method, urlPattern, isExpression, clientType, sourceFilePath, sourceMethod,
+             targetEndpoint, confidence, resolvedStatus, 0, 0);
+    }
 }

@@ -11,5 +11,14 @@ public record DbAccessInfo(
     String className,
     String filePath,
     String entityType,
-    boolean isTransactionRoot
-) implements AnalysisFinding {}
+    boolean isTransactionRoot,
+    int startLine,
+    int endLine
+) implements AnalysisFinding {
+    public DbAccessInfo(String type, String sql, String tableHint, String procedureName,
+                        String methodName, String className, String filePath,
+                        String entityType, boolean isTransactionRoot) {
+        this(type, sql, tableHint, procedureName, methodName, className, filePath,
+             entityType, isTransactionRoot, 0, 0);
+    }
+}

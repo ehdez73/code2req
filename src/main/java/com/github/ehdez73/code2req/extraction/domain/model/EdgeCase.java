@@ -5,5 +5,11 @@ public record EdgeCase(
     String businessConsequence,
     String sourceFile,
     int startLine,
-    int endLine
-) {}
+    int endLine,
+    String severity
+) {
+    public EdgeCase(String scenario, String businessConsequence,
+                    String sourceFile, int startLine, int endLine) {
+        this(scenario, businessConsequence, sourceFile, startLine, endLine, "MEDIUM");
+    }
+}

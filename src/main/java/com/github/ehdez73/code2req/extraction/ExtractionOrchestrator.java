@@ -35,6 +35,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -54,8 +56,6 @@ public class ExtractionOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(ExtractionOrchestrator.class);
 
-    private static final Path CACHE_PATH = Path.of("spec-output", "extraction-cache.json");
-
     private final TaskStore taskStore;
     private final ExecutionFindingStore executionFindingStore;
     private final FloatingLinkStore floatingLinkStore;
@@ -64,11 +64,36 @@ public class ExtractionOrchestrator {
     private final AgentPlatform agentPlatform;
     private final ExecutionConfig executionConfig;
     private final ObjectMapper objectMapper;
+    private final Path cachePath;
+    private final Path specDir;
 
+    @Autowired
     public ExtractionOrchestrator(TaskStore taskStore, ExecutionFindingStore executionFindingStore,
                                   FloatingLinkStore floatingLinkStore, TopicLinkStore topicLinkStore,
                                   MetricsStore metricsStore, AgentPlatform agentPlatform,
-                                  ExecutionConfig executionConfig) {
+                                  ExecutionConfig executionConfig,
+                                  @Value("${code2req.output.spec-dir:./spec-output}") String specDir,
+                                  @Value("${code2req.output.extraction-cache-file:extraction-cache.json}") String cacheFile) {
+        this(taskStore, executionFindingStore, floatingLinkStore, topicLinkStore,
+             metricsStore, agentPlatform, executionConfig,
+             Path.of(specDir).resolve(cacheFile).normalize(),
+             Path.of(specDir).normalize());
+    }
+
+    public ExtractionOrchestrator(TaskStore taskStore, ExecutionFindingStore executionFindingStore,
+                            FloatingLinkStore floatingLinkStore, TopicLinkStore topicLinkStore,
+                            MetricsStore metricsStore, AgentPlatform agentPlatform,
+                            ExecutionConfig executionConfig) {
+        this(taskStore, executionFindingStore, floatingLinkStore, topicLinkStore,
+             metricsStore, agentPlatform, executionConfig,
+             Path.of("./spec-output").resolve("extraction-cache.json").normalize(),
+             Path.of("./spec-output").normalize());
+    }
+
+    private ExtractionOrchestrator(TaskStore taskStore, ExecutionFindingStore executionFindingStore,
+                                   FloatingLinkStore floatingLinkStore, TopicLinkStore topicLinkStore,
+                                   MetricsStore metricsStore, AgentPlatform agentPlatform,
+                                   ExecutionConfig executionConfig, Path cachePath, Path specDir) {
         this.taskStore = taskStore;
         this.executionFindingStore = executionFindingStore;
         this.floatingLinkStore = floatingLinkStore;
@@ -78,6 +103,8 @@ public class ExtractionOrchestrator {
         this.executionConfig = executionConfig;
         this.objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        this.cachePath = cachePath;
+        this.specDir = specDir;
     }
 
     public ExtractionResult execute(boolean dryRun, boolean force) {
@@ -121,7 +148,7 @@ public class ExtractionOrchestrator {
 
             Map<String, Object> initialBlackboard = new HashMap<>();
             initialBlackboard.put("codebaseKnowledge", knowledge);
-            initialBlackboard.put("outputDir", Path.of("spec-output"));
+            initialBlackboard.put("outputDir", specDir);
 
             AgentProcess process = agentPlatform.createAgentProcess(
                 agent, ProcessOptions.DEFAULT, initialBlackboard);
@@ -141,12 +168,10 @@ public class ExtractionOrchestrator {
             int flowCount = cache != null ? cache.crossRefResult().features().stream()
                 .mapToInt(f -> f.flows().size()).sum() : 0;
 
-            List<Path> generatedFiles = CACHE_PATH != null ?
-                List.of(CACHE_PATH) : List.of();
-            ExtractionResult result = new ExtractionResult(
-                flowCount, ambiguityGaps, 0, flowNames, generatedFiles);
+            List<Path> generatedFiles = List.of(cachePath);
+            ExtractionResult result = new ExtractionResult( flowCount, ambiguityGaps, 0, flowNames, generatedFiles);
             persistMetrics(result, false);
-            log.info("Created extraction cache: {}", CACHE_PATH);
+            log.info("Created extraction cache: {}", cachePath);
             return result;
         } catch (Exception e) {
             log.error("Phase 3 synthesis failed: {}", e.getMessage(), e);

@@ -22,4 +22,6 @@ public sealed interface EntryPoint permits HttpEntryPoint, ScheduledEntryPoint,
     String filePath();
     double priorityScore();
     boolean trivial();
+    int startLine();
+    int endLine();
 }

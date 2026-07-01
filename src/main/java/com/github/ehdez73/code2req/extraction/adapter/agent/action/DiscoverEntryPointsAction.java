@@ -76,11 +76,13 @@ public class DiscoverEntryPointsAction {
             case HttpEntryPoint h -> new HttpEntryPoint(
                 h.id(), h.className(), h.methodName(), h.filePath(),
                 score, trivial,
-                h.httpMethod(), h.path(), h.pathVariables(), h.requestBodies()
+                h.httpMethod(), h.path(), h.pathVariables(), h.requestBodies(),
+                h.startLine(), h.endLine()
             );
             case ScheduledEntryPoint s -> new ScheduledEntryPoint(
                 s.id(), s.className(), s.methodName(), s.filePath(),
-                score, trivial, s.schedule()
+                score, trivial, s.schedule(),
+                s.startLine(), s.endLine()
             );
             case KafkaEntryPoint k -> new KafkaEntryPoint(
                 k.id(), k.className(), k.methodName(), k.filePath(),

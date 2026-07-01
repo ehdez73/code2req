@@ -65,7 +65,9 @@ public class SpringEndpointDetector implements EndpointDetector {
                 }
             }
 
-            result.add(new EndpointInfo(httpMethod, fullPath, className, method.getNameAsString(), pathVars, queryParams, filePath, servesView, viewName, requestBodies));
+            int startLine = method.getBegin().map(r -> r.line).orElse(0);
+            int endLine = method.getEnd().map(r -> r.line).orElse(0);
+            result.add(new EndpointInfo(httpMethod, fullPath, className, method.getNameAsString(), pathVars, queryParams, filePath, servesView, viewName, requestBodies, startLine, endLine));
         }
     }
 

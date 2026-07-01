@@ -164,7 +164,8 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
                 DeclarationInfo match = exactMatches.getFirst();
                 return Optional.of(CallGraphEdge.resolved(
                     currentClassName, currentMethodName, filePath,
-                    match.className(), match.methodName(), match.filePath(), argCount));
+                    match.className(), match.methodName(), match.filePath(), argCount,
+                    match.startLine(), match.endLine()));
             }
 
             if (exactMatches.size() > 1) {

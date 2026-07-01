@@ -110,7 +110,8 @@ public class TraceFlowAction {
         Set<String> visited = new HashSet<>();
 
         traceFromSource(entryPoint.filePath(), entryPoint.className(),
-            steps, unresolvedCalls, visited, 0, entryPoint.methodName());
+            steps, unresolvedCalls, visited, 0, entryPoint.methodName(),
+            entryPoint.startLine(), entryPoint.endLine());
 
         subChainCache.put(cacheKey, steps);
 
@@ -124,7 +125,8 @@ public class TraceFlowAction {
 
     private void traceFromSource(String sourceFilePath, String sourceClassName,
                                   List<FlowStep> steps, List<String> unresolvedCalls,
-                                  Set<String> visited, int depth, String entryMethodName) {
+                                  Set<String> visited, int depth, String entryMethodName,
+                                  int sourceStartLine, int sourceEndLine) {
         if (depth >= MAX_DEPTH) return;
 
         String visitKey = sourceFilePath + ":" + sourceClassName;
@@ -139,7 +141,7 @@ public class TraceFlowAction {
             steps.add(new FlowStep(
                 steps.size(), classifySourceComponent(sourceFilePath),
                 sourceClassName, entryMethodName, null,
-                sourceFilePath, 0, 0, List.of()
+                sourceFilePath, sourceStartLine, sourceEndLine, List.of()
             ));
         }
 
@@ -156,11 +158,12 @@ public class TraceFlowAction {
             steps.add(new FlowStep(
                 steps.size(), componentType,
                 edge.targetClassName(), edge.targetMethodName(), null,
-                edge.targetFilePath(), 0, 0, List.of()
+                edge.targetFilePath(), edge.targetStartLine(), edge.targetEndLine(), List.of()
             ));
 
             traceFromSource(edge.targetFilePath(), edge.targetClassName(),
-                steps, unresolvedCalls, visited, depth + 1, null);
+                steps, unresolvedCalls, visited, depth + 1, null,
+                edge.targetStartLine(), edge.targetEndLine());
         }
 
         List<DbAccessInfo> dbAccesses = knowledge.structuralGraph().dbAccessPatterns().stream()
@@ -171,7 +174,7 @@ public class TraceFlowAction {
             steps.add(new FlowStep(
                 steps.size(), FlowStepComponentType.DATABASE,
                 db.className(), db.methodName(), null,
-                db.filePath(), 0, 0, List.of(db.sql() != null ? db.sql() : "")
+                db.filePath(), db.startLine(), db.endLine(), List.of(db.sql() != null ? db.sql() : "")
             ));
         }
 
@@ -183,7 +186,7 @@ public class TraceFlowAction {
             steps.add(new FlowStep(
                 steps.size(), FlowStepComponentType.EXTERNAL_CALL,
                 sourceClassName, null, null,
-                sourceFilePath, 0, 0,
+                sourceFilePath, http.startLine(), http.endLine(),
                 List.of(http.method() + " " + http.urlPattern())
             ));
         }

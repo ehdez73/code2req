@@ -29,9 +29,11 @@ public class TransactionalDetector implements DbAccessDetector {
         for (MethodDeclaration method : clazz.getMethods()) {
             if (!method.isPublic()) continue;
             if (methodsWithOwnTx.contains(method)) continue;
+            int startLine = method.getBegin().map(r -> r.line).orElse(0);
+            int endLine = method.getEnd().map(r -> r.line).orElse(0);
             result.add(new DbAccessInfo(
                 DbAccessType.TRANSACTIONAL.name(), "", "", "",
-                method.getNameAsString(), className, filePath, "", true));
+                method.getNameAsString(), className, filePath, "", true, startLine, endLine));
         }
     }
 
@@ -39,8 +41,10 @@ public class TransactionalDetector implements DbAccessDetector {
     public void detect(List<DbAccessInfo> result, MethodDeclaration method,
                        String className, String filePath) {
         if (!method.getAnnotationByName("Transactional").isPresent()) return;
+        int startLine = method.getBegin().map(r -> r.line).orElse(0);
+        int endLine = method.getEnd().map(r -> r.line).orElse(0);
         result.add(new DbAccessInfo(
             DbAccessType.TRANSACTIONAL.name(), "", "", "",
-            method.getNameAsString(), className, filePath, "", true));
+            method.getNameAsString(), className, filePath, "", true, startLine, endLine));
     }
 }

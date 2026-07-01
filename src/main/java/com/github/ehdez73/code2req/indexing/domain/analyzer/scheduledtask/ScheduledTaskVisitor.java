@@ -73,6 +73,8 @@ public class ScheduledTaskVisitor implements AstAnalysisVisitor {
                     taskType = "unknown";
                 }
 
+                int startLine = n.getBegin().map(r -> r.line).orElse(0);
+                int endLine = n.getEnd().map(r -> r.line).orElse(0);
                 collector.add(new ScheduledTaskInfo(
                     n.getNameAsString(),
                     className,
@@ -80,7 +82,9 @@ public class ScheduledTaskVisitor implements AstAnalysisVisitor {
                     fixedRate.orElse(null),
                     fixedDelay.orElse(null),
                     taskType,
-                    filePath
+                    filePath,
+                    startLine,
+                    endLine
                 ));
             }
         }

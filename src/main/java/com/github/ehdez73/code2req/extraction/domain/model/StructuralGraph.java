@@ -121,7 +121,8 @@ public class StructuralGraph {
             entryPoints.add(new HttpEntryPoint(
                 id, ep.className(), ep.methodName(), ep.filePath(),
                 0.0, false,
-                ep.httpMethod(), ep.path(), ep.pathVariables(), ep.requestBodies()
+                ep.httpMethod(), ep.path(), ep.pathVariables(), ep.requestBodies(),
+                ep.startLine(), ep.endLine()
             ));
         }
 
@@ -134,7 +135,8 @@ public class StructuralGraph {
                 : "fixedDelay=" + st.fixedDelay());
             entryPoints.add(new ScheduledEntryPoint(
                 id, st.className(), st.methodName(), st.filePath(),
-                0.0, false, schedule
+                0.0, false, schedule,
+                st.startLine(), st.endLine()
             ));
         }
 

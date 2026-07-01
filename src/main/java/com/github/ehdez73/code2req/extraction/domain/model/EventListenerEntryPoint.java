@@ -7,8 +7,15 @@ public record EventListenerEntryPoint(
     String filePath,
     double priorityScore,
     boolean trivial,
-    String payloadType
+    String payloadType,
+    int startLine,
+    int endLine
 ) implements EntryPoint {
+    public EventListenerEntryPoint(String id, String className, String methodName, String filePath,
+                                   double priorityScore, boolean trivial, String payloadType) {
+        this(id, className, methodName, filePath, priorityScore, trivial, payloadType, 0, 0);
+    }
+
     @Override
     public EntryPointType type() { return EntryPointType.EVENT_LISTENER; }
 }

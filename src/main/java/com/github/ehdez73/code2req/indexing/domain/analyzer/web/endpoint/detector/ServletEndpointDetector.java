@@ -75,8 +75,10 @@ public class ServletEndpointDetector implements EndpointDetector {
             paths.add("");
         }
 
+        int startLine = method.getBegin().map(r -> r.line).orElse(0);
+        int endLine = method.getEnd().map(r -> r.line).orElse(0);
         for (String path : paths) {
-            result.add(new EndpointInfo(httpMethod, path, className, "", List.of(), List.of(), filePath, false, "", List.of()));
+            result.add(new EndpointInfo(httpMethod, path, className, "", List.of(), List.of(), filePath, false, "", List.of(), startLine, endLine));
         }
     }
 

@@ -45,7 +45,9 @@ public class Pass1DeclarationCollector {
                 for (var param : method.getParameters()) {
                     paramTypes.add(param.getTypeAsString());
                 }
-                registry.register(new DeclarationInfo(className, method.getNameAsString(), paramTypes, filePath));
+                int startLine = method.getBegin().map(r -> r.line).orElse(0);
+                int endLine = method.getEnd().map(r -> r.line).orElse(0);
+                registry.register(new DeclarationInfo(className, method.getNameAsString(), paramTypes, filePath, startLine, endLine));
             }
 
             super.visit(n, v);

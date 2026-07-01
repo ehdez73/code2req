@@ -16,14 +16,18 @@ import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;
 import com.github.ehdez73.code2req.extraction.domain.model.StructuralGraph;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class AnalyzeFlowActionTest {
 
-    private final EntryPoint httpEntry = new HttpEntryPoint("GET /test", "TestController", "handle", "/src/TestController.java",
-        0.5, false, "GET", "/test", List.of(), List.of());
+    private static final String SAMPLE_CONTROLLER = Path.of("src/test/resources/sample/TestController.java")
+        .toAbsolutePath().normalize().toString();
+
+    private final EntryPoint httpEntry = new HttpEntryPoint("GET /test", "TestController", "handle", SAMPLE_CONTROLLER,
+        0.5, false, "GET", "/test", List.of(), List.of(), 9, 11);
 
     private AnalyzeFlowAction action() {
         return new AnalyzeFlowAction(
@@ -61,9 +65,7 @@ class AnalyzeFlowActionTest {
         var ctx = FakeOperationContext.create();
         ctx.expectResponse(new AnalyzeFlowAction.FlowAnalysisResponse(
             "As a listener, I consume CronMessage events from the scheduler and log them.",
-            List.of(),
-            List.of(),
-            List.of()
+            List.of(), List.of(), List.of(), List.of()
         ));
 
         var traced = new TracedFlowResult(List.of(flow), List.of());
@@ -97,9 +99,7 @@ class AnalyzeFlowActionTest {
         var ctx = FakeOperationContext.create();
         ctx.expectResponse(new AnalyzeFlowAction.FlowAnalysisResponse(
             "As an operator, I want the listener to consume CustomMessage events...",
-            List.of(),
-            List.of(),
-            List.of()
+            List.of(), List.of(), List.of(), List.of()
         ));
 
         var traced = new TracedFlowResult(List.of(flow), List.of());
@@ -117,15 +117,13 @@ class AnalyzeFlowActionTest {
     @Test
     void analyzeHttpFlowStillWorks() {
         var steps = List.of(new FlowStep(0, FlowStepComponentType.REST_ENDPOINT, "TestController", "handle",
-            null, "/src/TestController.java", 0, 0, List.of()));
+            null, SAMPLE_CONTROLLER, 9, 11, List.of()));
         var flow = flow(FlowStatus.TRACED, steps, httpEntry);
 
         var ctx = FakeOperationContext.create();
         ctx.expectResponse(new AnalyzeFlowAction.FlowAnalysisResponse(
             "As a user, I want to GET /test so that I can test the endpoint.",
-            List.of(),
-            List.of(),
-            List.of()
+            List.of(), List.of(), List.of(), List.of()
         ));
 
         var traced = new TracedFlowResult(List.of(flow), List.of());
@@ -136,6 +134,12 @@ class AnalyzeFlowActionTest {
         assertEquals("GET /test", analyzed.name());
         assertEquals("As a user, I want to GET /test so that I can test the endpoint.",
             analyzed.userStory());
+
+        var prompt = ctx.getLlmInvocations().get(0).getPrompt();
+        assertTrue(prompt.contains("Source Code (traced steps):"),
+            "LLM prompt should contain source code section");
+        assertTrue(prompt.contains("TestController.java lines 9-11"),
+            "LLM prompt should reference source file and lines");
     }
 
     @Test
@@ -162,14 +166,16 @@ class AnalyzeFlowActionTest {
                 "Incoming message must be validated before processing",
                 "Message is received",
                 "Message is validated or rejected",
-                "Log error and discard message"
+                "Log error and discard message",
+                null, null
             )
         );
 
         var edgeCases = List.of(
             new AnalyzeFlowAction.EdgeCaseDto(
                 "Null message payload",
-                "Causes NullPointerException if not checked"
+                "Causes NullPointerException if not checked",
+                "HIGH"
             )
         );
 
@@ -178,7 +184,8 @@ class AnalyzeFlowActionTest {
             "As a listener, I consume CronMessage events.",
             gherkinScenarios,
             businessRules,
-            edgeCases
+            edgeCases,
+            List.of()
         ));
 
         var traced = new TracedFlowResult(List.of(flow), List.of());
@@ -195,9 +202,18 @@ class AnalyzeFlowActionTest {
 
         assertEquals(1, analyzed.businessRules().size());
         assertEquals("BR-001", analyzed.businessRules().get(0).ruleId());
+        assertNull(analyzed.businessRules().get(0).externalCall(),
+            "externalCall should be null when not provided");
+        assertEquals("/src/Listener.java", analyzed.businessRules().get(0).sourceFile(),
+            "sourceFile should fall back to entry point file path when LLM provides null");
 
         assertEquals(1, analyzed.edgeCases().size());
         assertEquals("Null message payload", analyzed.edgeCases().get(0).scenario());
+        assertEquals("HIGH", analyzed.edgeCases().get(0).severity(),
+            "severity should be mapped from EdgeCaseDto");
+
+        assertEquals(0, analyzed.nonFunctionalRequirements().size(),
+            "nonFunctionalRequirements should be empty when response provides none");
 
         assertEquals("flow-1", analyzed.flowId());
         assertNotNull(analyzed.complexity());

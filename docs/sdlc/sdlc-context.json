@@ -3,7 +3,7 @@
     "version": "2.1.0",
     "phase": "3",
     "created_at": "2026-06-12T12:00:00Z",
-    "last_updated": "2026-06-26T12:00:00Z",
+    "last_updated": "2026-07-01T12:00:00Z",
     "last_agent": "opencode"
   },
   "project": {
@@ -770,14 +770,15 @@
       "id": "F027",
       "epic_id": "E004",
       "name": "Domain Model + Output Writers",
-      "description": "Pure-Java domain classes for Phase 3 synthesis output (EntryPoint, ExecutionFlow, FlowStep, FunctionalFlow, GherkinScenario, etc.) and writers that produce Markdown spec and semantic JSON manifest from the extraction cache.",
+      "description": "Pure-Java domain classes for Phase 3 synthesis output (EntryPoint, ExecutionFlow, FlowStep, FunctionalFlow, GherkinScenario, BusinessRule, EdgeCase, ExternalCall, NonFunctionalRequirement, etc.) and writers that produce Markdown spec and semantic JSON manifest from the extraction cache.",
       "background": "Extraction cache populated by extract command. FunctionalFlow, AmbiguityGap, and OrphanedMethod objects available.",
       "business_rules": [
         "All domain model classes use Java record types with business-key-based equality",
-        "MarkdownSpecWriter writes to spec-output/spec.md with TOC, features, Gherkin, Mermaid diagrams",
-        "SemanticManifestWriter writes to spec-output/semantic_manifest.json with manifest_version 3.0.0",
+        "MarkdownSpecWriter writes to spec-output/spec.md with TOC, features, Gherkin, Mermaid diagrams, Business Rules (with per-rule sourceFile and external call details), Edge Cases (with severity column), and Non-Functional Requirements section",
+        "SemanticManifestWriter writes to spec-output/semantic_manifest.json with manifest_version 3.0.0, including non_functional_requirements, external_call per business rule, and severity per edge case",
         "SemanticManifestWriter validates JSON output against PLAN-Phase3 §4.2 schema before persisting",
         "Schema validation failure sets Phase 3 marker to FAILED",
+        "Extraction cache path is configurable via code2req.output.spec-dir and code2req.output.extraction-cache-file application properties",
         "Writers are pure Java (not agentic) — invoked by the generate command from extraction cache"
       ],
       "user_stories": [

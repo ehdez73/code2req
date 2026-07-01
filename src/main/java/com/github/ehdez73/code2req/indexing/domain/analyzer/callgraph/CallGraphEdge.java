@@ -13,7 +13,9 @@ public record CallGraphEdge(
     String targetFilePath,
     int argCount,
     String resolvedStatus,
-    List<String> ambiguousCandidates
+    List<String> ambiguousCandidates,
+    int targetStartLine,
+    int targetEndLine
 ) implements AnalysisFinding {
 
     public static final String STATUS_RESOLVED = "RESOLVED";
@@ -38,24 +40,47 @@ public record CallGraphEdge(
     public static CallGraphEdge resolved(String sourceClass, String sourceMethod, String sourceFile,
                                           String targetClass, String targetMethod, String targetFile,
                                           int argCount) {
+        return resolved(sourceClass, sourceMethod, sourceFile,
+                        targetClass, targetMethod, targetFile,
+                        argCount, 0, 0);
+    }
+
+    public static CallGraphEdge resolved(String sourceClass, String sourceMethod, String sourceFile,
+                                          String targetClass, String targetMethod, String targetFile,
+                                          int argCount, int targetStartLine, int targetEndLine) {
         return new CallGraphEdge(sourceClass, sourceMethod, sourceFile,
                                  targetClass, targetMethod, targetFile,
-                                 argCount, STATUS_RESOLVED, List.of());
+                                 argCount, STATUS_RESOLVED, List.of(), targetStartLine, targetEndLine);
     }
 
     public static CallGraphEdge unresolved(String sourceClass, String sourceMethod, String sourceFile,
                                             String targetClass, String targetMethod,
                                             int argCount) {
+        return unresolved(sourceClass, sourceMethod, sourceFile,
+                          targetClass, targetMethod, argCount, 0, 0);
+    }
+
+    public static CallGraphEdge unresolved(String sourceClass, String sourceMethod, String sourceFile,
+                                            String targetClass, String targetMethod,
+                                            int argCount, int targetStartLine, int targetEndLine) {
         return new CallGraphEdge(sourceClass, sourceMethod, sourceFile,
                                  targetClass, targetMethod, "",
-                                 argCount, STATUS_UNRESOLVED, List.of());
+                                 argCount, STATUS_UNRESOLVED, List.of(), targetStartLine, targetEndLine);
     }
 
     public static CallGraphEdge ambiguous(String sourceClass, String sourceMethod, String sourceFile,
                                            String targetClass, String targetMethod,
                                            int argCount, List<String> candidates) {
+        return ambiguous(sourceClass, sourceMethod, sourceFile,
+                         targetClass, targetMethod, argCount, candidates, 0, 0);
+    }
+
+    public static CallGraphEdge ambiguous(String sourceClass, String sourceMethod, String sourceFile,
+                                           String targetClass, String targetMethod,
+                                           int argCount, List<String> candidates,
+                                           int targetStartLine, int targetEndLine) {
         return new CallGraphEdge(sourceClass, sourceMethod, sourceFile,
                                  targetClass, targetMethod, "",
-                                 argCount, STATUS_AMBIGUOUS, candidates);
+                                 argCount, STATUS_AMBIGUOUS, candidates, targetStartLine, targetEndLine);
     }
 }

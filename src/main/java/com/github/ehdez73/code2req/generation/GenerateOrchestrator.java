@@ -8,6 +8,8 @@ import com.github.ehdez73.code2req.generation.adapter.writer.SynthesizeSpecActio
 import com.github.ehdez73.code2req.generation.domain.model.SpecResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -19,13 +21,14 @@ public class GenerateOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(GenerateOrchestrator.class);
 
-    private static final Path DEFAULT_CACHE_PATH = Path.of("spec-output", "extraction-cache.json");
-
     private final ObjectMapper objectMapper;
     private final Path cachePath;
 
-    public GenerateOrchestrator() {
-        this(DEFAULT_CACHE_PATH);
+    @Autowired
+    public GenerateOrchestrator(
+            @Value("${code2req.output.spec-dir:./spec-output}") String specDir,
+            @Value("${code2req.output.extraction-cache-file:extraction-cache.json}") String cacheFile) {
+        this(Path.of(specDir).resolve(cacheFile).normalize());
     }
 
     GenerateOrchestrator(Path cachePath) {

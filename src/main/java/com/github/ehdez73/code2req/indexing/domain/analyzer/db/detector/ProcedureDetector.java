@@ -16,11 +16,13 @@ public class ProcedureDetector implements DbAccessDetector {
     @Override
     public void detect(List<DbAccessInfo> result, MethodDeclaration method,
                        String className, String filePath) {
+        int startLine = method.getBegin().map(r -> r.line).orElse(0);
+        int endLine = method.getEnd().map(r -> r.line).orElse(0);
         method.getAnnotationByName("Procedure").ifPresent(ann -> {
             String procedureName = DbAccessHelper.extractProcedureName(ann);
             result.add(new DbAccessInfo(
                 DbAccessType.PROCEDURE.name(), "", "", procedureName,
-                method.getNameAsString(), className, filePath, "", false));
+                method.getNameAsString(), className, filePath, "", false, startLine, endLine));
         });
     }
 }

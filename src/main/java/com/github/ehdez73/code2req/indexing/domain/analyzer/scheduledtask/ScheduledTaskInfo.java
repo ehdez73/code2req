@@ -9,5 +9,12 @@ public record ScheduledTaskInfo(
     Long fixedRate,
     Long fixedDelay,
     String type,
-    String filePath
-) implements AnalysisFinding {}
+    String filePath,
+    int startLine,
+    int endLine
+) implements AnalysisFinding {
+    public ScheduledTaskInfo(String methodName, String className, String cron,
+                             Long fixedRate, Long fixedDelay, String type, String filePath) {
+        this(methodName, className, cron, fixedRate, fixedDelay, type, filePath, 0, 0);
+    }
+}

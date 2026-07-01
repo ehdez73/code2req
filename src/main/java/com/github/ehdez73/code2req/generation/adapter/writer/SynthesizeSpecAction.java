@@ -1,9 +1,16 @@
 package com.github.ehdez73.code2req.generation.adapter.writer;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.CrossReferencedResult;
 import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
+import com.github.ehdez73.code2req.extraction.domain.model.BusinessRule;
+import com.github.ehdez73.code2req.extraction.domain.model.EdgeCase;
+import com.github.ehdez73.code2req.extraction.domain.model.ExternalCall;
+import com.github.ehdez73.code2req.extraction.domain.model.NonFunctionalRequirement;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.EventListenerEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowRelationship;
@@ -32,9 +39,11 @@ public class SynthesizeSpecAction {
     private static final Logger log = LoggerFactory.getLogger(SynthesizeSpecAction.class);
 
     private final Path outputDir;
+    private final ObjectMapper mapper;
 
     public SynthesizeSpecAction(Path outputDir) {
         this.outputDir = outputDir;
+        this.mapper = new ObjectMapper();
     }
 
     public SpecResult synthesize(CrossReferencedResult crossRefResult,
@@ -137,6 +146,7 @@ public class SynthesizeSpecAction {
         appendFlowStepsTable(sb, flow);
         appendBusinessRules(sb, flow);
         appendEdgeCases(sb, flow);
+        appendNonFunctionalRequirements(sb, flow);
         appendAcceptanceCriteria(sb, flow);
 
         sb.append("---\n\n");
@@ -320,15 +330,23 @@ public class SynthesizeSpecAction {
         sb.append("#### Business Rules\n\n");
         sb.append("| ID | Rule | Precondition | Postcondition | Error Behavior | Source |\n");
         sb.append("|---|---|---|---|---|---|\n");
-        flow.businessRules().forEach(rule ->
+        for (BusinessRule rule : flow.businessRules()) {
             sb.append("| ").append(rule.ruleId())
               .append(" | ").append(rule.description())
               .append(" | ").append(rule.precondition())
               .append(" | ").append(rule.postcondition())
               .append(" | ").append(rule.errorBehavior())
               .append(" | ").append(formatSourceRef(rule.sourceFile(), rule.startLine(), rule.endLine()))
-              .append(" |\n")
-        );
+              .append(" |\n");
+            if (rule.externalCall() != null) {
+                ExternalCall ec = rule.externalCall();
+                sb.append("  - **External call:** ").append(ec.httpMethod()).append(" ").append(ec.url());
+                if (ec.timeoutMs() != null) sb.append(" (").append(ec.timeoutMs()).append("ms timeout)");
+                if (ec.retryStrategy() != null && !ec.retryStrategy().isEmpty()) sb.append(", retry: ").append(ec.retryStrategy());
+                if (ec.fallbackBehavior() != null && !ec.fallbackBehavior().isEmpty()) sb.append(", fallback: ").append(ec.fallbackBehavior());
+                sb.append("\n");
+            }
+        }
         sb.append("\n");
     }
 
@@ -336,14 +354,30 @@ public class SynthesizeSpecAction {
         if (flow.edgeCases().isEmpty()) return;
 
         sb.append("#### Edge Cases\n\n");
-        sb.append("| Scenario | Business Consequence | Source |\n");
-        sb.append("|---|---|---|\n");
+        sb.append("| Scenario | Business Consequence | Severity | Source |\n");
+        sb.append("|---|---|---|---|\n");
         flow.edgeCases().forEach(ec ->
             sb.append("| ").append(ec.scenario())
               .append(" | ").append(ec.businessConsequence())
+              .append(" | ").append(ec.severity())
               .append(" | ").append(formatSourceRef(ec.sourceFile(), ec.startLine(), ec.endLine()))
               .append(" |\n")
         );
+        sb.append("\n");
+    }
+
+    private void appendNonFunctionalRequirements(StringBuilder sb, FunctionalFlow flow) {
+        if (flow.nonFunctionalRequirements() == null || flow.nonFunctionalRequirements().isEmpty()) return;
+
+        sb.append("#### Non-Functional Requirements\n\n");
+        sb.append("| Category | Requirement | Source |\n");
+        sb.append("|---|---|---|\n");
+        for (NonFunctionalRequirement nfr : flow.nonFunctionalRequirements()) {
+            sb.append("| ").append(nfr.category())
+              .append(" | ").append(nfr.requirement())
+              .append(" | ").append(nfr.sourceFile())
+              .append(" |\n");
+        }
         sb.append("\n");
     }
 
@@ -407,148 +441,318 @@ public class SynthesizeSpecAction {
         });
     }
 
-    private String generateManifest (CrossReferencedResult result,
+    private String generateManifest(CrossReferencedResult result,
                                      List<OrphanedMethod> orphanedMethods,
-                                     List<AmbiguityGap> quarantineGaps) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("{\n");
-        sb.append("  \"manifest_version\": \"3.0.0\",\n");
-        sb.append("  \"system_name\": \"code2req-generated\",\n");
-        sb.append("  \"generated_at\": \"").append(Instant.now()).append("\",\n");
+                                     List<AmbiguityGap> quarantineGaps) throws IOException {
+        ObjectNode root = mapper.createObjectNode();
+        root.put("manifest_version", "3.0.0");
+        root.put("system_name", "code2req-generated");
+        root.put("generated_at", Instant.now().toString());
 
-        appendFeaturesJson(sb, result);
-        appendCrossFlowRelationshipsJson(sb, result);
-        appendOrphanedMethodsJson(sb, orphanedMethods);
+        root.set("features", featuresToJson(result, quarantineGaps));
+        root.set("cross_flow_relationships", crossFlowRelationshipsToJson(result));
+        root.set("orphaned_methods", orphanedMethodsToJson(orphanedMethods));
 
-        sb.append("}\n");
-        return sb.toString();
+        return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
     }
 
-    private void appendFeaturesJson(StringBuilder sb, CrossReferencedResult result) {
-        sb.append("  \"features\": [\n");
-        for (int i = 0; i < result.features().size(); i++) {
-            FunctionalFeature feature = result.features().get(i);
-            sb.append("    {\n");
-            sb.append("      \"feature_id\": \"").append(feature.featureId()).append("\",\n");
-            sb.append("      \"name\": \"").append(escapeJson(feature.name())).append("\",\n");
-            sb.append("      \"description\": \"").append(escapeJson(feature.description())).append("\",\n");
-
-            appendFlowsArrayJson(sb, feature);
-
-            sb.append("    }");
-            if (i < result.features().size() - 1) sb.append(",");
-            sb.append("\n");
+    private ArrayNode featuresToJson(CrossReferencedResult result, List<AmbiguityGap> quarantineGaps) {
+        ArrayNode features = mapper.createArrayNode();
+        for (FunctionalFeature feature : result.features()) {
+            ObjectNode featNode = mapper.createObjectNode();
+            featNode.put("feature_id", feature.featureId());
+            featNode.put("name", feature.name());
+            featNode.put("description", feature.description());
+            featNode.set("flows", flowsToJson(feature.flows(), quarantineGaps));
+            features.add(featNode);
         }
-        sb.append("  ],\n");
+        return features;
     }
 
-    private void appendFlowsArrayJson(StringBuilder sb, FunctionalFeature feature) {
-        sb.append("      \"flows\": [\n");
-        for (int j = 0; j < feature.flows().size(); j++) {
-            FunctionalFlow flow = feature.flows().get(j);
-            sb.append("        {\n");
-            sb.append("          \"flow_id\": \"").append(flow.flowId()).append("\",\n");
-            String epPathOrClass = switch (flow.entryPoint()) {
-                case HttpEntryPoint h -> h.path();
-                default -> flow.entryPoint().className();
+    private ArrayNode flowsToJson(List<FunctionalFlow> flows, List<AmbiguityGap> quarantineGaps) {
+        ArrayNode flowsArray = mapper.createArrayNode();
+        for (FunctionalFlow flow : flows) {
+            ObjectNode flowNode = mapper.createObjectNode();
+            flowNode.put("flow_id", flow.flowId());
+            flowNode.set("entry_point", entryPointToJson(flow.entryPoint()));
+            flowNode.set("steps", stepsToJson(flow.steps()));
+            flowNode.put("user_story", flow.userStory() != null ? flow.userStory() : "");
+            flowNode.set("acceptance_criteria", acceptanceCriteriaToJson(flow.acceptanceCriteria()));
+            flowNode.set("business_rules", businessRulesToJson(flow.businessRules()));
+            flowNode.set("edge_cases", edgeCasesToJson(flow.edgeCases()));
+            if (flow.mermaidDiagram() != null) {
+                flowNode.put("mermaid_diagram", flow.mermaidDiagram());
+            }
+            flowNode.put("complexity", flow.complexity().name());
+
+            boolean reviewRequired = isReviewRequired(flow.flowId(), quarantineGaps);
+            flowNode.put("review_required", reviewRequired);
+            if (reviewRequired) {
+                flowNode.set("unresolved_reason", unresolvedReasonForFlow(flow.flowId(), quarantineGaps));
+            }
+
+            flowNode.set("non_functional_requirements", nonFunctionalRequirementsToJson(flow.nonFunctionalRequirements()));
+            flowNode.set("traceability_graph", buildTraceabilityGraph(flow));
+
+            flowsArray.add(flowNode);
+        }
+        return flowsArray;
+    }
+
+    private ObjectNode entryPointToJson(EntryPoint ep) {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("type", ep.type().name());
+        node.put("class_name", ep.className());
+        node.put("method_name", ep.methodName());
+        node.put("file_path", ep.filePath());
+        switch (ep) {
+            case HttpEntryPoint h -> {
+                node.put("http_method", h.httpMethod());
+                node.put("path", h.path());
+                node.putNull("schedule");
+                node.putNull("topic_or_queue");
+            }
+            case ScheduledEntryPoint s -> {
+                node.putNull("http_method");
+                node.putNull("path");
+                node.put("schedule", s.schedule());
+                node.putNull("topic_or_queue");
+            }
+            case KafkaEntryPoint k -> {
+                node.putNull("http_method");
+                node.putNull("path");
+                node.putNull("schedule");
+                node.put("topic_or_queue", k.topics());
+            }
+            case RabbitMqEntryPoint r -> {
+                node.putNull("http_method");
+                node.putNull("path");
+                node.putNull("schedule");
+                node.put("topic_or_queue", r.queues());
+            }
+            case ActiveMqEntryPoint a -> {
+                node.putNull("http_method");
+                node.putNull("path");
+                node.putNull("schedule");
+                node.put("topic_or_queue", a.destination());
+            }
+            case EventListenerEntryPoint e -> {
+                node.putNull("http_method");
+                node.putNull("path");
+                node.putNull("schedule");
+                node.putNull("topic_or_queue");
+            }
+        }
+        return node;
+    }
+
+    private ArrayNode stepsToJson(List<FlowStep> steps) {
+        ArrayNode stepsArray = mapper.createArrayNode();
+        for (FlowStep step : steps) {
+            ObjectNode stepNode = mapper.createObjectNode();
+            stepNode.put("step_index", step.stepIndex());
+            stepNode.put("component_type", step.componentType().name());
+            stepNode.put("class_name", step.className());
+            stepNode.put("method_name", step.methodName() != null ? step.methodName() : "");
+            if (step.businessPurpose() != null) {
+                stepNode.put("business_purpose", step.businessPurpose());
+            }
+            stepNode.put("source_file", step.sourceFile() != null ? step.sourceFile() : "");
+            stepNode.put("start_line", step.startLine());
+            stepNode.put("end_line", step.endLine());
+            stepsArray.add(stepNode);
+        }
+        return stepsArray;
+    }
+
+    private ArrayNode acceptanceCriteriaToJson(List<GherkinScenario> scenarios) {
+        ArrayNode array = mapper.createArrayNode();
+        for (GherkinScenario gs : scenarios) {
+            ObjectNode node = mapper.createObjectNode();
+            node.put("scenario_id", gs.scenarioId());
+            node.put("name", gs.name());
+
+            ArrayNode given = mapper.createArrayNode();
+            gs.givenSteps().forEach(given::add);
+            node.set("given", given);
+
+            ArrayNode when = mapper.createArrayNode();
+            gs.whenSteps().forEach(when::add);
+            node.set("when", when);
+
+            ArrayNode then = mapper.createArrayNode();
+            gs.thenSteps().forEach(then::add);
+            node.set("then", then);
+
+            array.add(node);
+        }
+        return array;
+    }
+
+    private ArrayNode businessRulesToJson(List<BusinessRule> rules) {
+        ArrayNode array = mapper.createArrayNode();
+        for (BusinessRule rule : rules) {
+            ObjectNode node = mapper.createObjectNode();
+            node.put("rule_id", rule.ruleId());
+            node.put("description", rule.description());
+            if (rule.precondition() != null && !rule.precondition().isEmpty()) {
+                node.put("precondition", rule.precondition());
+            }
+            if (rule.postcondition() != null && !rule.postcondition().isEmpty()) {
+                node.put("postcondition", rule.postcondition());
+            }
+            node.put("error_behavior", rule.errorBehavior());
+            if (rule.sourceFile() != null && !rule.sourceFile().isEmpty()) {
+                node.put("source_file", rule.sourceFile());
+            }
+            node.put("start_line", rule.startLine());
+            node.put("end_line", rule.endLine());
+            if (rule.externalCall() != null) {
+                node.set("external_call", externalCallToJson(rule.externalCall()));
+            }
+            array.add(node);
+        }
+        return array;
+    }
+
+    private ObjectNode externalCallToJson(ExternalCall ec) {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("http_method", ec.httpMethod());
+        node.put("url", ec.url());
+        if (ec.timeoutMs() != null) node.put("timeout_ms", ec.timeoutMs());
+        if (ec.retryStrategy() != null && !ec.retryStrategy().isEmpty()) {
+            node.put("retry_strategy", ec.retryStrategy());
+        }
+        if (ec.fallbackBehavior() != null && !ec.fallbackBehavior().isEmpty()) {
+            node.put("fallback_behavior", ec.fallbackBehavior());
+        }
+        return node;
+    }
+
+    private ArrayNode edgeCasesToJson(List<EdgeCase> edgeCases) {
+        ArrayNode array = mapper.createArrayNode();
+        for (EdgeCase ec : edgeCases) {
+            ObjectNode node = mapper.createObjectNode();
+            node.put("scenario", ec.scenario());
+            node.put("business_consequence", ec.businessConsequence());
+            node.put("severity", ec.severity());
+            if (ec.sourceFile() != null && !ec.sourceFile().isEmpty()) {
+                node.put("source_file", ec.sourceFile());
+            }
+            array.add(node);
+        }
+        return array;
+    }
+
+    private ArrayNode nonFunctionalRequirementsToJson(List<NonFunctionalRequirement> nfrs) {
+        ArrayNode array = mapper.createArrayNode();
+        if (nfrs == null) return array;
+        for (NonFunctionalRequirement nfr : nfrs) {
+            ObjectNode node = mapper.createObjectNode();
+            node.put("category", nfr.category());
+            node.put("requirement", nfr.requirement());
+            if (nfr.sourceFile() != null && !nfr.sourceFile().isEmpty()) {
+                node.put("source_file", nfr.sourceFile());
+            }
+            array.add(node);
+        }
+        return array;
+    }
+
+    private ArrayNode crossFlowRelationshipsToJson(CrossReferencedResult result) {
+        ArrayNode array = mapper.createArrayNode();
+        for (FlowRelationship rel : result.crossFlowRelationships()) {
+            ObjectNode node = mapper.createObjectNode();
+            node.put("source_flow_id", rel.sourceFlowId());
+            node.put("target_flow_id", rel.targetFlowId());
+            node.put("type", rel.type().name());
+            node.put("description", rel.description());
+            array.add(node);
+        }
+        return array;
+    }
+
+    private ArrayNode orphanedMethodsToJson(List<OrphanedMethod> orphanedMethods) {
+        ArrayNode array = mapper.createArrayNode();
+        for (OrphanedMethod m : orphanedMethods) {
+            ObjectNode node = mapper.createObjectNode();
+            node.put("class_name", m.className());
+            node.put("method_name", m.methodName());
+            node.put("file_path", m.filePath());
+            node.put("start_line", m.startLine());
+            node.put("end_line", m.endLine());
+            node.put("reason", m.reason());
+            array.add(node);
+        }
+        return array;
+    }
+
+    private ObjectNode buildTraceabilityGraph(FunctionalFlow flow) {
+        ObjectNode graph = mapper.createObjectNode();
+        ArrayNode nodes = mapper.createArrayNode();
+        ArrayNode edges = mapper.createArrayNode();
+
+        for (FlowStep step : flow.steps()) {
+            ObjectNode node = mapper.createObjectNode();
+            String nodeId = step.className() + "." + step.methodName();
+            node.put("node_id", nodeId);
+            node.put("file_reference", step.sourceFile() != null ? step.sourceFile() : "");
+            node.put("ast_signature", nodeId);
+            if (step.startLine() > 0) {
+                node.put("lines", step.startLine() + "-" + step.endLine());
+            }
+            nodes.add(node);
+        }
+
+        for (int i = 0; i < flow.steps().size() - 1; i++) {
+            FlowStep from = flow.steps().get(i);
+            FlowStep to = flow.steps().get(i + 1);
+            ObjectNode edge = mapper.createObjectNode();
+            edge.put("source_node", from.className() + "." + from.methodName());
+            edge.put("target_node", to.className() + "." + to.methodName());
+            edge.put("link_type", linkTypeForComponent(to.componentType(), flow.entryPoint()));
+            edges.add(edge);
+        }
+
+        graph.set("nodes", nodes);
+        graph.set("edges", edges);
+        return graph;
+    }
+
+    private static String linkTypeForComponent(FlowStepComponentType type, EntryPoint ep) {
+        return switch (type) {
+            case EXTERNAL_CALL -> "FLOATING_HTTP";
+            case DATABASE -> "DATABASE_CALL";
+            case EVENT_PUBLISHER -> switch (ep) {
+                case KafkaEntryPoint k -> "TOPIC_KAFKA";
+                case RabbitMqEntryPoint r -> "TOPIC_RABBITMQ";
+                case ActiveMqEntryPoint a -> "TOPIC_ACTIVEMQ";
+                default -> "DETERMINISTIC_CALL";
             };
-            sb.append("          \"entry_point\": \"").append(escapeJson(epPathOrClass)).append("\",\n");
-            sb.append("          \"user_story\": \"").append(escapeJson(flow.userStory())).append("\",\n");
-            sb.append("          \"complexity\": \"").append(flow.complexity()).append("\",\n");
-
-            appendAcceptanceCriteriaJson(sb, flow);
-            appendBusinessRulesJson(sb, flow);
-            appendEdgeCasesJson(sb, flow);
-
-            sb.append("        }");
-            if (j < feature.flows().size() - 1) sb.append(",");
-            sb.append("\n");
-        }
-        sb.append("      ]\n");
+            default -> "DETERMINISTIC_CALL";
+        };
     }
 
-    private void appendAcceptanceCriteriaJson(StringBuilder sb, FunctionalFlow flow) {
-        sb.append("          \"acceptance_criteria\": [\n");
-        for (int k = 0; k < flow.acceptanceCriteria().size(); k++) {
-            GherkinScenario gs = flow.acceptanceCriteria().get(k);
-            sb.append("            {\n");
-            sb.append("              \"scenario_id\": \"").append(gs.scenarioId()).append("\",\n");
-            sb.append("              \"name\": \"").append(escapeJson(gs.name())).append("\"\n");
-            sb.append("            }");
-            if (k < flow.acceptanceCriteria().size() - 1) sb.append(",");
-            sb.append("\n");
-        }
-        sb.append("          ],\n");
+    private static boolean isReviewRequired(String flowId, List<AmbiguityGap> gaps) {
+        return gaps != null && gaps.stream().anyMatch(g -> g.flowId().equals(flowId));
     }
 
-    private void appendBusinessRulesJson(StringBuilder sb, FunctionalFlow flow) {
-        sb.append("          \"business_rules\": [\n");
-        for (int k = 0; k < flow.businessRules().size(); k++) {
-            var rule = flow.businessRules().get(k);
-            sb.append("            {\n");
-            sb.append("              \"rule_id\": \"").append(rule.ruleId()).append("\",\n");
-            sb.append("              \"description\": \"").append(escapeJson(rule.description())).append("\"\n");
-            sb.append("            }");
-            if (k < flow.businessRules().size() - 1) sb.append(",");
-            sb.append("\n");
-        }
-        sb.append("          ],\n");
-    }
-
-    private void appendEdgeCasesJson(StringBuilder sb, FunctionalFlow flow) {
-        sb.append("          \"edge_cases\": [\n");
-        for (int k = 0; k < flow.edgeCases().size(); k++) {
-            var ec = flow.edgeCases().get(k);
-            sb.append("            {\n");
-            sb.append("              \"scenario\": \"").append(escapeJson(ec.scenario())).append("\",\n");
-            sb.append("              \"business_consequence\": \"").append(escapeJson(ec.businessConsequence())).append("\"\n");
-            sb.append("            }");
-            if (k < flow.edgeCases().size() - 1) sb.append(",");
-            sb.append("\n");
-        }
-        sb.append("          ]\n");
-    }
-
-    private void appendCrossFlowRelationshipsJson(StringBuilder sb, CrossReferencedResult result) {
-        sb.append("  \"cross_flow_relationships\": [\n");
-        for (int i = 0; i < result.crossFlowRelationships().size(); i++) {
-            FlowRelationship rel = result.crossFlowRelationships().get(i);
-            sb.append("    {\n");
-            sb.append("      \"source_flow_id\": \"").append(rel.sourceFlowId()).append("\",\n");
-            sb.append("      \"target_flow_id\": \"").append(rel.targetFlowId()).append("\",\n");
-            sb.append("      \"type\": \"").append(rel.type()).append("\",\n");
-            sb.append("      \"description\": \"").append(escapeJson(rel.description())).append("\"\n");
-            sb.append("    }");
-            if (i < result.crossFlowRelationships().size() - 1) sb.append(",");
-            sb.append("\n");
-        }
-        sb.append("  ],\n");
-    }
-
-    private void appendOrphanedMethodsJson(StringBuilder sb, List<OrphanedMethod> orphanedMethods) {
-        sb.append("  \"orphaned_methods\": [\n");
-        for (int i = 0; i < orphanedMethods.size(); i++) {
-            OrphanedMethod m = orphanedMethods.get(i);
-            sb.append("    {\n");
-            sb.append("      \"class\": \"").append(escapeJson(m.className())).append("\",\n");
-            sb.append("      \"method\": \"").append(escapeJson(m.methodName())).append("\",\n");
-            sb.append("      \"file\": \"").append(escapeJson(m.filePath())).append("\",\n");
-            sb.append("      \"reason\": \"").append(escapeJson(m.reason())).append("\"\n");
-            sb.append("    }");
-            if (i < orphanedMethods.size() - 1) sb.append(",");
-            sb.append("\n");
-        }
-        sb.append("  ]\n");
+    private ObjectNode unresolvedReasonForFlow(String flowId, List<AmbiguityGap> gaps) {
+        return gaps.stream()
+            .filter(g -> g.flowId().equals(flowId))
+            .findFirst()
+            .map(gap -> {
+                ObjectNode node = mapper.createObjectNode();
+                node.put("reason_type", gap.reason().name());
+                node.put("detail", gap.missingContext());
+                node.put("confidence", gap.confidence());
+                return node;
+            })
+            .orElse(null);
     }
 
     private String slugify(String text) {
         return text.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
-    }
-
-    private String escapeJson(String text) {
-        if (text == null) return "";
-        return text.replace("\\", "\\\\").replace("\"", "\\\"")
-            .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 
     private String formatSourceRef(String file, int startLine, int endLine) {

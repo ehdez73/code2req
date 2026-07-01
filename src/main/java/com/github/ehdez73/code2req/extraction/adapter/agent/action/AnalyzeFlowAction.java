@@ -18,14 +18,21 @@ import com.github.ehdez73.code2req.extraction.domain.model.EdgeCase;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStatus;
+import com.github.ehdez73.code2req.extraction.domain.model.ExternalCall;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.GherkinScenario;
+import com.github.ehdez73.code2req.extraction.domain.model.NonFunctionalRequirement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * For a traced execution flow, extracts business semantics: user story
@@ -116,46 +123,158 @@ public class AnalyzeFlowAction {
             .reduce((a, b) -> a + "\n" + b)
             .orElse("  (no steps traced)");
 
-        String prompt = """
-            Analyze this execution flow and extract functional requirements.
-
-            Entry Point: %s %s (%s)
-            Payload Type: %s
-            Complexity: %s
-            Traced Steps:
-            %s
-
-            Phase 2 Enrichment (entry point):
-            %s
-
-            Phase 2 Enrichment (intermediate steps):
-            %s
-
-            Extract:
-            1. A concise user story (1-2 sentences) describing what this flow does for the user
-            2. 1-3 Gherkin scenarios with Given/When/Then steps covering success, failure, and fallback paths
-            3. Business rules with ID, description, precondition, postcondition, error behavior
-            4. Edge cases with scenario and business consequence
-            5. For every external service call, include in business rules: the HTTP method and URL, timeout expectations, retry strategy (if any), and the exact fallback behavior when the external service is unavailable
-            6. Non-functional requirements where inferable: expected response times, security constraints (e.g. input sanitization against XSS), logging/monitoring needs
-            7. Include the source code file path reference in business rule descriptions where relevant
-
-            Format your response as a JSON object with these fields:
-            {
-              "userStory": "...",
-              "gherkinScenarios": [{"scenarioId": "GS-001", "name": "...", "givenSteps": ["..."], "whenSteps": ["..."], "thenSteps": ["..."]}],
-              "businessRules": [{"ruleId": "BR-001", "description": "...", "precondition": "...", "postcondition": "...", "errorBehavior": "..."}],
-              "edgeCases": [{"scenario": "...", "businessConsequence": "..."}]
+        Set<String> seenSourceKeys = new HashSet<>();
+        StringBuilder sourceCodeContext = new StringBuilder();
+        for (FlowStep step : flow.steps()) {
+            if (step.sourceFile() != null && step.startLine() > 0 && step.endLine() > 0) {
+                String key = step.sourceFile() + ":" + step.startLine() + "-" + step.endLine();
+                if (seenSourceKeys.add(key)) {
+                    String code = readFileContent(step.sourceFile(), step.startLine(), step.endLine());
+                    if (!code.isEmpty()) {
+                        String fileName = step.sourceFile().contains("/")
+                            ? step.sourceFile().substring(step.sourceFile().lastIndexOf('/') + 1)
+                            : step.sourceFile();
+                        sourceCodeContext.append("  ").append(fileName)
+                            .append(" lines ").append(step.startLine()).append("-").append(step.endLine())
+                            .append(":\n");
+                        sourceCodeContext.append("  ```java\n");
+                        sourceCodeContext.append(code.indent(2));
+                        sourceCodeContext.append("  ```\n");
+                    }
+                }
             }
-            """.formatted(
-            entryMethodOrType,
-            entryPathOrClass,
-            flow.entryPoint().filePath(),
-            payloadType,
-            complexity,
-            stepsContext,
-            enrichmentContext,
-            stepEnrichmentContext
+        }
+        String sourceCodeStr = sourceCodeContext.isEmpty()
+            ? "No source code context available."
+            : sourceCodeContext.toString();
+
+        String prompt = """
+    You are a senior software business analyst and reverse-engineering specialist. \
+    You read traced execution flows and source code and extract precise, \
+    verifiable functional and non-functional requirements — the kind that could be \
+    handed to a QA engineer to write automated tests, or to a PM to write a spec, \
+    without further clarification.
+
+    ## Grounding rules (critical)
+    - Base every statement ONLY on the data provided below (traced steps, enrichment, source code).
+    - Never invent timeouts, retry counts, URLs, or behaviors that aren't evidenced in the input.
+    - If a value is not explicitly present in the source, use JSON null for that field rather
+      than guessing.
+    - If a section below is empty or says "none provided", do not fabricate content for it —
+      simply produce fewer items (including zero) for the categories it would affect.
+
+    ## Input
+
+    Entry Point: %s %s (%s)
+    Payload Type: %s
+    Complexity: %s
+
+    Traced Steps:
+    %s
+
+    Phase 2 Enrichment (entry point):
+    %s
+
+    Phase 2 Enrichment (intermediate steps):
+    %s
+
+    Source Code (traced steps):
+    %s
+
+    ## Extraction tasks
+
+    1. **User story** — 1-2 sentences describing what this flow accomplishes for the end user.
+    2. **Gherkin scenarios** — 1-3 scenarios (Given/When/Then) covering the success path, at least
+       one failure path, and the fallback path if one exists in the trace. Number IDs sequentially
+       starting at GS-001, no gaps or reused IDs.
+    3. **Business rules** — one entry per distinct rule enforced by the code. Number IDs
+       sequentially starting at BR-001, no gaps or reused IDs. Populate `sourceFile` with the file
+       path (and line/method if available) from the traced source where the rule is implemented;
+       use null if it can't be tied to a specific location.
+    4. **External call rules** — for every outbound call to an external service found in the trace,
+       emit a business rule whose `externalCall` field is populated with: HTTP method, URL (or URL
+       template if parameterized), timeout in milliseconds, retry strategy, and the exact fallback
+       behavior when the call fails or the service is unavailable. Use null for any of these
+       sub-fields not evidenced in the source. For business rules with no external call, set the
+       entire `externalCall` field to null.
+    5. **Edge cases** — scenario + business consequence + severity, derived only from
+       branches/conditions actually visible in the traced code (null checks, exception handlers,
+       boundary conditions, etc.). `severity` must be exactly one of: LOW, MEDIUM, HIGH.
+    6. **Non-functional requirements** — only where directly inferable from the code/config (e.g.
+       an explicit timeout implies a response-time expectation; sanitization/escaping calls imply
+       a security constraint; logger calls imply a monitoring requirement). `category` must be
+       exactly one of: PERFORMANCE, SECURITY, LOGGING, MONITORING, OTHER. Omit requirements with
+       no direct evidence rather than padding with generic best-practice statements. Populate
+       `sourceFile` the same way as for business rules.
+
+    ## Output contract
+    Respond with a single JSON object and NOTHING else — no markdown code fences, no preamble, no
+    trailing commentary, no explanation of your reasoning. The response must be valid JSON matching
+    exactly this shape (no extra fields, no missing fields):
+
+    {
+      "userStory": "string",
+      "gherkinScenarios": [
+        {
+          "scenarioId": "GS-001",
+          "name": "string",
+          "givenSteps": ["string"],
+          "whenSteps": ["string"],
+          "thenSteps": ["string"]
+        }
+      ],
+      "businessRules": [
+        {
+          "ruleId": "BR-001",
+          "description": "string",
+          "precondition": "string",
+          "postcondition": "string",
+          "errorBehavior": "string",
+          "sourceFile": "string or null",
+          "externalCall": {
+            "httpMethod": "string or null",
+            "url": "string or null",
+            "timeoutMs": "integer or null",
+            "retryStrategy": "string or null",
+            "fallbackBehavior": "string or null"
+          } 
+        }
+      ],
+      "edgeCases": [
+        {
+          "scenario": "string",
+          "businessConsequence": "string",
+          "severity": "LOW"
+        }
+      ],
+      "nonFunctionalRequirements": [
+        {
+          "category": "PERFORMANCE",
+          "requirement": "string",
+          "sourceFile": "string or null"
+        }
+      ]
+    }
+
+    Rules for the shape above:
+    - `externalCall` must be a JSON object with all five sub-fields present (each individually
+      null if unknown), or JSON null itself if the rule involves no external call. Never omit
+      the key.
+    - Every array key (`gherkinScenarios`, `businessRules`, `edgeCases`,
+      `nonFunctionalRequirements`) must always be present, using an empty array `[]` if there is
+      nothing to report — never omit the key, never use null for an array.
+    - `timeoutMs` must be a JSON number (not a string) when present.
+    - `severity` and `category` must match one of the listed enum values exactly, case-sensitive.
+    """.formatted(
+                entryMethodOrType,
+                entryPathOrClass,
+                flow.entryPoint().filePath(),
+                payloadType,
+                complexity,
+                stepsContext,
+                enrichmentContext,
+                stepEnrichmentContext,
+                sourceCodeStr
         );
 
         FlowAnalysisResponse response = context.ai()
@@ -178,11 +297,23 @@ public class AnalyzeFlowAction {
         List<BusinessRule> businessRules = new ArrayList<>();
         if (response.businessRules() != null) {
             for (BusinessRuleDto dto : response.businessRules()) {
+                String ruleSourceFile = dto.sourceFile() != null && !dto.sourceFile().isEmpty()
+                    ? dto.sourceFile() : flow.entryPoint().filePath();
+                ExternalCall externalCall = null;
+                if (dto.externalCall() != null) {
+                    externalCall = new ExternalCall(
+                        dto.externalCall().httpMethod(),
+                        dto.externalCall().url(),
+                        dto.externalCall().timeoutMs(),
+                        dto.externalCall().retryStrategy(),
+                        dto.externalCall().fallbackBehavior()
+                    );
+                }
                 businessRules.add(new BusinessRule(
                     dto.ruleId(), dto.description(),
                     dto.precondition(), dto.postcondition(),
                     dto.errorBehavior(),
-                    flow.entryPoint().filePath(), 0, 0
+                    ruleSourceFile, 0, 0, externalCall
                 ));
             }
         }
@@ -192,7 +323,19 @@ public class AnalyzeFlowAction {
             for (EdgeCaseDto dto : response.edgeCases()) {
                 edgeCases.add(new EdgeCase(
                     dto.scenario(), dto.businessConsequence(),
-                    flow.entryPoint().filePath(), 0, 0
+                    flow.entryPoint().filePath(), 0, 0,
+                    dto.severity() != null ? dto.severity() : "MEDIUM"
+                ));
+            }
+        }
+
+        List<NonFunctionalRequirement> nonFunctionalRequirements = new ArrayList<>();
+        if (response.nonFunctionalRequirements() != null) {
+            for (NonFunctionalRequirementDto dto : response.nonFunctionalRequirements()) {
+                nonFunctionalRequirements.add(new NonFunctionalRequirement(
+                    dto.category(),
+                    dto.requirement(),
+                    dto.sourceFile() != null ? dto.sourceFile() : ""
                 ));
             }
         }
@@ -219,7 +362,8 @@ public class AnalyzeFlowAction {
             businessRules,
             edgeCases,
             complexity,
-            mermaid
+            mermaid,
+            nonFunctionalRequirements
         );
     }
 
@@ -242,19 +386,19 @@ public class AnalyzeFlowAction {
 
     private String formatEnrichmentContext(ExecutionFinding ef) {
         StringBuilder sb = new StringBuilder();
-        if (ef.businessAbstraction() != null) {
-            if (ef.businessAbstraction().purpose() != null) {
-                sb.append("Purpose: ").append(ef.businessAbstraction().purpose()).append("\n");
-            }
-            if (ef.businessAbstraction().happyPaths() != null) {
-                for (ExecutionFinding.HappyPath hp : ef.businessAbstraction().happyPaths()) {
-                    sb.append("Happy path: ").append(hp.flowName()).append("\n");
-                    if (hp.description() != null) {
-                        sb.append("  Description: ").append(hp.description()).append("\n");
-                    }
-                }
-            }
-        }
+//        if (ef.businessAbstraction() != null) {
+//            if (ef.businessAbstraction().purpose() != null) {
+//                sb.append("Purpose: ").append(ef.businessAbstraction().purpose()).append("\n");
+//            }
+//            if (ef.businessAbstraction().happyPaths() != null) {
+//                for (ExecutionFinding.HappyPath hp : ef.businessAbstraction().happyPaths()) {
+//                    sb.append("Happy path: ").append(hp.flowName()).append("\n");
+//                    if (hp.description() != null) {
+//                        sb.append("  Description: ").append(hp.description()).append("\n");
+//                    }
+//                }
+//            }
+//        }
         if (ef.businessRulesAndGuardrails() != null) {
             if (ef.businessRulesAndGuardrails().validations() != null) {
                 for (ExecutionFinding.Validation v : ef.businessRulesAndGuardrails().validations()) {
@@ -290,6 +434,20 @@ public class AnalyzeFlowAction {
         return sb.isEmpty() ? "No enrichment context available." : sb.toString();
     }
 
+    private String readFileContent(String filePath, int startLine, int endLine) {
+        if (filePath == null || filePath.isBlank()) return "";
+        try {
+            var lines = Files.readAllLines(Path.of(filePath));
+            int from = Math.max(0, startLine - 1);
+            int to = Math.min(lines.size(), endLine);
+            if (from >= to) return "";
+            return String.join("\n", lines.subList(from, to));
+        } catch (IOException e) {
+            log.warn("Could not read file {}: {}", filePath, e.getMessage());
+            return "";
+        }
+    }
+
     private String generateMermaid(ExecutionFlow flow) {
         StringBuilder sb = new StringBuilder();
         sb.append("graph TD\n");
@@ -309,30 +467,48 @@ public class AnalyzeFlowAction {
     }
 
     record FlowAnalysisResponse(
-        String userStory,
-        List<GherkinScenarioDto> gherkinScenarios,
-        List<BusinessRuleDto> businessRules,
-        List<EdgeCaseDto> edgeCases
+            String userStory,
+            List<GherkinScenarioDto> gherkinScenarios,
+            List<BusinessRuleDto> businessRules,
+            List<EdgeCaseDto> edgeCases,
+            List<NonFunctionalRequirementDto> nonFunctionalRequirements
     ) {}
 
     record GherkinScenarioDto(
-        String scenarioId,
-        String name,
-        List<String> givenSteps,
-        List<String> whenSteps,
-        List<String> thenSteps
+            String scenarioId,
+            String name,
+            List<String> givenSteps,
+            List<String> whenSteps,
+            List<String> thenSteps
     ) {}
 
     record BusinessRuleDto(
-        String ruleId,
-        String description,
-        String precondition,
-        String postcondition,
-        String errorBehavior
+            String ruleId,
+            String description,
+            String precondition,
+            String postcondition,
+            String errorBehavior,
+            String sourceFile,              // nullable
+            ExternalCallDto externalCall    // nullable
+    ) {}
+
+    record ExternalCallDto(
+            String httpMethod,
+            String url,
+            Integer timeoutMs,
+            String retryStrategy,
+            String fallbackBehavior
     ) {}
 
     record EdgeCaseDto(
-        String scenario,
-        String businessConsequence
+            String scenario,
+            String businessConsequence,
+            String severity   // "LOW" | "MEDIUM" | "HIGH"
+    ) {}
+
+    record NonFunctionalRequirementDto(
+            String category,   // "PERFORMANCE" | "SECURITY" | "LOGGING" | "MONITORING" | "OTHER"
+            String requirement,
+            String sourceFile
     ) {}
 }

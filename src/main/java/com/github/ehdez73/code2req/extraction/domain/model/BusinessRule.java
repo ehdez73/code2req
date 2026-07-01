@@ -8,5 +8,13 @@ public record BusinessRule(
     String errorBehavior,
     String sourceFile,
     int startLine,
-    int endLine
-) {}
+    int endLine,
+    ExternalCall externalCall
+) {
+    public BusinessRule(String ruleId, String description, String precondition,
+                        String postcondition, String errorBehavior,
+                        String sourceFile, int startLine, int endLine) {
+        this(ruleId, description, precondition, postcondition, errorBehavior,
+             sourceFile, startLine, endLine, null);
+    }
+}

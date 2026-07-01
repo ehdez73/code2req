@@ -6,5 +6,11 @@ public record DeclarationInfo(
     String className,
     String methodName,
     List<String> paramTypes,
-    String filePath
-) {}
+    String filePath,
+    int startLine,
+    int endLine
+) {
+    public DeclarationInfo(String className, String methodName, List<String> paramTypes, String filePath) {
+        this(className, methodName, paramTypes, filePath, 0, 0);
+    }
+}

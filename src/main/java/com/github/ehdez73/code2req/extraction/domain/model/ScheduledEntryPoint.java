@@ -7,8 +7,15 @@ public record ScheduledEntryPoint(
     String filePath,
     double priorityScore,
     boolean trivial,
-    String schedule
+    String schedule,
+    int startLine,
+    int endLine
 ) implements EntryPoint {
+    public ScheduledEntryPoint(String id, String className, String methodName, String filePath,
+                               double priorityScore, boolean trivial, String schedule) {
+        this(id, className, methodName, filePath, priorityScore, trivial, schedule, 0, 0);
+    }
+
     @Override
     public EntryPointType type() { return EntryPointType.SCHEDULED; }
 }
