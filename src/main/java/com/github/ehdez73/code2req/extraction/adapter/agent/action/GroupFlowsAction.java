@@ -3,7 +3,6 @@ package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 import com.embabel.agent.api.common.OperationContext;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.AnalyzedFlowResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.GroupedFlowsResult;
-import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFeature;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;

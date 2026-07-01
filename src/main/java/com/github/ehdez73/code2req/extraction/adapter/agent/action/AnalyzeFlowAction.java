@@ -85,8 +85,8 @@ public class AnalyzeFlowAction {
             case RabbitMqEntryPoint r -> !r.payloadType().isEmpty() ? r.payloadType() : r.queues();
             case ActiveMqEntryPoint a -> !a.payloadType().isEmpty() ? a.payloadType() : a.destination();
             case EventListenerEntryPoint e -> e.payloadType();
-            case HttpEntryPoint h -> !h.requestBodies().isEmpty() ? h.requestBodies().get(0) : "\u2014";
-            case ScheduledEntryPoint s -> "\u2014";
+            case HttpEntryPoint h -> !h.requestBodies().isEmpty() ? h.requestBodies().get(0) : "—";
+            case ScheduledEntryPoint s -> "—";
         };
         String epId = entryPointId(ep);
         String enrichmentContext = enrichment
@@ -98,14 +98,12 @@ public class AnalyzeFlowAction {
             .map(FlowStep::sourceFile)
             .filter(f -> f != null && !f.equals(flow.entryPoint().filePath()))
             .distinct().sorted()
-            .forEach(f -> {
-                knowledge.semanticEnrichment().findByFilePath(f)
-                    .ifPresent(ef -> {
-                        String fileName = f.contains("/") ? f.substring(f.lastIndexOf('/') + 1) : f;
-                        stepEnrichments.append("  ").append(fileName).append(":\n");
-                        stepEnrichments.append(formatEnrichmentContext(ef, null).indent(4));
-                    });
-            });
+            .forEach(f -> knowledge.semanticEnrichment().findByFilePath(f)
+                .ifPresent(ef -> {
+                    String fileName = f.contains("/") ? f.substring(f.lastIndexOf('/') + 1) : f;
+                    stepEnrichments.append("  ").append(fileName).append(":\n");
+                    stepEnrichments.append(formatEnrichmentContext(ef, null).indent(4));
+                }));
 
         String stepEnrichmentContext = stepEnrichments.isEmpty()
             ? "No Phase 2 enrichment available for intermediate steps."
@@ -220,7 +218,7 @@ public class AnalyzeFlowAction {
             "timeoutMs": "integer or null",
             "retryStrategy": "string or null",
             "fallbackBehavior": "string or null"
-          } 
+          }
         }
       ],
       "edgeCases": [
