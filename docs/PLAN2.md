@@ -47,11 +47,11 @@
 
 ### Epic E003 — Semantic Enrichment (PRD §2.2, §3.4–§3.7)
 
-#### F016: Planner (US041, US042)
+#### F016: Planner (US041, US042, US056)
 
 Reads the SQLite task store after Phase 1 and determines which tasks qualify for LLM enrichment. Pure query + rule engine — no LLM calls.
 
-**9 qualification rules** (all enabled at runtime):
+**10 qualification rules** (all enabled at runtime):
 1. File has > `llm-unresolved-threshold` (default: 5) unresolved signatures — queries `execution_findings` with `finding_type = 'CALL_GRAPH_EDGE' AND resolved = 0`
 2. File is a Spring Data interface (e.g., `CrudRepository`, `JpaRepository`) — queries `finding_type = 'SPRING_DATA_INTERFACE'`
 3. File contains a stored procedure call — queries `finding_type = 'DATABASE_PROCEDURE_CALL'`
@@ -61,6 +61,7 @@ Reads the SQLite task store after Phase 1 and determines which tasks qualify for
 7. File has a scheduled task (`@Scheduled` annotation) — queries `finding_type = 'SCHEDULED_TASK'`
 8. File contains a native SQL query (`@Query(nativeQuery=true)`, `@NamedNativeQuery`, `EntityManager.createNativeQuery()`, `Session.createNativeQuery()/createSQLQuery()`, raw JDBC) — queries `finding_type = 'NATIVE_SQL_QUERY'`
 9. File contains a JPQL/HQL query (`@Query(...)`, `@NamedQuery`, `EntityManager.createQuery()`, `Session.createQuery()`) — queries `finding_type = 'JPQL_HQL_QUERY'`
+10. File contains DTOs/records with built-in bean validation annotations (e.g., `@NotBlank`, `@Email`, `@Size`) AND is used in a flow (endpoint, component, DB access, or event listener) — queries `finding_type = 'VALIDATOR'` cross-referenced against flow finding types
 
 **Structural fixes completed:**
 - [x] `AnalysisFinding` interface gains `default boolean isResolved() { return true; }` — `CallGraphEdge` overrides to return `STATUS_RESOLVED.equals(resolvedStatus)`
@@ -69,11 +70,12 @@ Reads the SQLite task store after Phase 1 and determines which tasks qualify for
 - [x] `FloatingLinkStore` gains `findSourceFilePathsByResolvedStatus(String)` query for planner access
 - [x] `llmQualificationRules` removed from `ExecutionConfig` (rule filtering not needed — all rules always enabled)
 
-- [x] **US041** (must): Planner qualifies tasks for LLM enrichment based on 9 self-contained rule components (Strategy Pattern)
+- [x] **US041** (must): Planner qualifies tasks for LLM enrichment based on 10 self-contained rule components (Strategy Pattern)
+- [x] **US056** (should): Planner qualifies files with DTOs/records containing built-in bean validation annotations when the file is used in a flow (same-file check against ENDPOINT, COMPONENT, DB_ACCESS, etc.)
 - [ ] **US042** (should): Planner supports dry-run DAG view via `plan` command — tracked in F019
 - [x] Gherkin: `docs/sdlc/features/E003-F016-planner.feature`
 - [x] Depends on: Phase 1 complete (SQLite populated with task rows and execution_findings)
-- [x] Classes: `Phase2Planner` (orchestrator), `QualificationRule` (interface), `PlanningContext` (shared data access), `PlannerDecision` (record), `QualificationReason` (enum), and 9 rule `@Component` classes in `enrichment/domain/planner/rule/` (`SpringDataInterfaceRule`, `StoredProcedureCallRule`, `CustomConstraintValidatorRule`, `ScheduledTaskPresentRule`, `UnresolvedSignaturesRule`, `UnresolvedFloatingLinkRule`, `TestAssertionsPresentRule`, `NativeSqlQueryRule`, `JpqlHqlQueryRule`)
+- [x] Classes: `Phase2Planner` (orchestrator), `QualificationRule` (interface), `PlanningContext` (shared data access), `PlannerDecision` (record), `QualificationReason` (enum), and 10 rule `@Component` classes in `enrichment/domain/planner/rule/` (`SpringDataInterfaceRule`, `StoredProcedureCallRule`, `CustomConstraintValidatorRule`, `DtoValidationRule`, `ScheduledTaskPresentRule`, `UnresolvedSignaturesRule`, `UnresolvedFloatingLinkRule`, `TestAssertionsPresentRule`, `NativeSqlQueryRule`, `JpqlHqlQueryRule`)
 - [x] Modified: `AnalysisFinding` (add `isResolved()`), `CallGraphEdge` (override `isResolved()`), `ExecutionFindingStore` (use per-finding status), `FindingType` (5 new constants), `ScanPipeline` (re-classification step with 2 new cases), `FloatingLinkStore` (query by status), `Phase2Planner` (strategy refactor)
 - [x] Verify: `mvn test` — 366 tests pass, planner correctly qualifies/doesn't qualify
 - [ ] Manual: `plan` CLI command is tracked in F019
@@ -547,6 +549,7 @@ Dedicated `review` command for managing `AWAITING_HUMAN_REVIEW` tasks and functi
 | US051 | F023 | must | E004 — Embabel Agent (Goals, Actions, Output) |
 | US052 | F024 | should | E004 — Quality Audit |
 | US055 | F026 | should | E004 — Review CLI Command |
+| US056 | F016 | should | E003 — Planner — DTO/Record Bean Validation |
 
 ## Phase Dependency Graph
 

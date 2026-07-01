@@ -3,13 +3,29 @@ package com.github.ehdez73.code2req.indexing.domain.analyzer.validator;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisResultBuilder;
+import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class   ValidatorVisitorTest {
+class ValidatorVisitorTest {
+
+    private ParserConfiguration.LanguageLevel previousLevel;
+
+    @BeforeEach
+    void setUp() {
+        previousLevel = StaticJavaParser.getConfiguration().getLanguageLevel();
+        StaticJavaParser.getConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17);
+    }
+
+    @AfterEach
+    void tearDown() {
+        StaticJavaParser.getConfiguration().setLanguageLevel(previousLevel);
+    }
 
     private final ValidatorVisitor visitor = new ValidatorVisitor();
 
@@ -252,5 +268,105 @@ class   ValidatorVisitorTest {
             """);
 
         assertTrue(result.findings(ValidatorInfo.class).isEmpty());
+    }
+
+    @Test
+    void extractsBuiltInAnnotationsOnRecordComponents() {
+        AnalysisResult result = analyze("User.java", """
+            import jakarta.validation.constraints.NotBlank;
+            import jakarta.validation.constraints.Email;
+            public record User(
+                @NotBlank(message = "Name is mandatory")
+                String name,
+                @Email(message = "Email should be valid")
+                String email) {}
+            """);
+
+        assertEquals(2, result.findings(ValidatorInfo.class).size());
+        assertTrue(result.findings(ValidatorInfo.class).stream().allMatch(ValidatorInfo::isBuiltIn));
+
+        ValidatorInfo notBlank = result.findings(ValidatorInfo.class).stream()
+            .filter(v -> v.annotationType().equals("NotBlank"))
+            .findFirst().orElseThrow();
+        assertEquals("User", notBlank.className());
+        assertEquals("name", notBlank.elementName());
+
+        ValidatorInfo email = result.findings(ValidatorInfo.class).stream()
+            .filter(v -> v.annotationType().equals("Email"))
+            .findFirst().orElseThrow();
+        assertEquals("User", email.className());
+        assertEquals("email", email.elementName());
+    }
+
+    @Test
+    void extractsBuiltInAnnotationsOnNestedRecord() {
+        AnalysisResult result = analyze("HelloController.java", """
+            import jakarta.validation.constraints.NotBlank;
+            import jakarta.validation.constraints.Size;
+            import org.springframework.web.bind.annotation.*;
+            @RestController
+            public class HelloController {
+                @PostMapping("/user")
+                public String helloUser(@RequestBody User user) {
+                    return user.name();
+                }
+                public record User(
+                    @NotBlank(message = "Name is mandatory")
+                    @Size(min = 2, max = 30)
+                    String name) {}
+            }
+            """);
+
+        assertEquals(2, result.findings(ValidatorInfo.class).size());
+        assertTrue(result.findings(ValidatorInfo.class).stream().allMatch(ValidatorInfo::isBuiltIn));
+
+        ValidatorInfo notBlank = result.findings(ValidatorInfo.class).stream()
+            .filter(v -> v.annotationType().equals("NotBlank"))
+            .findFirst().orElseThrow();
+        assertEquals("User", notBlank.className());
+        assertEquals("name", notBlank.elementName());
+
+        ValidatorInfo size = result.findings(ValidatorInfo.class).stream()
+            .filter(v -> v.annotationType().equals("Size"))
+            .findFirst().orElseThrow();
+        assertEquals("User", size.className());
+        assertEquals("name", size.elementName());
+    }
+
+    @Test
+    void recordWithoutAnnotations_producesNoFindings() {
+        AnalysisResult result = analyze("Empty.java", """
+            public record Empty(String name, String email) {}
+            """);
+
+        assertTrue(result.findings(ValidatorInfo.class).isEmpty());
+    }
+
+    @Test
+    void handlesMixOfRecordAndRegularClass() {
+        AnalysisResult result = analyze("Mixed.java", """
+            import jakarta.validation.constraints.NotBlank;
+            import jakarta.validation.constraints.Email;
+            public record Dto(@NotBlank String name) {}
+            class Regular {
+                @Email
+                private String email;
+            }
+            """);
+
+        assertEquals(2, result.findings(ValidatorInfo.class).size());
+        assertTrue(result.findings(ValidatorInfo.class).stream().allMatch(ValidatorInfo::isBuiltIn));
+
+        ValidatorInfo dtoNotBlank = result.findings(ValidatorInfo.class).stream()
+            .filter(v -> v.annotationType().equals("NotBlank"))
+            .findFirst().orElseThrow();
+        assertEquals("Dto", dtoNotBlank.className());
+        assertEquals("name", dtoNotBlank.elementName());
+
+        ValidatorInfo regularEmail = result.findings(ValidatorInfo.class).stream()
+            .filter(v -> v.annotationType().equals("Email"))
+            .findFirst().orElseThrow();
+        assertEquals("Regular", regularEmail.className());
+        assertEquals("email", regularEmail.elementName());
     }
 }

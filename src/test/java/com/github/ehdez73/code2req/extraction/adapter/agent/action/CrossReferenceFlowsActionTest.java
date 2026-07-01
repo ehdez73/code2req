@@ -54,7 +54,7 @@ class CrossReferenceFlowsActionTest {
     @Test
     void crossReferenceHttpLinkCreatesRelationship() {
         var endpoints = List.of(
-            new EndpointInfo("GET", "/api/payment", "PaymentController", List.of(), List.of(), "/src/PaymentController.java", false, null, List.of()));
+            new EndpointInfo("GET", "/api/payment", "PaymentController", "", List.of(), List.of(), "/src/PaymentController.java", false, null, List.of()));
         var graph = new StructuralGraph(List.of(), endpoints, List.of(), List.of());
         var floatingLinks = List.of(
             new FloatingLinkInfo("POST", "/api/payment", false, "RestTemplate", "/src/OrderService.java", "process", null, 0.9, "PENDING"));
@@ -108,7 +108,7 @@ class CrossReferenceFlowsActionTest {
     @Test
     void crossReferenceSkipsSelfRelationships() {
         var endpoints = List.of(
-            new EndpointInfo("GET", "/api/orders", "OrderController", List.of(), List.of(), "/src/OrderController.java", false, null, List.of()));
+            new EndpointInfo("GET", "/api/orders", "OrderController", "", List.of(), List.of(), "/src/OrderController.java", false, null, List.of()));
         var graph = new StructuralGraph(List.of(), endpoints, List.of(), List.of());
         var floatingLinks = List.of(
             new FloatingLinkInfo("GET", "/api/orders", false, "RestTemplate", "/src/OrderService.java", "process", null, 0.9, "PENDING"));

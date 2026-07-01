@@ -65,3 +65,4 @@
 | [ADR-003](adrs/ADR-003-sqlite-with-wal-mode.md) | SQLite with WAL Mode Embedded Database | Accepted |
 | [ADR-004](adrs/ADR-004-deterministic-sha256-task-ids.md) | Deterministic SHA-256 Task IDs | Accepted |
 | [ADR-005](adrs/ADR-005-in-memory-secret-redaction.md) | In-Memory Secret Redaction Strategy | Accepted |
+| [ADR-006](adrs/ADR-006-pipeline-orchestration.md) | Pipeline Orchestration — Extract/Generate Command Split | Accepted |

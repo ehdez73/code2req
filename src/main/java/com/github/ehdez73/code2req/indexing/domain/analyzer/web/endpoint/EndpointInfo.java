@@ -7,6 +7,7 @@ public record EndpointInfo(
     String httpMethod,
     String path,
     String controllerName,
+    String methodName,
     List<String> pathVariables,
     List<String> queryParameters,
     String filePath,

@@ -5,8 +5,6 @@ import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
-import com.github.ehdez73.code2req.extraction.adapter.agent.action.SynthesizeSpecAction;
-import com.github.ehdez73.code2req.extraction.adapter.agent.model.SpecResult;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
@@ -35,13 +33,11 @@ import com.github.ehdez73.code2req.infrastructure.persistence.TopicLinkStore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -166,25 +162,6 @@ public class ExtractionOrchestrator {
 
     public ExtractionResult execute(boolean dryRun) {
         return execute(dryRun, false);
-    }
-
-    public SpecResult generate() throws IOException {
-        log.info("Generate: reading extraction cache from {}", CACHE_PATH);
-        if (!Files.exists(CACHE_PATH)) {
-            throw new IllegalStateException(
-                "No extraction cache found at " + CACHE_PATH + ". Run 'extract' first.");
-        }
-
-        ExtractionCache cache;
-        try {
-            cache = objectMapper.readValue(CACHE_PATH.toFile(), ExtractionCache.class);
-        } catch (InvalidTypeIdException e) {
-            throw new IllegalStateException(
-                "Extraction cache is in an incompatible format. Run 'extract' again to regenerate it.", e);
-        }
-        SynthesizeSpecAction action = new SynthesizeSpecAction(CACHE_PATH.getParent());
-        return action.synthesize(
-            cache.crossRefResult(), cache.orphanedMethods(), cache.quarantineGaps(), null);
     }
 
     boolean shouldSkipPhase3(CodebaseKnowledge knowledge, boolean force) {

@@ -108,10 +108,10 @@ class ExtractionOrchestratorTest {
     void buildCodebaseKnowledgeWithEndpoints() throws JsonProcessingException {
         insertTask("task2", "/src/OrderController.java");
         saveFinding("task2", FindingType.ENDPOINT,
-            new EndpointInfo("GET", "/api/orders", "OrderController",
+            new EndpointInfo("GET", "/api/orders", "OrderController", "",
                 List.of("id"), List.of(), "/src/OrderController.java", false, null, List.of()));
         saveFinding("task2", FindingType.ENDPOINT,
-            new EndpointInfo("POST", "/api/orders", "OrderController",
+            new EndpointInfo("POST", "/api/orders", "OrderController", "",
                 List.of(), List.of(), "/src/OrderController.java", false, null, List.of()));
 
         CodebaseKnowledge knowledge = orchestrator.buildCodebaseKnowledge();

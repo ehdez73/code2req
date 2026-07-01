@@ -7,6 +7,8 @@ import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.body.Parameter;
+import com.github.javaparser.ast.body.RecordDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import org.slf4j.Logger;
@@ -72,6 +74,29 @@ public class ValidatorVisitor implements AstAnalysisVisitor {
                 }
             }
 
+            super.visit(n, collector);
+            className = previousClassName;
+        }
+
+        @Override
+        public void visit(RecordDeclaration n, ValidatorCollector collector) {
+            String previousClassName = className;
+            className = n.getNameAsString();
+            for (Parameter param : n.getParameters()) {
+                for (AnnotationExpr ann : param.getAnnotations()) {
+                    String annName = ann.getNameAsString();
+                    if (BUILT_IN_ANNOTATIONS.contains(annName)) {
+                        collector.findings.add(new ValidatorInfo(
+                            className,
+                            filePath,
+                            annName,
+                            param.getNameAsString(),
+                            "",
+                            true
+                        ));
+                    }
+                }
+            }
             super.visit(n, collector);
             className = previousClassName;
         }

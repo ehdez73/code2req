@@ -110,7 +110,7 @@ public class TraceFlowAction {
         Set<String> visited = new HashSet<>();
 
         traceFromSource(entryPoint.filePath(), entryPoint.className(),
-            steps, unresolvedCalls, visited, 0);
+            steps, unresolvedCalls, visited, 0, entryPoint.methodName());
 
         subChainCache.put(cacheKey, steps);
 
@@ -124,7 +124,7 @@ public class TraceFlowAction {
 
     private void traceFromSource(String sourceFilePath, String sourceClassName,
                                   List<FlowStep> steps, List<String> unresolvedCalls,
-                                  Set<String> visited, int depth) {
+                                  Set<String> visited, int depth, String entryMethodName) {
         if (depth >= MAX_DEPTH) return;
 
         String visitKey = sourceFilePath + ":" + sourceClassName;
@@ -135,11 +135,10 @@ public class TraceFlowAction {
             .filter(e -> sourceFilePath.equals(e.sourceFilePath()) || sourceClassName.equals(e.sourceClassName()))
             .collect(Collectors.toList());
 
-        if (depth == 0 && !outgoing.isEmpty()) {
-            String entryMethod = outgoing.get(0).sourceMethodName();
+        if (depth == 0) {
             steps.add(new FlowStep(
                 steps.size(), classifySourceComponent(sourceFilePath),
-                sourceClassName, entryMethod, null,
+                sourceClassName, entryMethodName, null,
                 sourceFilePath, 0, 0, List.of()
             ));
         }
@@ -161,7 +160,7 @@ public class TraceFlowAction {
             ));
 
             traceFromSource(edge.targetFilePath(), edge.targetClassName(),
-                steps, unresolvedCalls, visited, depth + 1);
+                steps, unresolvedCalls, visited, depth + 1, null);
         }
 
         List<DbAccessInfo> dbAccesses = knowledge.structuralGraph().dbAccessPatterns().stream()

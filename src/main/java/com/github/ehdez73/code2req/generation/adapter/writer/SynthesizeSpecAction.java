@@ -1,23 +1,23 @@
-package com.github.ehdez73.code2req.extraction.adapter.agent.action;
+package com.github.ehdez73.code2req.generation.adapter.writer;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.CrossReferencedResult;
-import com.github.ehdez73.code2req.extraction.adapter.agent.model.SpecResult;
 import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.EventListenerEntryPoint;
-import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
-import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
-import com.github.ehdez73.code2req.extraction.domain.model.RabbitMqEntryPoint;
-import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.FlowRelationship;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFeature;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
-import com.github.ehdez73.code2req.extraction.domain.model.FlowRelationship;
 import com.github.ehdez73.code2req.extraction.domain.model.GherkinScenario;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.OrphanedMethod;
+import com.github.ehdez73.code2req.extraction.domain.model.RabbitMqEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
+import com.github.ehdez73.code2req.generation.domain.model.SpecResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,13 +27,6 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * Aggregates all resolved knowledge (FunctionalFeatures, FlowRelationships,
- * AmbiguityGaps, OrphanedMethods) and invokes pure-Java writers to produce
- * the final output artifacts: spec-output/spec.md (Markdown specification)
- * and spec-output/semantic_manifest.json (machine-readable manifest).
- * Validates JSON output against the bundled schema before persisting.
- */
 public class SynthesizeSpecAction {
 
     private static final Logger log = LoggerFactory.getLogger(SynthesizeSpecAction.class);
@@ -103,7 +96,7 @@ public class SynthesizeSpecAction {
         for (FunctionalFeature feature : result.features()) {
             sb.append("- [").append(feature.name()).append("](#").append(slugify(feature.name())).append(")\n");
             for (FunctionalFlow flow : feature.flows()) {
-                sb.append("  - [").append(flow.name()).append("](#").append(slugify(flow.flowId())).append(")\n");
+                sb.append("  - [").append(flow.name()).append("](#").append(slugify(flow.name())).append(")\n");
             }
         }
 
@@ -119,6 +112,7 @@ public class SynthesizeSpecAction {
     }
 
     private void appendFeatureSection(StringBuilder sb, FunctionalFeature feature) {
+        sb.append("<a name=\"").append(slugify(feature.name())).append("\"></a>\n");
         sb.append("## ").append(feature.name()).append("\n\n");
         sb.append("**Description:** ").append(feature.description()).append("\n\n");
 
@@ -128,6 +122,7 @@ public class SynthesizeSpecAction {
     }
 
     private void appendFlowSection(StringBuilder sb, FunctionalFlow flow) {
+        sb.append("<a name=\"").append(slugify(flow.name())).append("\"></a>\n");
         sb.append("### ").append(flow.name()).append("\n\n");
 
         if (flow.userStory() != null) {
@@ -564,6 +559,7 @@ public class SynthesizeSpecAction {
         return file;
     }
 
+    @SuppressWarnings("unused")
     private String brokerLabel(EntryPoint entryPoint) {
         return switch (entryPoint) {
             case ScheduledEntryPoint s -> "@Scheduled";

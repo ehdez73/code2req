@@ -1,9 +1,9 @@
 # Feature: Phase 2 Planner — Task Qualification for LLM Enrichment
 # Epic: E003 — Semantic Enrichment
 # Feature ID: F016
-# Stories: US041, US042
+# Stories: US041, US042, US056
 # Phase 2 draft generated: 2026-06-17
-# Last updated: 2026-06-17
+# Last updated: 2026-06-30
 
 Feature: Phase 2 Planner — Task Qualification for LLM Enrichment
   Reads the SQLite task store after Phase 1 and determines which tasks qualify for LLM enrichment based on configurable rules.
@@ -13,7 +13,7 @@ Feature: Phase 2 Planner — Task Qualification for LLM Enrichment
     And the execution_findings table contains Phase 1 detection results
     And the llm-unresolved-threshold is set to 5 (default)
 
-  Rule: A task qualifies for LLM enrichment when it exceeds the unresolved signature threshold, is a virtual declaration, contains stored procedure calls, is a custom ConstraintValidator, or has a paired test file
+  Rule: A task qualifies for LLM enrichment when it exceeds the unresolved signature threshold, is a virtual declaration, contains stored procedure calls, is a custom ConstraintValidator, has a paired test file, or has a DTO/record with bean validation annotations used in a flow
 
     @US041 @E003 @F016 @must @draft
     Scenario: Task qualifies due to exceeding unresolved signature threshold
@@ -64,6 +64,20 @@ Feature: Phase 2 Planner — Task Qualification for LLM Enrichment
       When the planner evaluates qualification
       Then the task is qualified
       And the decision contains reasons "SPRING_DATA_INTERFACE" and "UNRESOLVED_SIGNATURES_EXCEEDED"
+
+    @US056 @E003 @F016 @should @draft
+    Scenario: Task qualifies because its DTO/record has bean validation annotations used in a flow
+      Given a task with VALIDATOR findings from a record or DTO with built-in bean validation annotations
+      And the task also has a flow-relevant finding (e.g., ENDPOINT, COMPONENT, DB_ACCESS, SCHEDULED_TASK)
+      When the planner evaluates qualification
+      Then the task is qualified with reason "BEAN_VALIDATION"
+
+    @US056 @E003 @F016 @should @draft
+    Scenario: Task with bean validation annotations but no flow usage does NOT qualify
+      Given a task with VALIDATOR findings from a DTO with built-in bean validation annotations
+      And the task has no ENDPOINT, COMPONENT, DB_ACCESS, or other flow-relevant findings
+      When the planner evaluates qualification
+      Then the task is not qualified
 
   Rule: The planner returns qualification decisions without making any LLM calls
 

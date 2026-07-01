@@ -1,7 +1,7 @@
 package com.github.ehdez73.code2req.infrastructure.cli.command;
 
-import com.github.ehdez73.code2req.extraction.ExtractionOrchestrator;
-import com.github.ehdez73.code2req.extraction.adapter.agent.model.SpecResult;
+import com.github.ehdez73.code2req.generation.GenerateOrchestrator;
+import com.github.ehdez73.code2req.generation.domain.model.SpecResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.shell.standard.ShellComponent;
@@ -15,10 +15,10 @@ public class GenerateCommand {
 
     private static final Logger log = LoggerFactory.getLogger(GenerateCommand.class);
 
-    private final ExtractionOrchestrator extractionOrchestrator;
+    private final GenerateOrchestrator generateOrchestrator;
 
-    public GenerateCommand(ExtractionOrchestrator extractionOrchestrator) {
-        this.extractionOrchestrator = extractionOrchestrator;
+    public GenerateCommand(GenerateOrchestrator generateOrchestrator) {
+        this.generateOrchestrator = generateOrchestrator;
     }
 
     @ShellMethod(key = "generate", value = "Generate spec.md and semantic_manifest.json from cached extraction results")
@@ -27,7 +27,7 @@ public class GenerateCommand {
         var start = Instant.now();
 
         try {
-            SpecResult result = extractionOrchestrator.generate();
+            SpecResult result = generateOrchestrator.generate();
             long elapsed = Duration.between(start, Instant.now()).toSeconds();
 
             sb.append(String.format("  Features: %d%n", result.featureCount()));

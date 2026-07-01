@@ -65,7 +65,7 @@ public class WebXmlAnalyzer {
                     if (!path.startsWith("/")) {
                         path = "/" + path;
                     }
-                    endpoints.add(new EndpointInfo("", path, servletClass,
+                    endpoints.add(new EndpointInfo("", path, servletClass, "",
                         List.of(), List.of(), filePath.toString(), false, "", List.of()));
                 }
             }

@@ -25,7 +25,7 @@ class FloatingLinkResolverTest {
     void exactLiteralMatchResolvedAtFullConfidence() {
         var call = new OutboundHttpCallInfo("GET", "/api/users", false,
             "REST_TEMPLATE", "getUsers", "UserService", "UserService.java");
-        var endpoint = new EndpointInfo("GET", "/api/users", "UserController", List.of(), List.of(), "UserController.java", false, "", List.of());
+        var endpoint = new EndpointInfo("GET", "/api/users", "UserController", "", List.of(), List.of(), "UserController.java", false, "", List.of());
         var links = resolver.resolve(List.of(resultWith(call, endpoint)));
 
         assertEquals(1, links.size());
@@ -38,7 +38,7 @@ class FloatingLinkResolverTest {
     void pathVariableMatchAtEightConfidence() {
         var call = new OutboundHttpCallInfo("GET", "/api/users/42", false,
             "REST_TEMPLATE", "getUser", "UserService", "UserService.java");
-        var endpoint = new EndpointInfo("GET", "/api/users/{id}", "UserController", List.of(), List.of(), "UserController.java", false, "", List.of());
+        var endpoint = new EndpointInfo("GET", "/api/users/{id}", "UserController", "", List.of(), List.of(), "UserController.java", false, "", List.of());
         var links = resolver.resolve(List.of(resultWith(call, endpoint)));
 
         assertEquals(1, links.size());
@@ -50,7 +50,7 @@ class FloatingLinkResolverTest {
     void noMatchLeavesPending() {
         var call = new OutboundHttpCallInfo("POST", "/api/external", false,
             "REST_TEMPLATE", "callExternal", "Service", "Service.java");
-        var endpoint = new EndpointInfo("GET", "/api/internal", "InternalController", List.of(), List.of(), "IC.java", false, "", List.of());
+        var endpoint = new EndpointInfo("GET", "/api/internal", "InternalController", "", List.of(), List.of(), "IC.java", false, "", List.of());
         var links = resolver.resolve(List.of(resultWith(call, endpoint)));
 
         assertEquals(1, links.size());
@@ -63,8 +63,8 @@ class FloatingLinkResolverTest {
     void methodMismatchPreventsMatch() {
         var call = new OutboundHttpCallInfo("DELETE", "/api/users/1", false,
             "REST_TEMPLATE", "deleteUser", "UserService", "UserService.java");
-        var ep1 = new EndpointInfo("GET", "/api/users/{id}", "UserController", List.of(), List.of(), "UC.java", false, "", List.of());
-        var ep2 = new EndpointInfo("DELETE", "/api/users/{id}", "UserAdminController", List.of(), List.of(), "UAC.java", false, "", List.of());
+        var ep1 = new EndpointInfo("GET", "/api/users/{id}", "UserController", "", List.of(), List.of(), "UC.java", false, "", List.of());
+        var ep2 = new EndpointInfo("DELETE", "/api/users/{id}", "UserAdminController", "", List.of(), List.of(), "UAC.java", false, "", List.of());
         var links = resolver.resolve(List.of(resultWith(call, ep1, ep2)));
 
         assertEquals(1, links.size());
@@ -76,8 +76,8 @@ class FloatingLinkResolverTest {
     void bestConfidenceIsChosen() {
         var call = new OutboundHttpCallInfo("GET", "/api/items/5/details", false,
             "WEB_CLIENT", "getItemDetails", "ItemService", "ItemService.java");
-        var ep1 = new EndpointInfo("GET", "/api/items/{id}/details", "ItemController", List.of(), List.of(), "IC.java", false, "", List.of());
-        var ep2 = new EndpointInfo("GET", "/api/items/all", "ItemListController", List.of(), List.of(), "ILC.java", false, "", List.of());
+        var ep1 = new EndpointInfo("GET", "/api/items/{id}/details", "ItemController", "", List.of(), List.of(), "IC.java", false, "", List.of());
+        var ep2 = new EndpointInfo("GET", "/api/items/all", "ItemListController", "", List.of(), List.of(), "ILC.java", false, "", List.of());
         var links = resolver.resolve(List.of(resultWith(call, ep1, ep2)));
 
         assertEquals(1, links.size());

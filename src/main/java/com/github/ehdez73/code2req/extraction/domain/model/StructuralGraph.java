@@ -119,7 +119,7 @@ public class StructuralGraph {
         for (EndpointInfo ep : endpoints) {
             String id = ep.httpMethod() + " " + ep.path();
             entryPoints.add(new HttpEntryPoint(
-                id, ep.className(), null, ep.filePath(),
+                id, ep.className(), ep.methodName(), ep.filePath(),
                 0.0, false,
                 ep.httpMethod(), ep.path(), ep.pathVariables(), ep.requestBodies()
             ));

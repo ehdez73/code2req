@@ -35,7 +35,7 @@ class DiscoverEntryPointsActionTest {
     @Test
     void discoverReturnsHttpEndpoints() {
         var endpoints = List.of(
-            new EndpointInfo("GET", "/api/orders", "OrderController", List.of(), List.of(), "/src/OrderController.java", false, null, List.of()));
+            new EndpointInfo("GET", "/api/orders", "OrderController", "", List.of(), List.of(), "/src/OrderController.java", false, null, List.of()));
         var graph = new StructuralGraph(List.of(), endpoints, List.of(), List.of());
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
 
@@ -63,8 +63,8 @@ class DiscoverEntryPointsActionTest {
     @Test
     void discoverFiltersTrivialActuatorPaths() {
         var endpoints = List.of(
-            new EndpointInfo("GET", "/actuator/health", "HealthController", List.of(), List.of(), "/src/HealthController.java", false, null, List.of()),
-            new EndpointInfo("GET", "/api/orders", "OrderController", List.of(), List.of(), "/src/OrderController.java", false, null, List.of()));
+            new EndpointInfo("GET", "/actuator/health", "HealthController", "", List.of(), List.of(), "/src/HealthController.java", false, null, List.of()),
+            new EndpointInfo("GET", "/api/orders", "OrderController", "", List.of(), List.of(), "/src/OrderController.java", false, null, List.of()));
         var graph = new StructuralGraph(List.of(), endpoints, List.of(), List.of());
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
 
@@ -92,8 +92,8 @@ class DiscoverEntryPointsActionTest {
     @Test
     void discoverSortsByPriorityDescending() {
         var endpoints = List.of(
-            new EndpointInfo("GET", "/api/a", "AController", List.of(), List.of(), "/src/AController.java", false, null, List.of()),
-            new EndpointInfo("GET", "/api/b", "BController", List.of(), List.of(), "/src/BController.java", false, null, List.of()));
+            new EndpointInfo("GET", "/api/a", "AController", "", List.of(), List.of(), "/src/AController.java", false, null, List.of()),
+            new EndpointInfo("GET", "/api/b", "BController", "", List.of(), List.of(), "/src/BController.java", false, null, List.of()));
         var graph = new StructuralGraph(List.of(), endpoints, List.of(), List.of());
         var enrichment = new SemanticEnrichment(Map.of(
             "/src/AController.java", new ExecutionFinding(
