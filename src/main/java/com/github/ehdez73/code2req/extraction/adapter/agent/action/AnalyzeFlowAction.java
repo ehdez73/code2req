@@ -150,10 +150,10 @@ public class AnalyzeFlowAction {
             : sourceCodeContext.toString();
 
         String prompt = """
-    You are a senior software business analyst and reverse-engineering specialist. \
-    You read traced execution flows and source code and extract precise, \
-    verifiable functional and non-functional requirements — the kind that could be \
-    handed to a QA engineer to write automated tests, or to a PM to write a spec, \
+    You are a senior software business analyst and reverse-engineering specialist.
+    You read traced execution flows and source code and extract precise,
+    verifiable functional and non-functional requirements — the kind that could be
+    handed to a QA engineer to write automated tests, or to a PM to write a spec,
     without further clarification.
 
     ## Grounding rules (critical)
@@ -163,24 +163,6 @@ public class AnalyzeFlowAction {
       than guessing.
     - If a section below is empty or says "none provided", do not fabricate content for it —
       simply produce fewer items (including zero) for the categories it would affect.
-
-    ## Input
-
-    Entry Point: %s %s (%s)
-    Payload Type: %s
-    Complexity: %s
-
-    Traced Steps:
-    %s
-
-    Phase 2 Enrichment (entry point):
-    %s
-
-    Phase 2 Enrichment (intermediate steps):
-    %s
-
-    Source Code (traced steps):
-    %s
 
     ## Extraction tasks
 
@@ -266,6 +248,24 @@ public class AnalyzeFlowAction {
       nothing to report — never omit the key, never use null for an array.
     - `timeoutMs` must be a JSON number (not a string) when present.
     - `severity` and `category` must match one of the listed enum values exactly, case-sensitive.
+    
+    ## Input
+
+    Entry Point: %s %s (%s)
+    Payload Type: %s
+    Complexity: %s
+
+    Traced Steps:
+    %s
+
+    Phase 2 Enrichment (entry point):
+    %s
+
+    Phase 2 Enrichment (intermediate steps):
+    %s
+
+    Source Code (traced steps):
+    %s
     """.formatted(
                 entryMethodOrType,
                 entryPathOrClass,

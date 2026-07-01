@@ -55,13 +55,31 @@ public class GroupFlowsAction {
             .orElse("");
 
         String prompt = """
-            Group these execution flows into logical features based on semantic similarity.
-            Each group should represent a cohesive business capability.
-
-            Flows:
-            %s
-
-            Return a JSON object with:
+            You are analyzing a set of execution flows extracted from a codebase and organizing them into logical, business-oriented feature groups.
+        
+            ## Task
+            Group the flows below into cohesive features based on semantic similarity. A "feature" represents a business capability a stakeholder would recognize (e.g., "User Registration", "Order Fulfillment") — not a technical layer or file structure.
+        
+            ## Grouping criteria
+            Flows likely belong together when they meet one or more of the following:
+            - Operate on the same domain entity (e.g., Orders, Users)
+            - Share the same business purpose or user-facing outcome
+            - Are part of the same CRUD lifecycle for an entity
+            - Share the same external dependencies, databases, or third-party integrations
+        
+            These are signals, not strict requirements — use judgment. A flow does not need to satisfy every criterion to belong in a group.
+        
+            ## Rules
+            - Every flow ID provided below must appear in exactly one group. Do not omit any flow ID and do not duplicate a flow ID across groups.
+            - If a flow doesn't clearly fit with others, place it in its own single-flow group rather than forcing it into an unrelated one.
+            - Do not invent flow IDs that are not present in the input.
+            - featureName should be a short, human-readable noun phrase (2-4 words, Title Case), unique across groups.
+            - featureDescription must be 2-3 sentences covering: (1) the business capability, (2) what triggers it, and (3) any external dependencies or systems involved.
+            - Prefer fewer, more meaningful groups over many overly granular ones, but never merge flows that don't genuinely share a business capability.
+        
+            ## Output format
+            Return ONLY a single valid JSON object — no markdown code fences, no commentary, no explanation before or after.
+        
             {
               "groups": [
                 {
@@ -71,17 +89,10 @@ public class GroupFlowsAction {
                 }
               ]
             }
-
-            Group flows that:
-            - Operate on the same domain entity (e.g., Orders, Users)
-            - Share similar business purpose
-            - Are part of the same CRUD lifecycle
-            - Use the same external dependencies or databases
-
-            For each feature's description, write 2-3 sentences capturing the business
-            capability, what triggers it, and any external dependencies involved.
+        
+            ## Flows
+            %s
             """.formatted(flowSummaries);
-
         GroupingResponse response = context.ai()
             .withDefaultLlm()
             .createObject(prompt, GroupingResponse.class);
@@ -146,9 +157,22 @@ public class GroupFlowsAction {
             .filter(s -> s.componentType() == FlowStepComponentType.DATABASE).count();
 
         String prompt = """
-            Write a concise, business-oriented feature description (2-3 sentences) for a software feature.
-            Include what it does, how it is triggered, and mention any external dependencies (external APIs, databases, event brokers).
-
+            You are writing a short, business-oriented description of a software feature for a non-technical stakeholder audience (e.g., a product catalog or documentation index).
+        
+            ## Task
+            Write a concise feature description in 2-3 sentences that covers:
+            1. What the feature does, in terms of business/user outcome (not implementation detail)
+            2. What triggers it (e.g., an HTTP request, a scheduled job, an event)
+            3. Any external dependencies it relies on (external APIs, databases, event brokers) — only mention this if the data below indicates at least one exists
+        
+            ## Guidelines
+            - Write in plain business language. Avoid class names, method names, or code-level jargon unless no other way exists to describe the trigger.
+            - Base the description only on the information provided below. Do not invent business context, users, or dependencies that aren't implied by the data.
+            - If "External calls" is 0, do not mention external APIs. If "Database ops" is 0, do not mention databases.
+            - If a user story is provided, use it to inform the business framing and intent. If it is "N/A", infer the likely business purpose from the flow name and steps instead, but keep the inference conservative and grounded in what's given.
+            - Do not return a title, label, or preamble like "Description:" — return only the 2-3 sentence description as plain prose, no JSON, no markdown.
+        
+            ## Flow details
             Flow name: %s
             Entry point: %s %s
             Steps:
@@ -156,22 +180,20 @@ public class GroupFlowsAction {
             External calls: %d
             Database ops: %d
             User story: %s
-
-            Return only the description text, no JSON.
             """.formatted(
-            flow.name(),
-            switch (flow.entryPoint()) {
-                case HttpEntryPoint h -> h.httpMethod();
-                default -> flow.entryPoint().type().name();
-            },
-            switch (flow.entryPoint()) {
-                case HttpEntryPoint h -> h.path();
-                default -> flow.entryPoint().className();
-            },
-            stepsSummary,
-            externalCount,
-            dbCount,
-            flow.userStory() != null ? flow.userStory() : "N/A"
+                flow.name(),
+                switch (flow.entryPoint()) {
+                    case HttpEntryPoint h -> h.httpMethod();
+                    default -> flow.entryPoint().type().name();
+                },
+                switch (flow.entryPoint()) {
+                    case HttpEntryPoint h -> h.path();
+                    default -> flow.entryPoint().className();
+                },
+                stepsSummary,
+                externalCount,
+                dbCount,
+                flow.userStory() != null ? flow.userStory() : "N/A"
         );
 
         DescriptionResponse response = context.ai()
