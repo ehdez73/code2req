@@ -156,8 +156,8 @@ class ExtractionOrchestratorTest {
                 "Processes payments",
                 List.of(new ExecutionFinding.HappyPath("Standard payment", "Customer pays with valid card"))),
             new ExecutionFinding.BusinessRulesAndGuardrails(
-                List.of(new ExecutionFinding.Validation("amount", "Must be positive", "Throws error")),
-                List.of(new ExecutionFinding.EdgeCase("Null amount", "Rejected"))),
+                List.of(new ExecutionFinding.Validation("amount", "Must be positive", "Throws error", null)),
+                List.of(new ExecutionFinding.EdgeCase("Null amount", "Rejected", null))),
             List.of(),
             new ExecutionFinding.ArchitecturalConnections(
                 new ExecutionFinding.Inbound(

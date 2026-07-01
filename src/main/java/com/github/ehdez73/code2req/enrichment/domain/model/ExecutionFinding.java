@@ -54,14 +54,18 @@ public record ExecutionFinding(
         @JsonPropertyDescription("The validation rule or business constraint (e.g. 'Email must match pattern ^.+@.+\\..+$', 'Total must be positive').")
         String rule,
         @JsonProperty("error_behavior") @JsonPropertyDescription("What happens when validation fails (e.g. 'Throws IllegalArgumentException', 'Returns 400 Bad Request', 'Rejects with error message').")
-        String errorBehavior
+        String errorBehavior,
+        @JsonProperty("entry_point") @JsonPropertyDescription("The entry point this validation belongs to (e.g. 'GET /hello/{name}', 'kafka:orders', 'scheduled:0 0 8 * * ?'), or null if it applies to all entry points in this file.")
+        String entryPoint
     ) {}
 
     public record EdgeCase(
         @JsonPropertyDescription("Description of the edge case scenario (e.g. 'Null input', 'Empty list', 'Expired token').")
         String scenario,
         @JsonProperty("business_consequence") @JsonPropertyDescription("Business impact if this edge case is triggered (e.g. 'Order rejected', 'Fallback to default value').")
-        String businessConsequence
+        String businessConsequence,
+        @JsonProperty("entry_point") @JsonPropertyDescription("The entry point this edge case belongs to (e.g. 'GET /hello/{name}', 'kafka:orders', 'scheduled:0 0 8 * * ?'), or null if it applies to all entry points in this file.")
+        String entryPoint
     ) {}
 
     public record TestInsight(

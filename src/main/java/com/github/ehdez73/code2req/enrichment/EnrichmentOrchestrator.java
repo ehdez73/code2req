@@ -395,7 +395,7 @@ public class EnrichmentOrchestrator {
     }
 
     private String hashKey(PlannerDecision decision) {
-        return decision.filePath();
+        return decision.taskId();
     }
 
     private String sha256(String input) {

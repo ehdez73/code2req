@@ -299,11 +299,12 @@ private String buildSystemPrompt() {
               {
                 "field_or_context": "<validated input or context>",
                 "rule":             "<constraint>",
-                "error_behavior":   "<what happens on failure>"
+                "error_behavior":   "<what happens on failure>",
+                "entry_point":      "<matching entry point id or null if file-level>"
               }
             ],
             "edge_cases": [
-              { "scenario": "<boundary or error state>", "business_consequence": "<impact>" }
+              { "scenario": "<boundary or error state>", "business_consequence": "<impact>", "entry_point": "<matching entry point id or null if file-level>" }
             ]
           },
           "test_insights": [
@@ -342,8 +343,16 @@ private String buildSystemPrompt() {
         metadata          — copy all five fields verbatim from the task context block.
         purpose           — one or two sentences, business language, no code terms.
         happy_paths       — one entry per distinct success flow; omit error flows here.
-        validations       — every guard clause, null check, or business rejection rule.
-        edge_cases        — boundary states and explicit error handling only.
+        validations       — every guard clause, null check, or business rejection rule. Populate
+                            `entry_point` by cross-referencing each validation against the
+                            `architectural_connections.inbound.http_endpoints[]`,
+                            `.event_subscriptions[]`, and `.scheduled_triggers[]` entries in this
+                            file. Use the format "GET /path", "kafka:topic", "rabbitmq:queue",
+                            "activemq:destination", "event-listener:PayloadType", or
+                            "scheduled:cronExpr". Use null if the validation is file-level
+                            (applies to all entry points in this file).
+        edge_cases        — boundary states and explicit error handling only. Populate `entry_point`
+                            the same way as for validations.
         test_insights     — only if a TEST FILE section is present; otherwise `[]`.
         architectural_connections — scan for @RequestMapping, RestTemplate, @KafkaListener,
                             @Scheduled, JmsTemplate, WebClient, and similar. Empty arrays

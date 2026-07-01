@@ -116,6 +116,10 @@ public class ExtractionOrchestrator {
             return result;
         }
 
+        if (!requireAllTasksTerminal(force)) {
+            return ExtractionResult.blocked("All tasks must be SKIPPED or ENRICHED before Phase 3. Run 'enrich --resume' first.");
+        }
+
         log.info("Phase 3: building CodebaseKnowledge from SQLite");
         CodebaseKnowledge knowledge = buildCodebaseKnowledge();
 
@@ -124,10 +128,6 @@ public class ExtractionOrchestrator {
             ExtractionResult empty = ExtractionResult.empty();
             persistMetrics(empty, false);
             return empty;
-        }
-
-        if (!requireAllTasksTerminal(force)) {
-            return ExtractionResult.blocked("All tasks must be SKIPPED or ENRICHED before Phase 3. Run 'enrich --resume' first.");
         }
 
 //        if (agentPlatform == null) {

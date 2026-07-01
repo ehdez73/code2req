@@ -64,7 +64,7 @@ public class ExtractCommand {
             sb.append(String.format("  Phase 3 elapsed: %ds%n%n", p3Elapsed));
             long totalElapsed = Duration.between(start, Instant.now()).toSeconds();
             sb.append(String.format("=== Extract Complete (%ds) ===%n", totalElapsed));
-            return sb.toString();
+            throw new IllegalStateException(sb.toString());
         }
 
         sb.append(String.format("  Flows extracted: %d%n", result.flowsExtracted()));

@@ -88,8 +88,9 @@ public class AnalyzeFlowAction {
             case HttpEntryPoint h -> !h.requestBodies().isEmpty() ? h.requestBodies().get(0) : "\u2014";
             case ScheduledEntryPoint s -> "\u2014";
         };
+        String epId = entryPointId(ep);
         String enrichmentContext = enrichment
-            .map(ef -> formatEnrichmentContext(ef))
+            .map(ef -> formatEnrichmentContext(ef, epId))
             .orElse("No Phase 2 enrichment available.");
 
         StringBuilder stepEnrichments = new StringBuilder();
@@ -102,7 +103,7 @@ public class AnalyzeFlowAction {
                     .ifPresent(ef -> {
                         String fileName = f.contains("/") ? f.substring(f.lastIndexOf('/') + 1) : f;
                         stepEnrichments.append("  ").append(fileName).append(":\n");
-                        stepEnrichments.append(formatEnrichmentContext(ef).indent(4));
+                        stepEnrichments.append(formatEnrichmentContext(ef, null).indent(4));
                     });
             });
 
@@ -384,30 +385,32 @@ public class AnalyzeFlowAction {
         return ComplexityLevel.MINIMAL;
     }
 
-    private String formatEnrichmentContext(ExecutionFinding ef) {
+    private static String entryPointId(EntryPoint ep) {
+        return switch (ep) {
+            case HttpEntryPoint h -> h.httpMethod() + " " + h.path();
+            case KafkaEntryPoint k -> "kafka:" + k.topics();
+            case RabbitMqEntryPoint r -> "rabbitmq:" + r.queues();
+            case ActiveMqEntryPoint a -> "activemq:" + a.destination();
+            case EventListenerEntryPoint e -> "event-listener:" + e.payloadType();
+            case ScheduledEntryPoint s -> "scheduled:" + s.schedule();
+        };
+    }
+
+    private String formatEnrichmentContext(ExecutionFinding ef, String entryPointId) {
         StringBuilder sb = new StringBuilder();
-//        if (ef.businessAbstraction() != null) {
-//            if (ef.businessAbstraction().purpose() != null) {
-//                sb.append("Purpose: ").append(ef.businessAbstraction().purpose()).append("\n");
-//            }
-//            if (ef.businessAbstraction().happyPaths() != null) {
-//                for (ExecutionFinding.HappyPath hp : ef.businessAbstraction().happyPaths()) {
-//                    sb.append("Happy path: ").append(hp.flowName()).append("\n");
-//                    if (hp.description() != null) {
-//                        sb.append("  Description: ").append(hp.description()).append("\n");
-//                    }
-//                }
-//            }
-//        }
         if (ef.businessRulesAndGuardrails() != null) {
             if (ef.businessRulesAndGuardrails().validations() != null) {
                 for (ExecutionFinding.Validation v : ef.businessRulesAndGuardrails().validations()) {
-                    sb.append("Validation: ").append(v.fieldOrContext()).append(" - ").append(v.rule()).append("\n");
+                    if (entryPointId == null || v.entryPoint() == null || v.entryPoint().equals(entryPointId)) {
+                        sb.append("Validation: ").append(v.fieldOrContext()).append(" - ").append(v.rule()).append("\n");
+                    }
                 }
             }
             if (ef.businessRulesAndGuardrails().edgeCases() != null) {
                 for (ExecutionFinding.EdgeCase ec : ef.businessRulesAndGuardrails().edgeCases()) {
-                    sb.append("Edge case: ").append(ec.scenario()).append(" - ").append(ec.businessConsequence()).append("\n");
+                    if (entryPointId == null || ec.entryPoint() == null || ec.entryPoint().equals(entryPointId)) {
+                        sb.append("Edge case: ").append(ec.scenario()).append(" - ").append(ec.businessConsequence()).append("\n");
+                    }
                 }
             }
         }
