@@ -2,28 +2,24 @@ package com.github.ehdez73.code2req.generation.adapter.writer;
 
 import com.embabel.agent.api.common.OperationContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.CrossReferencedResult;
 import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
 import com.github.ehdez73.code2req.extraction.domain.model.BusinessRule;
 import com.github.ehdez73.code2req.extraction.domain.model.EdgeCase;
 import com.github.ehdez73.code2req.extraction.domain.model.ExternalCall;
-import com.github.ehdez73.code2req.extraction.domain.model.NonFunctionalRequirement;
-import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.EventListenerEntryPoint;
-import com.github.ehdez73.code2req.extraction.domain.model.FlowRelationship;
-import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFeature;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.GherkinScenario;
 import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.NonFunctionalRequirement;
 import com.github.ehdez73.code2req.extraction.domain.model.OrphanedMethod;
 import com.github.ehdez73.code2req.extraction.domain.model.RabbitMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.generation.domain.model.SpecResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,8 +54,9 @@ public class SynthesizeSpecAction {
         String markdown = generateMarkdown(crossRefResult, orphanedMethods, quarantineGaps);
         Files.writeString(markdownPath, markdown);
 
-        String manifest = generateManifest(crossRefResult, orphanedMethods, quarantineGaps);
-        Files.writeString(manifestPath, manifest);
+        var manifest = ManifestMapper.toManifest(crossRefResult, orphanedMethods, quarantineGaps);
+        String manifestJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(manifest);
+        Files.writeString(manifestPath, manifestJson);
 
         int featureCount = crossRefResult.features().size();
         int flowCount = crossRefResult.features().stream()
@@ -172,15 +169,15 @@ public class SynthesizeSpecAction {
     }
 
     private void appendExternalDependencies(StringBuilder sb, FunctionalFlow flow) {
-        List<FlowStep> externalSteps = flow.steps().stream()
+        var externalSteps = flow.steps().stream()
             .filter(s -> s.componentType() == FlowStepComponentType.EXTERNAL_CALL)
-            .collect(java.util.stream.Collectors.toList());
+            .toList();
         if (externalSteps.isEmpty()) return;
 
         sb.append("#### External Dependencies\n\n");
         sb.append("| Method | URL / Path | Client Type | Source File |\n");
         sb.append("|---|---|---|---|\n");
-        for (FlowStep step : externalSteps) {
+        for (var step : externalSteps) {
             String method = "";
             String url = "";
             for (String e : step.enrichments()) {
@@ -202,15 +199,15 @@ public class SynthesizeSpecAction {
     }
 
     private void appendDatabaseOperations(StringBuilder sb, FunctionalFlow flow) {
-        List<FlowStep> dbSteps = flow.steps().stream()
+        var dbSteps = flow.steps().stream()
             .filter(s -> s.componentType() == FlowStepComponentType.DATABASE)
-            .collect(java.util.stream.Collectors.toList());
+            .toList();
         if (dbSteps.isEmpty()) return;
 
         sb.append("#### Database Operations\n\n");
         sb.append("| Class | Method | SQL / Details | Source File |\n");
         sb.append("|---|---|---|---|\n");
-        for (FlowStep step : dbSteps) {
+        for (var step : dbSteps) {
             String sql = !step.enrichments().isEmpty() ? step.enrichments().get(0) : "";
             sb.append("| ").append(step.className())
               .append(" | ").append(step.methodName())
@@ -222,10 +219,10 @@ public class SynthesizeSpecAction {
     }
 
     private void appendEventMessageDetails(StringBuilder sb, FunctionalFlow flow) {
-        List<FlowStep> eventSteps = flow.steps().stream()
+        var eventSteps = flow.steps().stream()
             .filter(s -> s.componentType() == FlowStepComponentType.SCHEDULED_TASK
                       || s.componentType() == FlowStepComponentType.EVENT_PUBLISHER)
-            .collect(java.util.stream.Collectors.toList());
+            .toList();
 
         EntryPoint entryPoint = flow.entryPoint();
         boolean hasMessagingEntryPoint = entryPoint instanceof KafkaEntryPoint
@@ -248,7 +245,7 @@ public class SynthesizeSpecAction {
         sb.append("| Component Type | Broker / Mechanism | Topic / Queue | Schedule | Event Type | Source File |\n");
         sb.append("|---|---|---|---|---|---|\n");
 
-        for (FlowStep step : eventSteps) {
+        for (var step : eventSteps) {
             String topic = step.componentType() == FlowStepComponentType.EVENT_PUBLISHER
                 ? entryPointTopicOrQueue(entryPoint)
                 : "\u2014";
@@ -313,7 +310,7 @@ public class SynthesizeSpecAction {
         sb.append("#### Flow Steps\n\n");
         sb.append("| # | Component Type | Class | Method | Source File |\n");
         sb.append("|---|---|---|---|---|\n");
-        for (FlowStep step : flow.steps()) {
+        for (var step : flow.steps()) {
             sb.append("| ").append(step.stepIndex())
               .append(" | ").append(step.componentType())
               .append(" | ").append(step.className())
@@ -441,316 +438,6 @@ public class SynthesizeSpecAction {
         });
     }
 
-    private String generateManifest(CrossReferencedResult result,
-                                     List<OrphanedMethod> orphanedMethods,
-                                     List<AmbiguityGap> quarantineGaps) throws IOException {
-        ObjectNode root = mapper.createObjectNode();
-        root.put("manifest_version", "3.0.0");
-        root.put("system_name", "code2req-generated");
-        root.put("generated_at", Instant.now().toString());
-
-        root.set("features", featuresToJson(result, quarantineGaps));
-        root.set("cross_flow_relationships", crossFlowRelationshipsToJson(result));
-        root.set("orphaned_methods", orphanedMethodsToJson(orphanedMethods));
-
-        return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
-    }
-
-    private ArrayNode featuresToJson(CrossReferencedResult result, List<AmbiguityGap> quarantineGaps) {
-        ArrayNode features = mapper.createArrayNode();
-        for (FunctionalFeature feature : result.features()) {
-            ObjectNode featNode = mapper.createObjectNode();
-            featNode.put("feature_id", feature.featureId());
-            featNode.put("name", feature.name());
-            featNode.put("description", feature.description());
-            featNode.set("flows", flowsToJson(feature.flows(), quarantineGaps));
-            features.add(featNode);
-        }
-        return features;
-    }
-
-    private ArrayNode flowsToJson(List<FunctionalFlow> flows, List<AmbiguityGap> quarantineGaps) {
-        ArrayNode flowsArray = mapper.createArrayNode();
-        for (FunctionalFlow flow : flows) {
-            ObjectNode flowNode = mapper.createObjectNode();
-            flowNode.put("flow_id", flow.flowId());
-            flowNode.set("entry_point", entryPointToJson(flow.entryPoint()));
-            flowNode.set("steps", stepsToJson(flow.steps()));
-            flowNode.put("user_story", flow.userStory() != null ? flow.userStory() : "");
-            flowNode.set("acceptance_criteria", acceptanceCriteriaToJson(flow.acceptanceCriteria()));
-            flowNode.set("business_rules", businessRulesToJson(flow.businessRules()));
-            flowNode.set("edge_cases", edgeCasesToJson(flow.edgeCases()));
-            if (flow.mermaidDiagram() != null) {
-                flowNode.put("mermaid_diagram", flow.mermaidDiagram());
-            }
-            flowNode.put("complexity", flow.complexity().name());
-
-            boolean reviewRequired = isReviewRequired(flow.flowId(), quarantineGaps);
-            flowNode.put("review_required", reviewRequired);
-            if (reviewRequired) {
-                flowNode.set("unresolved_reason", unresolvedReasonForFlow(flow.flowId(), quarantineGaps));
-            }
-
-            flowNode.set("non_functional_requirements", nonFunctionalRequirementsToJson(flow.nonFunctionalRequirements()));
-            flowNode.set("traceability_graph", buildTraceabilityGraph(flow));
-
-            flowsArray.add(flowNode);
-        }
-        return flowsArray;
-    }
-
-    private ObjectNode entryPointToJson(EntryPoint ep) {
-        ObjectNode node = mapper.createObjectNode();
-        node.put("type", ep.type().name());
-        node.put("class_name", ep.className());
-        node.put("method_name", ep.methodName());
-        node.put("file_path", ep.filePath());
-        switch (ep) {
-            case HttpEntryPoint h -> {
-                node.put("http_method", h.httpMethod());
-                node.put("path", h.path());
-                node.putNull("schedule");
-                node.putNull("topic_or_queue");
-            }
-            case ScheduledEntryPoint s -> {
-                node.putNull("http_method");
-                node.putNull("path");
-                node.put("schedule", s.schedule());
-                node.putNull("topic_or_queue");
-            }
-            case KafkaEntryPoint k -> {
-                node.putNull("http_method");
-                node.putNull("path");
-                node.putNull("schedule");
-                node.put("topic_or_queue", k.topics());
-            }
-            case RabbitMqEntryPoint r -> {
-                node.putNull("http_method");
-                node.putNull("path");
-                node.putNull("schedule");
-                node.put("topic_or_queue", r.queues());
-            }
-            case ActiveMqEntryPoint a -> {
-                node.putNull("http_method");
-                node.putNull("path");
-                node.putNull("schedule");
-                node.put("topic_or_queue", a.destination());
-            }
-            case EventListenerEntryPoint e -> {
-                node.putNull("http_method");
-                node.putNull("path");
-                node.putNull("schedule");
-                node.putNull("topic_or_queue");
-            }
-        }
-        return node;
-    }
-
-    private ArrayNode stepsToJson(List<FlowStep> steps) {
-        ArrayNode stepsArray = mapper.createArrayNode();
-        for (FlowStep step : steps) {
-            ObjectNode stepNode = mapper.createObjectNode();
-            stepNode.put("step_index", step.stepIndex());
-            stepNode.put("component_type", step.componentType().name());
-            stepNode.put("class_name", step.className());
-            stepNode.put("method_name", step.methodName() != null ? step.methodName() : "");
-            if (step.businessPurpose() != null) {
-                stepNode.put("business_purpose", step.businessPurpose());
-            }
-            stepNode.put("source_file", step.sourceFile() != null ? step.sourceFile() : "");
-            stepNode.put("start_line", step.startLine());
-            stepNode.put("end_line", step.endLine());
-            stepsArray.add(stepNode);
-        }
-        return stepsArray;
-    }
-
-    private ArrayNode acceptanceCriteriaToJson(List<GherkinScenario> scenarios) {
-        ArrayNode array = mapper.createArrayNode();
-        for (GherkinScenario gs : scenarios) {
-            ObjectNode node = mapper.createObjectNode();
-            node.put("scenario_id", gs.scenarioId());
-            node.put("name", gs.name());
-
-            ArrayNode given = mapper.createArrayNode();
-            gs.givenSteps().forEach(given::add);
-            node.set("given", given);
-
-            ArrayNode when = mapper.createArrayNode();
-            gs.whenSteps().forEach(when::add);
-            node.set("when", when);
-
-            ArrayNode then = mapper.createArrayNode();
-            gs.thenSteps().forEach(then::add);
-            node.set("then", then);
-
-            array.add(node);
-        }
-        return array;
-    }
-
-    private ArrayNode businessRulesToJson(List<BusinessRule> rules) {
-        ArrayNode array = mapper.createArrayNode();
-        for (BusinessRule rule : rules) {
-            ObjectNode node = mapper.createObjectNode();
-            node.put("rule_id", rule.ruleId());
-            node.put("description", rule.description());
-            if (rule.precondition() != null && !rule.precondition().isEmpty()) {
-                node.put("precondition", rule.precondition());
-            }
-            if (rule.postcondition() != null && !rule.postcondition().isEmpty()) {
-                node.put("postcondition", rule.postcondition());
-            }
-            node.put("error_behavior", rule.errorBehavior());
-            if (rule.sourceFile() != null && !rule.sourceFile().isEmpty()) {
-                node.put("source_file", rule.sourceFile());
-            }
-            node.put("start_line", rule.startLine());
-            node.put("end_line", rule.endLine());
-            if (rule.externalCall() != null) {
-                node.set("external_call", externalCallToJson(rule.externalCall()));
-            }
-            array.add(node);
-        }
-        return array;
-    }
-
-    private ObjectNode externalCallToJson(ExternalCall ec) {
-        ObjectNode node = mapper.createObjectNode();
-        node.put("http_method", ec.httpMethod());
-        node.put("url", ec.url());
-        if (ec.timeoutMs() != null) node.put("timeout_ms", ec.timeoutMs());
-        if (ec.retryStrategy() != null && !ec.retryStrategy().isEmpty()) {
-            node.put("retry_strategy", ec.retryStrategy());
-        }
-        if (ec.fallbackBehavior() != null && !ec.fallbackBehavior().isEmpty()) {
-            node.put("fallback_behavior", ec.fallbackBehavior());
-        }
-        return node;
-    }
-
-    private ArrayNode edgeCasesToJson(List<EdgeCase> edgeCases) {
-        ArrayNode array = mapper.createArrayNode();
-        for (EdgeCase ec : edgeCases) {
-            ObjectNode node = mapper.createObjectNode();
-            node.put("scenario", ec.scenario());
-            node.put("business_consequence", ec.businessConsequence());
-            node.put("severity", ec.severity());
-            if (ec.sourceFile() != null && !ec.sourceFile().isEmpty()) {
-                node.put("source_file", ec.sourceFile());
-            }
-            array.add(node);
-        }
-        return array;
-    }
-
-    private ArrayNode nonFunctionalRequirementsToJson(List<NonFunctionalRequirement> nfrs) {
-        ArrayNode array = mapper.createArrayNode();
-        if (nfrs == null) return array;
-        for (NonFunctionalRequirement nfr : nfrs) {
-            ObjectNode node = mapper.createObjectNode();
-            node.put("category", nfr.category());
-            node.put("requirement", nfr.requirement());
-            if (nfr.sourceFile() != null && !nfr.sourceFile().isEmpty()) {
-                node.put("source_file", nfr.sourceFile());
-            }
-            array.add(node);
-        }
-        return array;
-    }
-
-    private ArrayNode crossFlowRelationshipsToJson(CrossReferencedResult result) {
-        ArrayNode array = mapper.createArrayNode();
-        for (FlowRelationship rel : result.crossFlowRelationships()) {
-            ObjectNode node = mapper.createObjectNode();
-            node.put("source_flow_id", rel.sourceFlowId());
-            node.put("target_flow_id", rel.targetFlowId());
-            node.put("type", rel.type().name());
-            node.put("description", rel.description());
-            array.add(node);
-        }
-        return array;
-    }
-
-    private ArrayNode orphanedMethodsToJson(List<OrphanedMethod> orphanedMethods) {
-        ArrayNode array = mapper.createArrayNode();
-        for (OrphanedMethod m : orphanedMethods) {
-            ObjectNode node = mapper.createObjectNode();
-            node.put("class_name", m.className());
-            node.put("method_name", m.methodName());
-            node.put("file_path", m.filePath());
-            node.put("start_line", m.startLine());
-            node.put("end_line", m.endLine());
-            node.put("reason", m.reason());
-            array.add(node);
-        }
-        return array;
-    }
-
-    private ObjectNode buildTraceabilityGraph(FunctionalFlow flow) {
-        ObjectNode graph = mapper.createObjectNode();
-        ArrayNode nodes = mapper.createArrayNode();
-        ArrayNode edges = mapper.createArrayNode();
-
-        for (FlowStep step : flow.steps()) {
-            ObjectNode node = mapper.createObjectNode();
-            String nodeId = step.className() + "." + step.methodName();
-            node.put("node_id", nodeId);
-            node.put("file_reference", step.sourceFile() != null ? step.sourceFile() : "");
-            node.put("ast_signature", nodeId);
-            if (step.startLine() > 0) {
-                node.put("lines", step.startLine() + "-" + step.endLine());
-            }
-            nodes.add(node);
-        }
-
-        for (int i = 0; i < flow.steps().size() - 1; i++) {
-            FlowStep from = flow.steps().get(i);
-            FlowStep to = flow.steps().get(i + 1);
-            ObjectNode edge = mapper.createObjectNode();
-            edge.put("source_node", from.className() + "." + from.methodName());
-            edge.put("target_node", to.className() + "." + to.methodName());
-            edge.put("link_type", linkTypeForComponent(to.componentType(), flow.entryPoint()));
-            edges.add(edge);
-        }
-
-        graph.set("nodes", nodes);
-        graph.set("edges", edges);
-        return graph;
-    }
-
-    private static String linkTypeForComponent(FlowStepComponentType type, EntryPoint ep) {
-        return switch (type) {
-            case EXTERNAL_CALL -> "FLOATING_HTTP";
-            case DATABASE -> "DATABASE_CALL";
-            case EVENT_PUBLISHER -> switch (ep) {
-                case KafkaEntryPoint k -> "TOPIC_KAFKA";
-                case RabbitMqEntryPoint r -> "TOPIC_RABBITMQ";
-                case ActiveMqEntryPoint a -> "TOPIC_ACTIVEMQ";
-                default -> "DETERMINISTIC_CALL";
-            };
-            default -> "DETERMINISTIC_CALL";
-        };
-    }
-
-    private static boolean isReviewRequired(String flowId, List<AmbiguityGap> gaps) {
-        return gaps != null && gaps.stream().anyMatch(g -> g.flowId().equals(flowId));
-    }
-
-    private ObjectNode unresolvedReasonForFlow(String flowId, List<AmbiguityGap> gaps) {
-        return gaps.stream()
-            .filter(g -> g.flowId().equals(flowId))
-            .findFirst()
-            .map(gap -> {
-                ObjectNode node = mapper.createObjectNode();
-                node.put("reason_type", gap.reason().name());
-                node.put("detail", gap.missingContext());
-                node.put("confidence", gap.confidence());
-                return node;
-            })
-            .orElse(null);
-    }
-
     private String slugify(String text) {
         return text.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
     }
@@ -761,17 +448,5 @@ public class SynthesizeSpecAction {
             return file + ":" + startLine + "-" + endLine;
         }
         return file;
-    }
-
-    @SuppressWarnings("unused")
-    private String brokerLabel(EntryPoint entryPoint) {
-        return switch (entryPoint) {
-            case ScheduledEntryPoint s -> "@Scheduled";
-            case EventListenerEntryPoint e -> "@EventListener";
-            case KafkaEntryPoint k -> "Kafka";
-            case RabbitMqEntryPoint r -> "RabbitMQ";
-            case ActiveMqEntryPoint a -> "ActiveMQ";
-            case HttpEntryPoint h -> "ApplicationEventPublisher";
-        };
     }
 }

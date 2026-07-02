@@ -1,0 +1,231 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SemanticManifest",
+  "type": "object",
+  "required": ["manifest_version", "system_name", "features"],
+  "additionalProperties": false,
+  "properties": {
+    "manifest_version": { "type": "string", "enum": ["3.0.0"] },
+    "system_name": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["feature_id", "name", "description", "flows"],
+        "additionalProperties": false,
+        "properties": {
+          "feature_id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "flows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["flow_id", "entry_point", "steps", "user_story", "acceptance_criteria", "complexity"],
+              "additionalProperties": false,
+              "properties": {
+                "flow_id": { "type": "string" },
+                "entry_point": {
+                  "type": "object",
+                  "required": ["type", "class_name", "method_name", "file_path"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": { "type": "string", "enum": ["HTTP", "SCHEDULED", "EVENT_LISTENER", "KAFKA", "RABBITMQ", "ACTIVEMQ"] },
+                    "http_method": { "type": ["string", "null"] },
+                    "path": { "type": ["string", "null"] },
+                    "class_name": { "type": "string" },
+                    "method_name": { "type": "string" },
+                    "file_path": { "type": "string" },
+                    "schedule": { "type": ["string", "null"] },
+                    "topic_or_queue": { "type": ["string", "null"] }
+                  }
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["step_index", "component_type", "class_name", "method_name", "source_file"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "step_index": { "type": "integer" },
+                      "component_type": { "type": "string", "enum": ["REST_ENDPOINT", "SERVICE", "REPOSITORY", "DATABASE", "EXTERNAL_CALL", "EVENT_PUBLISHER", "SCHEDULED_TASK"] },
+                      "class_name": { "type": "string" },
+                      "method_name": { "type": "string" },
+                      "business_purpose": { "type": ["string", "null"] },
+                      "source_file": { "type": "string" },
+                      "start_line": { "type": "integer" },
+                      "end_line": { "type": "integer" }
+                    }
+                  }
+                },
+                "user_story": { "type": "string" },
+                "acceptance_criteria": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["scenario_id", "name", "given", "when", "then"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "scenario_id": { "type": "string" },
+                      "name": { "type": "string" },
+                      "given": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "when": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "then": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "business_rules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["rule_id", "description", "error_behavior"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "rule_id": { "type": "string" },
+                      "description": { "type": "string" },
+                      "precondition": { "type": ["string", "null"] },
+                      "postcondition": { "type": ["string", "null"] },
+                      "error_behavior": { "type": "string" },
+                      "source_file": { "type": ["string", "null"] },
+                      "start_line": { "type": ["integer", "null"] },
+                      "end_line": { "type": ["integer", "null"] },
+                      "external_call": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "http_method": { "type": "string" },
+                          "url": { "type": "string" },
+                          "timeout_ms": { "type": ["integer", "null"] },
+                          "retry_strategy": { "type": ["string", "null"] },
+                          "fallback_behavior": { "type": ["string", "null"] }
+                        }
+                      }
+                    }
+                  }
+                },
+                "edge_cases": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["scenario", "business_consequence"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "scenario": { "type": "string" },
+                      "business_consequence": { "type": "string" },
+                      "severity": { "type": "string" },
+                      "source_file": { "type": ["string", "null"] }
+                    }
+                  }
+                },
+                "non_functional_requirements": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "category": { "type": "string" },
+                      "requirement": { "type": "string" },
+                      "source_file": { "type": ["string", "null"] }
+                    }
+                  }
+                },
+                "mermaid_diagram": { "type": ["string", "null"] },
+                "complexity": { "type": "string", "enum": ["MINIMAL", "STANDARD", "FULL"] },
+                "review_required": { "type": "boolean" },
+                "unresolved_reason": {
+                  "oneOf": [
+                    { "type": "null" },
+                    {
+                      "type": "object",
+                      "required": ["reason_type", "detail", "confidence"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "reason_type": { "type": "string", "enum": ["STEPS_EXCEEDED", "LOW_CONFIDENCE", "HOP_DEPTH"] },
+                        "detail": { "type": "string" },
+                        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                      }
+                    }
+                  ]
+                },
+                "traceability_graph": {
+                  "type": "object",
+                  "required": ["nodes", "edges"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "nodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["node_id", "file_reference"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "node_id": { "type": "string" },
+                          "file_reference": { "type": "string" },
+                          "ast_signature": { "type": ["string", "null"] },
+                          "lines": { "type": ["string", "null"] }
+                        }
+                      }
+                    },
+                    "edges": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["source_node", "target_node", "link_type"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "source_node": { "type": "string" },
+                          "target_node": { "type": "string" },
+                          "link_type": { "type": "string", "enum": ["DETERMINISTIC_CALL", "FLOATING_HTTP", "TOPIC_KAFKA", "TOPIC_RABBITMQ", "TOPIC_ACTIVEMQ", "DATABASE_CALL"] }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "cross_flow_relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_flow_id", "target_flow_id", "type", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "source_flow_id": { "type": "string" },
+          "target_flow_id": { "type": "string" },
+          "type": { "type": "string", "enum": ["DELEGATES_TO", "PUBLISHES_EVENT", "CONSUMES_EVENT", "CALLS_EXTERNAL"] },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "orphaned_methods": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["class_name", "method_name", "file_path", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "class_name": { "type": "string" },
+          "method_name": { "type": "string" },
+          "file_path": { "type": "string" },
+          "start_line": { "type": ["integer", "null"] },
+          "end_line": { "type": ["integer", "null"] },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

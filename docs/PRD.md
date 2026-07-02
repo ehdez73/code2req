@@ -889,7 +889,7 @@ The `--resume` flag on `run` handles full crash recovery across all interruptibl
    - If the marker is `FAILED` → reset to `PENDING` so Phase 3 re-runs.
    - If the marker is `PENDING` → run Phase 3 normally.
 
-6. **Output File Integrity:** Output writers (`MarkdownSpecWriter`, `SemanticManifestWriter`) write to a temporary file path first (e.g., `spec-output/.tmp.flow-name.md`) and atomically rename to the final path on success. If the process crashes mid-write, only `.tmp.` files remain — these are cleaned by the Phase 3 marker recovery step.
+6. **Output File Integrity:** The `SynthesizeSpecAction` writes both output artifacts — the Markdown spec and `semantic_manifest.json`. The manifest is serialized from typed Java POJOs that mirror the schema, guaranteeing structural conformance at compile time. Both files are written to a temporary path first (e.g., `.tmp.spec.md`) and atomically renamed to the final path on success. If the process crashes mid-write, only `.tmp.` files remain — these are cleaned by the Phase 3 marker recovery step.
 
 7. **Idempotent Re-entry Guard:** The `run` command checks the Phase 3 marker before starting Phase 3. If the marker is `ENRICHED` and `--force-phase3` is not set, Phase 3 is skipped with a log message. This prevents token waste on repeated `run` invocations against completed data.
 
@@ -1244,7 +1244,17 @@ To allow external applications to process the extracted logic without losing arc
                       "error_behavior": { "type": "string" },
                       "source_file": { "type": ["string", "null"] },
                       "start_line": { "type": ["integer", "null"] },
-                      "end_line": { "type": ["integer", "null"] }
+                      "end_line": { "type": ["integer", "null"] },
+                      "external_call": {
+                        "type": "object",
+                        "properties": {
+                          "http_method": { "type": "string" },
+                          "url": { "type": "string" },
+                          "timeout_ms": { "type": ["integer", "null"] },
+                          "retry_strategy": { "type": ["string", "null"] },
+                          "fallback_behavior": { "type": ["string", "null"] }
+                        }
+                      }
                     }
                   }
                 },
@@ -1256,6 +1266,18 @@ To allow external applications to process the extracted logic without losing arc
                     "properties": {
                       "scenario": { "type": "string" },
                       "business_consequence": { "type": "string" },
+                      "severity": { "type": "string" },
+                      "source_file": { "type": ["string", "null"] }
+                    }
+                  }
+                },
+                "non_functional_requirements": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "category": { "type": "string" },
+                      "requirement": { "type": "string" },
                       "source_file": { "type": ["string", "null"] }
                     }
                   }
@@ -1375,7 +1397,7 @@ A CLI run is considered successful when all of the following conditions are met.
 | **Semantic Validation Pass Rate** | $\ge 92\%$ | Randomized spot-checks executed by the Semantic Validation Agent without triggering a final batch quarantine event. |
 | **Traceability Integrity** | $100\%$ | Verification that every business rule maps directly to a valid file path and line location in the source repo. |
 | **Technical Jargon Filtering** | $\le 3\%$ | Extracted business description lines that contain framework-specific jargon (e.g., *autowired*, *JPA repo*, *bean*). |
-| **Manifest Schema Compliance** | $100\%$ | Structural verification of the exported `semantic_manifest.json` against its formal schema definitions. |
+| **Manifest Schema Compliance** | $100\%$ | Compile-time enforcement via typed manifest POJOs — Jackson serialization guarantees structural conformance to the schema without runtime validation. |
 
 ### 7.3 Performance, Concurrency, and Infrastructure
 

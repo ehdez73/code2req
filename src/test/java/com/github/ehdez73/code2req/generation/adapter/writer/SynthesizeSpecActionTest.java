@@ -658,4 +658,5 @@ class SynthesizeSpecActionTest {
         assertEquals("PUBLISHES_EVENT", crossRel.get("type").asText());
         assertEquals("publishes event", crossRel.get("description").asText());
     }
+
 }

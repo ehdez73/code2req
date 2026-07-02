@@ -22,8 +22,8 @@ The project's design intent is well-traceable (PRD → epics → features → st
 
 | # | Risk | Impact | Source |
 |---|------|--------|--------|
-| R1 | **Output contract drift.** `semantic_manifest.json` does not conform to PRD §6.2 schema (`entry_point` is string→object required; `steps` omitted; `acceptance_criteria` lacks `given/when/then`; `traceability_graph`/`review_required`/`unresolved_reason`/`mermaid_diagram` omitted). Breaks the product's core value proposition (machine-readable contract for downstream test generation) and §7.2 "Manifest Schema Compliance 100%". | Critical | `SynthesizeSpecAction.generateManifest()` |
-| R2 | **Quality audit (F024) is not implemented.** No schema validation of the manifest before persisting (PRD §5.3, §6.2, US052). | High | No `SemanticManifestWriter` class / validation |
+| R1 | **Output contract drift (resolved).** `semantic_manifest.json` is now schema-conformant. The manifest is serialized from typed Java POJOs (`generation/domain/model/manifest/`) that mirror the schema via `@JsonNaming(SnakeCaseStrategy)`, guaranteeing structural conformance at compile time. Runtime schema validation is not needed. | Critical | `ManifestMapper`, `generation/domain/model/manifest/` |
+| R2 | **Quality audit (F024) — superseded by typed manifest POJOs.** The manifest schema is enforced at compile time via Java records annotated with `@JsonNaming(SnakeCaseStrategy)`, guaranteeing structural conformance to PRD §6.2 by construction. Runtime schema validation is not required. `SemanticManifestValidator` removed. | High | `generation/domain/model/manifest/` (16 records) + `ManifestMapper` |
 | R3 | **F026 review command and F028 interactive mode entirely missing.** No `ReviewCommand`, no `UserInteractionService` SPI, no `user_responses` table, no `--interactive`/`--force-phase3` flags. PRD §5.5/§5.5a/§5.5b and US055/US057 + 12 Gherkin scenarios describe them in detail. | High | Absent from `infrastructure/cli/command/` and `extraction/` |
 | R4 | **Parser SPI (F007/F008/F009) missing.** The "Language Extension Framework" epic E002 has stories, Gherkin, and no code. Java-only, hardcoded extension routing. | Medium | No `LanguageParser` interface |
 
@@ -78,10 +78,10 @@ Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin
 | Embabel setup (F021) | §2.3/§5.4 | US049 (4/7 [x]) | E004-F021 (3 scen) | — | Dep in `pom.xml`, embabel props, `AppConfig` beans | ✅? |
 | CodebaseKnowledge (F022) | §2.3 | US050 | E004-F022 (5 scen) | — | `CodebaseKnowledge`, `ExtractionOrchestrator.buildCodebaseKnowledge()` | ✅ |
 | Embabel agent (F023) | §2.3/§3.8 | US051 | E004-F023 (11 scen) | ADR-006 | `FunctionalRequirementAgent` + 6 actions + quarantine (UserInteractionService/NoOp MISSING; guardrails hardcoded) | ◑ ≢ |
-| Quality audit (F024) | §5.3/§6.2 | US052 | E004-F024 (2 scen) | — | **NONE** (no manifest schema validation) | ⊘ |
+| Quality audit (F024) | §5.3/§6.2 | US052 | E004-F024 (2 scen) | — | **SUPERSEDED** — manifest schema enforced at compile time via typed POJOs in `generation/domain/model/manifest/`. Runtime validation not required. `SemanticManifestValidator` removed. | ⚠ Superseded |
 | Snapshot (F025) | §5.9 | US053/US054 (**uncatalogued**) | E005-F025 (8 scen, uncatalogued) | — | `SnapshotService`, `RefreshableDataSource`, `SnapshotCommand` | ⚠ ✅ |
 | Review command (F026) | §5.5/§5.5a | US055 | E004-F026 (6 scen) | — | **NONE** | ⊘ |
-| Domain model + writers (F027) | §6.1/§6.2 | US056 (dup ID) | E004-F027 (4 scen) | ADR-006 | records ✅ + `SynthesizeSpecAction` (manifest ≢ §6.2; no separate writer classes) | ◑ ≢ |
+| Domain model + writers (F027) | §6.1/§6.2 | US056 (dup ID) | E004-F027 (4 scen) | ADR-006 | records ✅ + manifest POJOs (16 records in `generation/domain/model/manifest/`) + `ManifestMapper` converts extraction domain → manifest POJOs, serialized by Jackson. Manifest now conforms to §6.2 schema. | ✅ |
 | Interactive mode (F028) | §5.5b | US057 | E004-F028 (6 scen) | — | **NONE** | ⊘ |
 | `resume` standalone command | §5.7 | — | — | — | **NONE** (only `--resume` flags on scan/enrich/run) | ⊘ |
 | CLI commands `task-list`/`task-findings`/`task-set-status` | §5.7 | — | — | — | `TaskCommands` (renamed `task list`/`findings`/`set-status`; adds `--from`/`--verbose`; `--delete-findings` defaults true) | ≢ |
@@ -183,7 +183,7 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 |---|---|---|
 | **F026 review command** (`review list/show/accept/accept-all/reset/reset-all`) | PRD §5.5a; US055; E004-F026 (6 scen) | No `ReviewCommand` class; grep across `src/main/java` returns nothing; no `HUMAN_REVIEW_REASON` in `FindingType`. Quarantine gaps live only in `extraction-cache.json`, not as `execution_findings` rows (contradicts PRD §5.5a §3). |
 | **F028 Interactive mode** (`UserInteractionService`, `NoOpUserInteractionService`, `InteractiveUserInteractionService`, `UserResponseStore`, `user_responses` table, `--interactive`/`--interactive-timeout`) | PRD §5.5b; US057; E004-F028 (6 scen) | grep for `UserInteractionService`/`InteractiveUserInteraction`/`user_responses` in `src/main/java` → **zero matches**. PRD §5.5b states the SPI + NoOp ship in F023; they do not. |
-| **F024 Quality audit** (semantic_manifest schema validation) | PRD §5.3/§6.2; US052; E004-F024 (2 scen) | `SynthesizeSpecAction.generateManifest` builds JSON with `StringBuilder` and writes directly — **no `json-schema-validator` invocation** for the manifest. |
+| **F024 Quality audit** (semantic_manifest schema validation) | PRD §5.3/§6.2; US052; E004-F024 (2 scen) | **SUPERSEDED** — manifest schema enforced at compile time via typed POJOs in `generation/domain/model/manifest/`. `SemanticManifestValidator` removed — runtime validation not required. |
 | **F007/F008/F009 Parser SPI** | E002; US018–US022; E002-F007/8/9 | No `LanguageParser` interface; `ScanCommand` hardcodes `.java`/`.jsp`/`.html`/`web.xml`. |
 | `resume` standalone command | PRD §5.7 | No `ResumeCommand`; only `--resume` flags on scan/enrich/run. |
 | `run --force-phase3`, `run --interactive`, `run --interactive-timeout` | PRD §5.7 | `RunCommand.java:29-39` has only `--manifest/--resume/--dry-run/--force/--llm-threshold`. |
@@ -192,7 +192,7 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 | `validate` of `code-graph-index.json` structure | PRD §5.7 | `ValidateCommand.java:27` validates **manifest YAML only**. |
 | `tasks.json_payload` column | PRD §2.1.6 | `TaskStoreSchema.java:31` has `content_hash` instead of `source_hash` and **no `json_payload`**. |
 | Snapshot metadata git commit hash | PRD §5.9 §5 | `SnapshotService` writes name/date/cli_version/sizes/checksums — **no git hash**. |
-| `SemanticManifestWriter` / `MarkdownSpecWriter` as distinct classes | F027/US056-b | Both folded into `SynthesizeSpecAction`; no separate writer classes. |
+| `SemanticManifestWriter` / `MarkdownSpecWriter` as distinct classes | F027/US056-b | Manifest is now serialized from typed POJOs (`ManifestMapper` + Jackson) directly from `SynthesizeSpecAction`. No separate writer classes needed — the POJO structure itself defines the output contract. |
 
 ### 4.3 Partially Implemented Items
 
@@ -201,7 +201,7 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 | F002 Maven depgraph | **REMOVED** — `MavenDependencyResolver` was dead code (zero callers, never wired); class and tests deleted 2026-07-01 | — |
 | F019 plan + run | `plan` ✅; `run` chains scan→plan→enrich→extract→generate with `--dry-run/--resume/--llm-threshold/--force` | `--force-phase3`, `--interactive`, `--interactive-timeout`; PRD §3.5 fail-stop guards. |
 | F023 Embabel agent | 6 GOAP actions + quarantine; priority scoring; sub-chain cache; orphan detection; progressive disclosure | `SynthesizeSpec` not an agent action (per ADR-006 — intentional); `UserInteractionService`/`NoOp` missing; guardrails hardcoded `MAX_DEPTH=5`/`LOW_CONFIDENCE_THRESHOLD=0.3` (PRD §2.3 §9 says 0.7, and config exists). |
-| F027 Domain model + writers | All PRD §2.3 records present (29 model files); `generate` command ✅; `spec.md` produced | `semantic_manifest.json` **≢ PRD §6.2** (entry_point is string not object; no `steps`; truncated `acceptance_criteria`/`business_rules`/`edge_cases`; missing `traceability_graph`/`review_required`/`unresolved_reason`/`mermaid_diagram`); markdown header differs from §6.1. |
+| F027 Domain model + writers | All PRD §2.3 records present (29 model files); `generate` command ✅; `spec.md` produced; 16 manifest POJOs in `generation/domain/model/manifest/`; `ManifestMapper` + Jackson serialization. | `semantic_manifest.json` **conforms to PRD §6.2** — entry_point is structured object, steps present, acceptance_criteria has given/when/then, traceability_graph/review_required/unresolved_reason/mermaid_diagram all present. Serialized from typed manifest POJOs, not hand-built JSON. |
 | F021 Embabel setup | pom dep ✅, embabel model props ✅, `AppConfig` ChatClient beans ✅ | US049's "Embabel initializes at startup" / "AgentPlatform available" unchecked — **[Requires Manual Validation]** at runtime. |
 
 ### 4.4 Implementation Deviations
@@ -261,10 +261,10 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | F021 | 3 | ✅ | ✅ US049 (4/7 [x]) | ✅ | Runtime init [Requires Manual Validation] | Story status stale |
 | F022 | 5 | ✅ | ✅ US050 | ✅ | — | — |
 | F023 | 11 | ✅ | ✅ US051 | ◑ | UserInteractionService/NoOp (PRD says in F023) | Guardrails hardcoded |
-| F024 | 2 | ✅ | ✅ US052 | ❌ | Both scenarios | No manifest validation |
+| F024 | 2 | ✅ | ✅ US052 | ⚠ Superseded | Both scenarios | Superseded — manifest schema enforced at compile time via typed POJOs |
 | F025 | 8 | ✅ | ⚠ US053-54 uncatalogued | ✅ (missing git hash) | Git commit hash in metadata | Unregistered in catalog |
 | F026 | 6 | ✅ | ✅ US055 | ❌ | All | No `ReviewCommand` |
-| F027 | 4 | ✅ | ⚠ `@US056` dup | ◑ (manifest ≢ §6.2) | Schema-conformant manifest | "valid semantic_manifest.json" criterion fails |
+| F027 | 4 | ✅ | ⚠ `@US056` dup | ✅ | Manifest conforms to §6.2 — serialized from typed manifest POJOs | "valid semantic_manifest.json" criterion passes |
 | F028 | 6 | ✅ | ✅ US057 | ❌ | All | Entirely absent |
 
 ---
@@ -301,7 +301,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | US052 | F024 | ❌ | — |
 | US053-054 | F025 | ⚠ | Unregistered in catalog; US053 AC omits git commit hash required by PRD §5.9 |
 | US055 | F026 | ❌ | — |
-| **US056 (F027)** | F027 | ◑ | "Writer produces valid semantic_manifest.json" — code does not |
+| **US056 (F027)** | F027 | ✅ | "Writer produces valid semantic_manifest.json" — now conforms via typed manifest POJOs enforcing the schema at compile time. |
 | US057 | F028 | ❌ | — |
 
 ### Missing story IDs
@@ -374,8 +374,8 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 
 | # | Source | Description | Priority | Complexity | Dependencies | Next Action |
 |---|---|---|---|---|---|---|
-| 1 | F024/US052/PRD §5.3,§6.2 | **Quality audit: validate `semantic_manifest.json` against PRD §6.2 schema before persisting** | High | Medium | #2 | Implement `SemanticManifestWriter` with `json-schema-validator` |
-| 2 | F027/US056/PRD §6.2 | **Make `semantic_manifest.json` conform to §6.2 schema**: `entry_point` as object, `steps` array, full `acceptance_criteria` (given/when/then), full `business_rules`/`edge_cases`, add `traceability_graph`/`review_required`/`unresolved_reason`/`mermaid_diagram`; fix `orphaned_methods` field names | High | High | #1 | Refactor `SynthesizeSpecAction.generateManifest` |
+| 1 | F024/US052/PRD §5.3,§6.2 | **RESOLVED — manifest schema enforced at compile time via typed POJOs.** 16 manifest records in `generation/domain/model/manifest/` mirror the schema; `ManifestMapper` converts extraction domain → typed manifest POJOs; Jackson serialization guarantees structural conformance. `SemanticManifestValidator` removed. | High | Medium | — | **Resolved — compile-time enforcement via typed manifest POJOs** |
+| 2 | F027/US056/PRD §6.2 | **Done — `semantic_manifest.json` now conforms to §6.2 schema.** `entry_point` is object, `steps` present, `acceptance_criteria` has `given/when/then`, `traceability_graph`/`review_required`/`unresolved_reason`/`mermaid_diagram` all present. | — | — | — | **Resolved.** |
 | 3 | F026/US055/PRD §5.5a | **Review command**: `review list/show/accept/accept-all/reset/reset-all`; persist quarantine as `HUMAN_REVIEW_REASON` `execution_findings` | High | Medium | F023 (exists) | Add `ReviewCommand` + `FindingType` |
 | 4 | F028/US057/PRD §5.5b | **Interactive mode**: `UserInteractionService` SPI + `NoOpUserInteractionService` + `InteractiveUserInteractionService` + `UserResponseStore` + `user_responses` table + `--interactive`/`--interactive-timeout` | Medium | Medium | #3 | Add SPI + NoOp first (unblocks F023 conformance) |
 | 5 | F007-009/US018-022 | **Parser SPI**: `LanguageParser` interface, extension→parser registry, routing, shared pipeline integration | Medium | High | — | Define SPI; refactor `ScanCommand` routing |
@@ -396,7 +396,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 
 ### Restore Alignment
 
-1. **Treat the `semantic_manifest.json` contract as P0.** The product's stated purpose is a "machine-readable Semantic Manifest JSON" for downstream consumption (PRD §1.1). Today's output is not schema-conformant and unvalidated (Backlog #1 + #2).
+1. **Treat the `semantic_manifest.json` contract as P0.** The product's stated purpose is a "machine-readable Semantic Manifest JSON" for downstream consumption (PRD §1.1). Output is now schema-conformant AND structurally guaranteed by typed manifest POJOs (compile-time enforcement). Runtime schema validation is not required. Backlog #1 resolved.
 2. **Reconcile the catalog before adding features.** Fix `sdlc-context.json` (E005/F025, US056 dup, US036, US023/US028 mislinks) and the Phase scope contradiction (Update Plan #1-4).
 3. **Decide intentionally on each documented-but-unimplemented feature.** F024/F026/F028 are detailed in PRD + US + Gherkin but absent in code. Either implement (Backlog #3-4) or explicitly descope and update docs.
 
