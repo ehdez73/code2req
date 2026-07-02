@@ -1,7 +1,7 @@
 # Feature: Phase 2 Planner — Task Qualification for LLM Enrichment
 # Epic: E003 — Semantic Enrichment
 # Feature ID: F016
-# Stories: US041, US042, US056
+# Stories: US041, US042, US064
 # Phase 2 draft generated: 2026-06-17
 # Last updated: 2026-06-30
 
@@ -65,14 +65,14 @@ Feature: Phase 2 Planner — Task Qualification for LLM Enrichment
       Then the task is qualified
       And the decision contains reasons "SPRING_DATA_INTERFACE" and "UNRESOLVED_SIGNATURES_EXCEEDED"
 
-    @US056 @E003 @F016 @should @draft
+    @US064 @E003 @F016 @should @draft
     Scenario: Task qualifies because its DTO/record has bean validation annotations used in a flow
       Given a task with VALIDATOR findings from a record or DTO with built-in bean validation annotations
       And the task also has a flow-relevant finding (e.g., ENDPOINT, COMPONENT, DB_ACCESS, SCHEDULED_TASK)
       When the planner evaluates qualification
       Then the task is qualified with reason "BEAN_VALIDATION"
 
-    @US056 @E003 @F016 @should @draft
+    @US064 @E003 @F016 @should @draft
     Scenario: Task with bean validation annotations but no flow usage does NOT qualify
       Given a task with VALIDATOR findings from a DTO with built-in bean validation annotations
       And the task has no ENDPOINT, COMPONENT, DB_ACCESS, or other flow-relevant findings

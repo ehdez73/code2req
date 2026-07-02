@@ -45,7 +45,7 @@ The project's design intent is well-traceable (PRD → epics → features → st
 
 ### Traceability Maturity Assessment — Low-to-Medium
 
-Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin tags `@US0xx`; catalog cross-links), but it is **not enforced and has decayed**: broken links (US036 no file, US056 dup, E005/F025 orphan), stale status, no automated check.
+Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin tags `@US0xx`; catalog cross-links), but it is **not enforced and has decayed**: broken links (~~US036 no file~~, ~~US056 dup~~, E005/F025 orphan), stale status, no automated check.
 
 ---
 
@@ -64,13 +64,13 @@ Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin
 | Parser SPI (F007) | §2.1.2 | US018/US019 | E002-F007 (4 scen) | ADR-001 | **NONE** (no `LanguageParser` interface) | ⊘ |
 | Parser discovery (F008) | — | US020/US021 | E002-F008 (5 scen) | — | **NONE** | ⊘ |
 | Shared pipeline (F009) | — | US022 | E002-F009 (3 scen) | — | **NONE** | ⊘ |
-| Two-pass + CallGraph (F010) | §2.1 | US030 (**US036 no file**) | E001-F010 (13 scen) | — | `Pass1DeclarationCollector`, `GlobalDeclarationRegistry`, `CallGraphVisitor` | ✅ |
+| Two-pass + CallGraph (F010) | §2.1 | ~~US030 (**US036 no file**)~~ | E001-F010 (13 scen) | — | `Pass1DeclarationCollector`, `GlobalDeclarationRegistry`, `CallGraphVisitor` | ✅ |
 | DB access detection (F011) | §2.1.2/§3.7 | US031 | E001-F011 (7 scen) | — | `DbAccessDetector` SPI + 8 detectors | ✅ |
 | ~~Outbound HTTP (F012)~~ | ~~§2.1.2/§3.2~~ | ~~US032 (all [x])~~ | ~~E001-F012 (15 scen)~~ | ~~—~~ | ~~9 `HttpClientDetector` impls, `FloatingLinkResolver` (confidence 1.0/0.8/0.6/0.4 — ≢ PRD §3.2)~~ | ~~✅ ≢~~ |
 | Topic link (F013) | §3.3 | US033 | E001-F013 (6 scen) | — | `TopicLinkResolver` + 3 broker strategies | ✅ |
 | ~~SQLite tables (F014)~~ | ~~§2.1.6~~ | ~~US034/US035~~ | ~~E001-F014 (7 scen, only non-`@draft`)~~ | ~~ADR-003~~ | ~~`TaskStoreSchema` (5 tables; extra cols)~~ | ~~✅ ≢~~ |
 | JSP/Thymeleaf (F015) | §2.1.2 | US037/8/9/40 | E001-F015 (15 scen) | — | `JspTemplateParser`, `ThymeleafTemplateParser`, `TemplateLinkResolver`, `WebXmlAnalyzer` | ✅ |
-| Phase 2 Planner (F016) | §2.2 | US041/US042 + **US056 dup** | E003-F016 (12 scen) | — | `EnrichmentPlanner` + 11 rules | ✅ (+extra) |
+| Phase 2 Planner (F016) | §2.2 | US041/US042 + **~~US056 dup~~** | E003-F016 (12 scen) | — | `EnrichmentPlanner` + 11 rules | ✅ (+extra) |
 | ~~LLM Executor (F017)~~ | ~~§2.2/§4~~ | ~~US043/US044~~ | ~~E003-F017 (6 scen)~~ | ~~—~~ | ~~`LlmEnrichmentService` (manual executor, not `@Async`; spring-ai 1.1.1)~~ | ~~✅ ≢~~ |
 | Orchestrator (F018) | §3.5 | US045 | E003-F018 (7 scen) | ADR-006 | `EnrichmentOrchestrator`, `EnrichmentDag` | ✅ |
 | plan + run (F019) | §5.7/§3.5 | US046/US047 | E003-F019 (9 scen) | ADR-006 | `PlanCommand`, `RunCommand` (missing `--force-phase3`/`--interactive`/`--interactive-timeout`; no fail-stop guards) | ◑ |
@@ -81,7 +81,7 @@ Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin
 | ~~Quality audit (F024)~~ | ~~§5.3/§6.2~~ | ~~US052~~ | ~~E004-F024 (2 scen)~~ | ~~—~~ | ~~**SUPERSEDED** — manifest schema enforced at compile time via typed POJOs in `generation/domain/model/manifest/`. Runtime validation not required. `SemanticManifestValidator` removed.~~ | ~~⚠ Superseded~~ |
 | Snapshot (F025) | §5.9 | US053/US054 (**uncatalogued**) | E005-F025 (8 scen, uncatalogued) | — | `SnapshotService`, `RefreshableDataSource`, `SnapshotCommand` | ⚠ ✅ |
 | Review command (F026) | §5.5/§5.5a | US055 | E004-F026 (6 scen) | — | **NONE** | ⊘ |
-| Domain model + writers (F027) | §6.1/§6.2 | US056 (dup ID) | E004-F027 (4 scen) | ADR-006 | records ✅ + manifest POJOs (16 records in `generation/domain/model/manifest/`) + `ManifestMapper` converts extraction domain → manifest POJOs, serialized by Jackson. Manifest now conforms to §6.2 schema. | ✅ |
+| Domain model + writers (F027) | §6.1/§6.2 | ~~US056 (dup ID)~~ | E004-F027 (4 scen) | ADR-006 | records ✅ + manifest POJOs (16 records in `generation/domain/model/manifest/`) + `ManifestMapper` converts extraction domain → manifest POJOs, serialized by Jackson. Manifest now conforms to §6.2 schema. | ✅ |
 | Interactive mode (F028) | §5.5b | US057 | E004-F028 (6 scen) | — | **NONE** | ⊘ |
 | `resume` standalone command | §5.7 | — | — | — | **NONE** (only `--resume` flags on scan/enrich/run) | ⊘ |
 | ~~CLI commands `task-list`/`task-findings`/`task-set-status`~~ | ~~§5.7~~ | ~~—~~ | ~~—~~ | ~~—~~ | ~~`TaskCommands` (renamed `task list`/`findings`/`set-status`; adds `--from`/`--verbose`; `--delete-findings` defaults true)~~ | ~~≢~~ |
@@ -135,7 +135,7 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 |---|---|---|---|---|
 | C1 | Phase 2/3 scope | `sdlc-context.json scope.out_of_scope` lists them as **out of scope** | Same file `epics[]` includes E003/E004, `features[]` lists F016–F028; PRD v5.4 documents them in-scope; code implements most | Onboarding confusion |
 | ~~C2~~ | ~~Phase status~~ | ~~`README.md` (Phase 2/3 "🔜 Future"), `AGENTS.md` ("Phase 2 (future)", "Phase 3 (future)")~~ | ~~PRD v5.4 + code implement Phase 2 (F016–F020) and Phase 3 (F021–F028) substantially~~ | ~~User/developer misinformed~~ |
-| C3 | US056 identity | Catalog + `E004-F027-US056…md` = "Domain model and output writers" | `E003-F016-US056…md` = "Planner qualifies DTOs with bean validation" (orphan, not in catalog) | Duplicate ID; traceability broken |
+| ~~C3~~ | ~~US056 identity~~ | ~~Catalog + `E004-F027-US056…md` = "Domain model and output writers"~~ | ~~`E003-F016-US056…md` = "Planner qualifies DTOs with bean validation" (orphan, not in catalog)~~ | ~~Duplicate ID; traceability broken~~ |
 | C4 | F006 stories | Feature header says "US015, US016, US017"; catalog says US015/US016 | Actual tagged scenarios: US015/US016/**US028** (clean); US017 belongs to F005 | Mapping broken |
 | C5 | F003 stories | Feature tags 5 `@US023` Kafka scenarios + header lists US023 | Catalog F003 `user_stories[]` omits US023 | Kafka story uncatalogued for F003 |
 | C6 | FloatingLink confidence | PRD §3.2: literal 1.0, path-variable 0.8 only | US032 + code: 1.0/0.8/0.6/0.4 (`FloatingLinkResolver.java:108-119`) | PRD under-specifies |
@@ -168,7 +168,7 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 |---|---|---|
 | ~~Snapshot & Restore (full feature)~~ | ~~`SnapshotService`, `SnapshotCommand`, `RefreshableDataSource`~~ | ~~Present in PRD §5.9 + US053/US054 + `.feature`, but **absent from `sdlc-context.json` catalog** (E005/F025/US053/US054).~~ |
 | ~~`extract` and `generate` standalone commands~~ | ~~`ExtractCommand.java:32`, `GenerateCommand.java:24`~~ | ~~Introduced by ADR-006, but **PRD §5.7 command table never updated** (still folds Phase 3 under `run`).~~ |
-| `DtoValidationRule` planner rule | `enrichment/domain/planner/rule/DtoValidationRule` (11th rule) | Has orphan `E003-F016-US056` story + 2 Gherkin scenarios, but **not in PRD §2.2 qualification list** (PRD lists 9 rules; code has 11). |
+| `DtoValidationRule` planner rule | `enrichment/domain/planner/rule/DtoValidationRule` (11th rule) | Has orphan `E003-F016-US064` story + 2 Gherkin scenarios, but **not in PRD §2.2 qualification list** (PRD lists 9 rules; code has 11). |
 | ~~`WebXmlAnalyzer` ~~| ~~`indexing/domain/analyzer/web/endpoint/WebXmlAnalyzer.java`~~ | ~~PRD §2.1.2 documents; story US058 + 3 Gherkin scenarios added.~~ |
 | ~~`NamedQueryDetector`, `RawJdbcDetector`~~ | ~~`indexing/.../db/detector/`~~ | ~~PRD §2.1.2 documents; stories US059/US060 + 7 Gherkin scenarios added.~~ |
 | ~~`CommandSuggestionAspect` + `SuggestionService` ("did you mean?" AOP)~~ | ~~`infrastructure/cli/support/`~~ | ~~Not in PRD/US/Feature.~~ |
@@ -247,13 +247,13 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | F007 | 4 | — | ✅ US018-19 | ❌ | All | No `LanguageParser` interface |
 | F008 | 5 | — | ✅ US020-21 | ❌ | All | No registry |
 | F009 | 3 | — | ✅ US022 | ❌ | All | Consequence of F007/8 |
-| F010 | 13 | ✅ | ⚠ US036 tagged (6 scen), **no story file** | ✅ | — | Missing story file for US036 |
+| ~~F010~~ | ~~13~~ | ~~✅~~ | ~~⚠ US036 tagged (6 scen), **no story file**~~ | ~~✅~~ | ~~—~~ | ~~Missing story file for US036~~ |
 | F011 | 14 | ✅ | ✅ US031, US059, US060 | ✅ | — | Stories US059/US060 + 7 scenarios cover NamedQuery and raw JDBC |
 | F012 | 15 | ✅ | ✅ US032 (all [x]) | ✅ (≢ confidence) | — | Confidence 0.6/0.4 not in PRD §3.2 |
 | F013 | 6 | ✅ | ✅ US033 | ✅ | — | — |
 | F014 | 7 | ✅ | ✅ US034-35 | ✅ (only non-`@draft`) | — | Extra cols |
 | F015 | 15 | ✅ | ✅ US037-40 | ✅ | — | — |
-| F016 | 12 | ✅ | ⚠ `@US056` dup | ✅ (+extra rule) | — | `DtoValidationRule` not in PRD §2.2 |
+| F016 | 12 | ✅ | ~~~~⚠ `@US056` dup~~~~ | ✅ (+extra rule) | — | `DtoValidationRule` not in PRD §2.2 |
 | F017 | 6 | ✅ | ✅ US043-44 | ✅ (≢ @Async) | Error-feedback retry | Code implements retry, scenario missing |
 | F018 | 7 | ✅ | ✅ US045 | ✅ | — | — |
 | F019 | 9 | ✅ | ✅ US046-47 | ◑ | `--force-phase3`, fail-stop guards | Scenarios assume guards not implemented |
@@ -264,7 +264,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | ~~F024~~ | ~~2~~ | ~~✅~~ | ~~✅ US052~~ | ~~⚠ Superseded~~ | ~~Both scenarios~~ | ~~Superseded — manifest schema enforced at compile time via typed POJOs~~ |
 | F025 | 8 | ✅ | ⚠ US053-54 uncatalogued | ✅ (missing git hash) | Git commit hash in metadata | Unregistered in catalog |
 | F026 | 6 | ✅ | ✅ US055 | ❌ | All | No `ReviewCommand` |
-| F027 | 4 | ✅ | ⚠ `@US056` dup | ✅ | Manifest conforms to §6.2 — serialized from typed manifest POJOs | "valid semantic_manifest.json" criterion passes |
+| F027 | 4 | ✅ | ~~~~⚠ `@US056` dup~~~~ | ✅ | Manifest conforms to §6.2 — serialized from typed manifest POJOs | "valid semantic_manifest.json" criterion passes |
 | F028 | 6 | ✅ | ✅ US057 | ❌ | All | Entirely absent |
 
 ---
@@ -284,13 +284,13 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | ~~US013-014, US017~~ | ~~F005~~ | ~~✅~~ | ~~`source_hash` vs `content_hash` gap; no `json_payload` column~~ |
 | US015-016, US028 | F006 | ✅ | US028 uncatalogued in F006 |
 | US018-022 | F007-009 | ❌ | **No implementation.** All acceptance criteria unmet. |
-| US030 (+ US036) | F010 | ✅ | **US036 has NO story file** (catalog + 6 Gherkin scenarios reference it) |
+| ~~US030 (+ US036)~~ | ~~F010~~ | ~~✅~~ | ~~**US036 has NO story file** (catalog + 6 Gherkin scenarios reference it)~~ |
 | US031 | F011 | ✅ | Missing AC for @NamedQuery, raw JDBC — covered by new US059/US060 |
 | US032 | F012 | ✅ (14/14 [x]) | Only fully done story; 0.6/0.4 confidence in AC |
 | US033 | F013 | ✅ | — |
 | US034-035 | F014 | ✅ | — |
 | US037-040 | F015 | ✅ | — |
-| US041-042 (+ **US056 dup**) | F016 | ✅ | US056 (F016) is a duplicate ID with F027 |
+| US041-042 (+ **~~US056 dup~~**) | F016 | ✅ | ~~US056 (F016) is a duplicate ID with F027~~ |
 | US043-044 | F017 | ✅ | Error-feedback retry AC missing (code implements) |
 | US045 | F018 | ✅ | — |
 | US046-047 | F019 | ◑ | US047 assumes fail-stop guards + `--force-phase3` not implemented |
@@ -305,9 +305,9 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | US057 | F028 | ❌ | — |
 
 ### Missing story IDs
-- **US036** — in catalog + Gherkin (6 scenarios), **no story file**.
-- **US024/US025/US029** — gap IDs (no file, no reference in catalog or Gherkin).
-- **US056 duplicate** — `E003-F016-US056` (F016, DTO validation) and `E004-F027-US056` (F027, domain model/writers) share the same ID.
+- ~~**US036** — in catalog + Gherkin (6 scenarios), **no story file**.~~
+- ~~**US024/US025/US029** — gap IDs (no file, no reference in catalog or Gherkin).~~
+- ~~**US056 duplicate** — `E003-F016-US056` (F016, DTO validation) and `E004-F027-US056` (F027, domain model/writers) share the same ID.~~
 
 ---
 
@@ -332,12 +332,12 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 - **Code with no documented origin:** ~~WebXmlAnalyzer~~, ~~NamedQueryDetector~~, ~~RawJdbcDetector~~, `DtoValidationRule`, ~~CommandSuggestionAspect~~/~~SuggestionService~~, `common/port/*Repository` (unused), ~~`synthesis/` test package~~, `spring-ai-client-chat`/`-autoconfigure-model-chat-client` deps, 3 Maven profiles.
 - **ADRs with no implementation evidence:** none.
 - **Broken links:**
-  - **US036** — catalog + Gherkin (6 scenarios), **no story file**.
-  - **US056** — duplicate ID across F016 and F027.
+  - ~~**US036** — catalog + Gherkin (6 scenarios), **no story file**.~~
+  - ~~**US056** — duplicate ID across F016 and F027.~~
   - ~~**E005/F025/US053/US054** — implemented, documented in PRD/US/feature, **absent from `sdlc-context.json` catalog**.~~
   - **F006 header** mislabels US017 (should be US028); catalog F006 omits US028.
   - **F003** tags US023; catalog F003 omits US023.
-  - **US024/US025/US029** — gap IDs (no file, no reference).
+  - ~~**US024/US025/US029** — gap IDs (no file, no reference).~~
   - **ADR-006** — not in `tech-stack.md`; not reflected in PRD §2.3/§3.8/§5.7.
 
 ---
@@ -348,8 +348,8 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 |---|---|---|---|---|---|
 | 1 | `sdlc-context.json` | Add epic E005, feature F025, stories US053/US054; add F025 to `artifacts.gherkin_files` | High | Traceability integrity | Product |
 | 2 | `sdlc-context.json` | Resolve `scope.out_of_scope` contradiction (C1): move Phase 2/3 to in_scope or mark explicitly | High | Scope clarity | Product |
-| 3 | User stories | Rename `E003-F016-US056` → US058, register under F016; keep US056 for F027 | High | Resolve duplicate ID (C3) | Product |
-| 4 | User stories | Author missing **US036** story file (or deregister from catalog + F010 Gherkin) | High | Traceability | Product |
+| 3 | ~~User stories~~ | ~~Rename `E003-F016-US056` → US058, register under F016; keep US056 for F027~~ | ~~High~~ | ~~Resolve duplicate ID (C3)~~ | ~~Product~~ |
+| 4 | ~~User stories~~ | ~~Author missing **US036** story file (or deregister from catalog + F010 Gherkin)~~ | ~~High~~ | ~~Traceability~~ | ~~Product~~ |
 | 5 | User stories | Add `Status:` field (Done/In-Progress/Planned) to every story; reconcile with checkbox state | Medium | Progress visibility | Engineering |
 | 6 | `README.md` + `AGENTS.md` | Update Phase table: Phase 2 = Active/Partial, Phase 3 = Active/Partial (not "Future") | High | C2 — user expectations | Product |
 | 7 | `AGENTS.md` | Remove "No tests exist yet" (C14) | Medium | Dev onboarding | Engineering |
@@ -397,28 +397,28 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 ### Restore Alignment
 
 1. **Treat the `semantic_manifest.json` contract as P0.** The product's stated purpose is a "machine-readable Semantic Manifest JSON" for downstream consumption (PRD §1.1). Output is now schema-conformant AND structurally guaranteed by typed manifest POJOs (compile-time enforcement). Runtime schema validation is not required. Backlog #1 resolved.
-2. **Reconcile the catalog before adding features.** Fix `sdlc-context.json` (E005/F025, US056 dup, US036, US023/US028 mislinks) and the Phase scope contradiction (Update Plan #1-4).
+2. **Reconcile the catalog before adding features.** Fix `sdlc-context.json` (E005/F025, ~~US056 dup~~, US036, US023/US028 mislinks) and the Phase scope contradiction (Update Plan #1-4).
 3. **Decide intentionally on each documented-but-unimplemented feature.** ~~F024~~/F026/F028 are detailed in PRD + US + Gherkin but absent in code. Either implement (Backlog #3-4) or explicitly descope and update docs.
 
 ### Improve Traceability
 
 4. **Add a `Status:` field to every user story** and reconcile with checkbox state; make `@draft` on Gherkin scenarios reflect reality (14 implemented features still `@draft`).
 5. **Introduce a lightweight traceability check** (script or test) asserting: every catalog feature has a `.feature`; every `@USxxx` tag has a story file; every story file's (E,F) prefix is in the catalog; no US ID is reused. Would have caught C3-C5 and the E005 orphan automatically.
-6. **Keep `features/CHANGELOG.md` current** or retire it in favor of git history.
+6. ~~**Keep `features/CHANGELOG.md` current** or retire it in favor of git history.~~
 
 ### Reduce Documentation Debt
 
-7. **Update `README.md`/`AGENTS.md` Phase status** (C2) and remove false "no tests" claim (C14).
-8. **Sync PRD §Appendix** pom/properties with actuals, or mark as "illustrative, see `pom.xml` for canonical versions" (C8-C12).
-9. **Propagate ADR-006 into PRD §2.3/§3.8/§5.7** so the `extract`/`generate` split and `SynthesizeSpec` relocation are reflected at product level.
+7. ~~**Update `README.md`/`AGENTS.md` Phase status** (C2) and remove false "no tests" claim (C14).~~
+8. ~~**Sync PRD §Appendix** pom/properties with actuals, or mark as "illustrative, see `pom.xml` for canonical versions" (C8-C12).~~
+9. ~~**Propagate ADR-006 into PRD §2.3/§3.8/§5.7** so the `extract`/`generate` split and `SynthesizeSpec` relocation are reflected at product level.~~
 
 ### Reduce Technical Debt
 
 10. ~~**`MavenDependencyResolver` removed** (dead code); also address the `common/port/*Repository` + `ScanProjectService` DDD skeleton.~~
-11. **Fix `application.properties:72`** concatenated-line bug and dual DB-path ambiguity (`sqlite.db` vs `./spec-output/sqlite.db`).
-12. **Add `.gitignore` entries for `sqlite.db*`** and remove committed runtime DB/log files.
-13. **Make guardrails config-driven** in `TraceFlowAction`/`QuarantineFlowAction` (Backlog #10) — hardcoded 0.3 vs PRD's 0.7 is a latent behavioral bug.
-14. **Add missing high-value tests**: `RunCommandTest`, `GenerateCommandTest`, `SnapshotServiceTest`/`SnapshotCommandTest`, `RefreshableDataSourceTest`, `ValidateCommandTest` (snapshot VACUUM-INTO/restore-pool path currently untested).
+11. ~~**Fix `application.properties:72`** concatenated-line bug and dual DB-path ambiguity (`sqlite.db` vs `./spec-output/sqlite.db`).~~
+12. ~~**Add `.gitignore` entries for `sqlite.db*`** and remove committed runtime DB/log files.~~
+13. ~~**Make guardrails config-driven** in `TraceFlowAction`/`QuarantineFlowAction` (Backlog #10) — hardcoded 0.3 vs PRD's 0.7 is a latent behavioral bug.~~
+14. ~~**Add missing high-value tests**: `RunCommandTest`, `GenerateCommandTest`, `SnapshotServiceTest`/`SnapshotCommandTest`, `RefreshableDataSourceTest`, `ValidateCommandTest` (snapshot VACUUM-INTO/restore-pool path currently untested).~~
 
 ### Improve Governance
 

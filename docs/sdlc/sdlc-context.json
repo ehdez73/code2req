@@ -591,6 +591,8 @@
       "user_stories": [
         { "id": "US041", "title": "Planner qualifies tasks for LLM enrichment", "priority": "must", "type": "story", "gherkin_file": "features/E003-F016-planner.feature" },
         { "id": "US042", "title": "Planner supports dry-run DAG view", "priority": "should", "type": "story", "gherkin_file": "features/E003-F016-planner.feature" }
+      ],
+        { "id": "US064", "title": "Planner qualifies DTOs/records with bean validation annotations", "priority": "should", "type": "story", "gherkin_file": "features/E003-F016-planner.feature" }
       ]
     },
     {
