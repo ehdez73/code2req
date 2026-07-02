@@ -8,4 +8,10 @@ public interface MetricsRepository {
     void save(Metric metric);
 
     Optional<Metric> getLatestForPhase(String phase);
+
+    Metric getLatestForPhase(int phase);
+
+    int count();
+
+    void deleteAll();
 }

@@ -3,7 +3,7 @@
 **Epic:** E001 — Deterministic Multi-Language Indexing
 **Feature:** F001 — Project Configuration & Manifest Parsing
 **Priority:** must | **Estimate:** 3 SP
-**Depends on:** — | **Blocks:** US002, US003, US004, US005, US006
+**Depends on:** — | **Blocks:** US002, US003, US006
 
 > As a **Developer**, I want **to specify which codebases my project should analyze**, so that **the tool scans only the repositories I care about**.
 

@@ -7,9 +7,15 @@ import java.util.List;
 public interface TopicLinkRepository {
     void save(TopicLink link);
 
+    void saveAll(List<TopicLink> links);
+
     List<TopicLink> findAll();
 
     void deleteByTaskId(String taskId);
 
+    void deleteAll();
+
     int countByTaskId(String taskId);
+
+    int count();
 }

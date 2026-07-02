@@ -1,7 +1,7 @@
 # Feature: Java Source AST Analysis
 # Epic: E001 — Deterministic Multi-Language Indexing
 # Feature ID: F003
-# Stories: US006, US007, US008, US009, US010, US023, US026, US027
+# Stories: US006, US007, US008, US009, US010, US023, US026, US027, US058
 # Phase 1 draft generated: 2026-06-12
 # Last updated: 2026-06-14
 
@@ -236,3 +236,29 @@ Feature: Java Source AST Analysis
       When the CLI extracts ActiveMQ event listeners and publications
       Then no ActiveMQ listener or publication is recorded
       And no error is raised
+
+    # ---------------------------------------------------------------------------
+    # Story US058: Developer discovers servlet endpoints in web.xml
+    # ---------------------------------------------------------------------------
+
+    @US058 @E001 @F003 @should @draft
+    Scenario: Developer scans a project with legacy web.xml servlet declarations
+      Given a scan target containing a web.xml with <servlet> and <servlet-mapping> elements
+      When the CLI analyzes the project
+      Then servlet endpoints are discovered as EndpointInfo entries
+      And each endpoint has the mapped url-pattern as its path
+      And each endpoint references the servlet class name
+
+    @US058 @E001 @F003 @should @draft
+    Scenario: Developer scans a project without web.xml
+      Given a scan target without a web.xml file
+      When the CLI analyzes the project
+      Then no web.xml endpoints are reported
+      And the scan continues without error
+
+    @US058 @E001 @F003 @should @draft
+    Scenario: Developer scans a project with an invalid web.xml
+      Given a scan target containing a malformed web.xml
+      When the CLI analyzes the project
+      Then the malformed web.xml is skipped with a warning
+      And the rest of the endpoint discovery completes normally

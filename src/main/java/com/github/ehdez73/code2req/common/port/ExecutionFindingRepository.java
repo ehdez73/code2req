@@ -10,6 +10,8 @@ public interface ExecutionFindingRepository {
 
     void saveAllForTask(String taskId, List<AnalysisFinding> findings);
 
+    void saveAllForTask(String taskId, List<? extends AnalysisFinding> findings, String findingType);
+
     List<Map<String, Object>> findByTaskId(String taskId);
 
     List<Map<String, Object>> findByTaskIdAndType(String taskId, String findingType);
@@ -18,7 +20,15 @@ public interface ExecutionFindingRepository {
 
     int countByTaskIdAndType(String taskId, String findingType);
 
+    int countByType(String findingType);
+
+    int count();
+
     void deleteByTaskId(String taskId);
+
+    void deleteAll();
+
+    int deleteOrphanedSemanticEnrichment();
 
     List<Map<String, Object>> findAllByType(String findingType);
 }

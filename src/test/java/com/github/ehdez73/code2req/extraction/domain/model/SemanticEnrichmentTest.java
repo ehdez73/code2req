@@ -1,4 +1,4 @@
-package com.github.ehdez73.code2req.extraction;
+package com.github.ehdez73.code2req.extraction.domain.model;
 
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;

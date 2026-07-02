@@ -3,7 +3,7 @@
 **Epic:** E001 — Deterministic Multi-Language Indexing
 **Feature:** F006 — CLI Scan Orchestration
 **Priority:** must | **Estimate:** 8 SP
-**Depends on:** US001, US002, US003, US004, US005, US006, US007, US008, US009, US010, US011, US012, US013, US014 | **Blocks:** US016
+**Depends on:** US001, US002, US003, US006, US007, US008, US009, US010, US011, US012, US013, US014 | **Blocks:** US016
 
 > As a **Developer**, I want **a single command that runs the complete Phase 1 pipeline**, so that **I can index my codebase without orchestrating individual steps**.
 

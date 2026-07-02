@@ -2,7 +2,7 @@
 # Epic: E005 — Snapshot & Restore
 # Feature ID: F025
 # Stories: US053, US054
-# Phase 14 draft generated: 2026-06-21
+# Phase 1 draft generated: 2026-06-21
 # Last updated: 2026-06-21
 
 Feature: Snapshot & Restore

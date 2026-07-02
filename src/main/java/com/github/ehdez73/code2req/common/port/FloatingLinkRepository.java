@@ -7,11 +7,17 @@ import java.util.List;
 public interface FloatingLinkRepository {
     void save(FloatingLinkInfo link);
 
+    void saveAll(List<FloatingLinkInfo> links);
+
     List<FloatingLinkInfo> findAll();
 
     void deleteByTaskId(String taskId);
 
+    void deleteAll();
+
     int countByTaskId(String taskId);
+
+    int count();
 
     List<String> findSourceFilePathsByResolvedStatus(String status);
 }

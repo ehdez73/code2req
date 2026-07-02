@@ -1,7 +1,7 @@
 # Feature: JSP/Thymeleaf Form & View Detection
 # Epic: E001 — Deterministic Multi-Language Indexing
 # Feature ID: F015
-# Stories: US037, US038, US039, US040
+# Stories: US037, US038, US039, US040, US062
 # Phase 1 draft generated: 2026-06-16
 # Last updated: 2026-06-16
 
@@ -126,3 +126,18 @@ Feature: JSP/Thymeleaf Form & View Detection
       And a controller endpoint with path "/owners" and method GET
       When TemplateLinkResolver resolves the pair
       Then no template_endpoint_link is created
+
+  Rule: @Controller methods returning void are detected as view-serving endpoints
+
+    @US062 @E001 @F015 @should @draft
+    Scenario: @Controller void method serves implicit view
+      Given a @Controller class with a void method annotated @GetMapping("/orders")
+      When SpringEndpointDetector analyses the method
+      Then the endpoint is marked as serving a view
+      And the view name is inferred from the request path
+
+    @US062 @E001 @F015 @should @draft
+    Scenario: @RestController void method does not serve a view
+      Given a @RestController class with a void method annotated @GetMapping("/api/orders")
+      When SpringEndpointDetector analyses the method
+      Then the endpoint is not marked as serving a view

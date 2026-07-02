@@ -10,7 +10,7 @@
 ### Acceptance Criteria
 
 - [ ] Processes planner decisions as a DAG
-- [ ] Submits tasks via `@Async("orchestratorTaskExecutor")` to Spring pool
+- [ ] Submits tasks via `CompletableFuture` + `taskExecutor.execute(work)` on the orchestrator thread pool
 - [ ] Tracks progress via `CompletableFuture<ExecutionFinding>` responses
 - [ ] Phase 2→3 barrier: `CompletableFuture.allOf(...)` blocks Phase 3 until ALL tasks complete
 - [ ] Dynamic re-planning: discovered dependencies are registered as PENDING and processed

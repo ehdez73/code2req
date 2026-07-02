@@ -1,7 +1,7 @@
 # Feature: LLM Executor Framework — Per-file Semantic Enrichment
 # Epic: E003 — Semantic Enrichment
 # Feature ID: F017
-# Stories: US043, US044
+# Stories: US043, US044, US063
 # Phase 2 draft generated: 2026-06-17
 # Last updated: 2026-06-17
 
@@ -67,3 +67,18 @@ Feature: LLM Executor Framework
       And the output matches the expected static ExecutionFinding JSON
       And the finding is persisted to execution_findings with type SEMANTIC_ENRICHMENT
       And the task transitions to SUCCESS
+
+  Rule: Invalid LLM responses trigger error-feedback retry
+
+    @US063 @E003 @F017 @should @draft
+    Scenario: Invalid JSON response triggers retry with error-feedback
+      Given the LLM returns a response that fails JSON parsing
+      When the executor processes the file
+      Then the executor retries with an error-feedback prompt containing the failed JSON and parse error
+
+    @US063 @E003 @F017 @should @draft
+    Scenario: Retry exhausted transitions task to FAILED
+      Given the LLM consistently returns invalid JSON
+      When all 3 retry attempts are exhausted
+      Then the task transitions to FAILED
+      And the failure is recorded in execution_findings

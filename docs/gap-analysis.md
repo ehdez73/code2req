@@ -16,7 +16,7 @@ The project's design intent is well-traceable (PRD → epics → features → st
 - 28 documented features (F001–F028, incl. uncatalogued F025): **16 Correctly Implemented, 4 Partial, 7 Missing, 1 Implemented-but-Not-Documented-at-catalog-level (F025).**
 - 222 Gherkin scenarios across 28 `.feature` files; **221 carry `@draft`** — only F014 is marked `# Implemented`. Implementation reality is far ahead of this status signal.
 - ~~6 ADRs; **ADR-006 is not referenced in `tech-stack.md`**.~~
-- **76 test files exist** — `AGENTS.md`'s claim "No tests exist yet" is **false**.
+- ~~**76 test files exist** — `AGENTS.md`'s claim "No tests exist yet" is **false**~~.
 
 ### Major Risks
 
@@ -77,7 +77,7 @@ Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin
 | Test mining (F020) | §3.4 | US048 | E003-F020 (5 scen) | — | `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver` | ✅ |
 | Embabel setup (F021) | §2.3/§5.4 | US049 (4/7 [x]) | E004-F021 (3 scen) | — | Dep in `pom.xml`, embabel props, `AppConfig` beans | ✅? |
 | CodebaseKnowledge (F022) | §2.3 | US050 | E004-F022 (5 scen) | — | `CodebaseKnowledge`, `ExtractionOrchestrator.buildCodebaseKnowledge()` | ✅ |
-| Embabel agent (F023) | §2.3/§3.8 | US051 | E004-F023 (11 scen) | ADR-006 | `FunctionalRequirementAgent` + 6 actions + quarantine (UserInteractionService/NoOp MISSING; guardrails hardcoded) | ◑ ≢ |
+| Embabel agent (F023) | §2.3/§3.8 | US051 | E004-F023 (11 scen) | ADR-006 | `FunctionalRequirementAgent` + 6 actions + quarantine (UserInteractionService/NoOp MISSING; guardrails config-driven) | ◑ |
 | ~~Quality audit (F024)~~ | ~~§5.3/§6.2~~ | ~~US052~~ | ~~E004-F024 (2 scen)~~ | ~~—~~ | ~~**SUPERSEDED** — manifest schema enforced at compile time via typed POJOs in `generation/domain/model/manifest/`. Runtime validation not required. `SemanticManifestValidator` removed.~~ | ~~⚠ Superseded~~ |
 | Snapshot (F025) | §5.9 | US053/US054 (**uncatalogued**) | E005-F025 (8 scen, uncatalogued) | — | `SnapshotService`, `RefreshableDataSource`, `SnapshotCommand` | ⚠ ✅ |
 | Review command (F026) | §5.5/§5.5a | US055 | E004-F026 (6 scen) | — | **NONE** | ⊘ |
@@ -85,8 +85,8 @@ Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin
 | Interactive mode (F028) | §5.5b | US057 | E004-F028 (6 scen) | — | **NONE** | ⊘ |
 | `resume` standalone command | §5.7 | — | — | — | **NONE** (only `--resume` flags on scan/enrich/run) | ⊘ |
 | ~~CLI commands `task-list`/`task-findings`/`task-set-status`~~ | ~~§5.7~~ | ~~—~~ | ~~—~~ | ~~—~~ | ~~`TaskCommands` (renamed `task list`/`findings`/`set-status`; adds `--from`/`--verbose`; `--delete-findings` defaults true)~~ | ~~≢~~ |
-| `extract` / `generate` commands | (folded in `run`) | — | — | ADR-006 | `ExtractCommand`, `GenerateCommand` (extras, not in PRD §5.7) | ⚠ |
-| 76 test files | — | — | — | — | `src/test/java/...` (76 files; AGENTS.md says none) | ⚠ |
+| ~~`extract` / `generate` commands~~ | ~~(folded in `run`)~~ | ~~—~~ | ~~—~~ | ~~ADR-006~~ | ~~`ExtractCommand`, `GenerateCommand` (extras, not in PRD §5.7)~~ | ~~⚠~~ |
+| ~~76 test files~~| — | — | — | — | ~~`src/test/java/...` (76 files; AGENTS.md says none)~~ | ~~⚠~~ |
 
 ---
 
@@ -96,33 +96,33 @@ Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin
 
 | PRD Requirement | PRD Ref | Detail |
 |---|---|---|
-| `depgraph-maven-plugin:4.0.3:graph -DgraphFormat=json` exact invocation | §2.1.1 | US004/US005 speak only of "Maven dependency resolution" generically. |
-| `CombinedTypeSolver` + annotation-driven fallback | §2.1.2 | US006 mentions heuristic fallback but no story references `CombinedTypeSolver`. (Code doesn't use it either.) |
-| `web.xml` endpoint discovery (`WebXmlAnalyzer`) | §2.1.2 | No dedicated story; code implements it. |
-| `@NamedQuery`/`@NamedNativeQuery` detection (incl. container forms) | §2.1.2 | US031 AC omits these. Code implements via `NamedQueryDetector`. |
-| Raw JDBC detection (`Connection.prepareStatement`, `Statement.executeQuery`, etc.) | §2.1.2 | US031 omits. Code implements via `RawJdbcDetector`. |
+| ~~`depgraph-maven-plugin:4.0.3:graph -DgraphFormat=json` exact invocation~~ | ~~§2.1.1~~ | ~~US004/US005 speak only of "Maven dependency resolution" generically.~~ |
+| ~~`CombinedTypeSolver` + annotation-driven fallback~~ | ~~§2.1.2~~ | ~~US006 mentions heuristic fallback but no story references `CombinedTypeSolver`. (Code doesn't use it either.)~~ |
+| ~~`web.xml` endpoint discovery (`WebXmlAnalyzer`)~~ | ~~§2.1.2~~ | ~~No dedicated story; code implements it.~~ |
+| ~~`@NamedQuery`/`@NamedNativeQuery` detection (incl. container forms)~~ | ~~§2.1.2~~ | ~~US031 AC omits these. Code implements via `NamedQueryDetector`.~~ |
+| ~~Raw JDBC detection (`Connection.prepareStatement`, `Statement.executeQuery`, etc.)~~ | ~~§2.1.2~~ | ~~US031 omits. Code implements via `RawJdbcDetector`.~~ |
 | `max-discovery-depth` default=3 + `HOP_DEPTH` quarantine reason | §5.2 | US045 covers "max hop depth" generically; no story pins default=3 or `HOP_DEPTH`. |
 | Phase 3 marker task (`__phase3_marker__`, SHA-256) lifecycle | §5.5 §5 | US051 mentions `__phase3_marker__` but full lifecycle (PENDING/ENRICHING/ENRICHED/FAILED + `--force-phase3` + `.tmp.` cleanup) is PRD-only. **Not implemented in code.** |
 | Error-feedback retry (feed failed JSON + parse error back to LLM) | §5.4 | US043 covers rate-limit backoff + invalid→FAILED, but not the immediate error-feedback retry. **Code does implement it** (`LlmEnrichmentService`). |
 | CLI Visual Telemetry (progress bar, token/cost counters, backoff warnings) | §5.6 | No story; no feature file. Partially in `StatusCommand`. |
-| Snapshot metadata must include git commit hash | §5.9 §5 | US053/054 omit this. Code omits it too. |
+| ~~Snapshot metadata must include git commit hash~~ | ~~§5.9 §5~~ | ~~US053/054 omit this. Code omits it too.~~|
 
 ### 3.2 PRD Requirements Missing from Features (Gherkin)
 
-- No `.feature` covers `web.xml` discovery, `@NamedQuery`, raw JDBC detection, `NamedParameterJdbcTemplate`/`SimpleJdbcCall`, view-returning `void` controllers with implicit view, or the Phase 3 marker lifecycle (all in PRD §2.1.2/§5.5).
-- No scenario covers `--force-phase3`, `--interactive`, `--interactive-timeout`, `error-feedback retry`, or `validate` of `code-graph-index.json` (PRD §5.7 says `validate` should validate both manifest and index structure).
+- No `.feature` covers ~~web.xml discovery~~, ~~`@NamedQuery`, raw JDBC detection~~, ~~`NamedParameterJdbcTemplate`/`SimpleJdbcCall`~~, ~~view-returning `void` controllers with implicit view~~, or the Phase 3 marker lifecycle (all in PRD §2.1.2/§5.5).
+- No scenario covers `--force-phase3`, `--interactive`, `--interactive-timeout`, ~~error-feedback retry~~, or `validate` of `code-graph-index.json` (PRD §5.7 says `validate` should validate both manifest and index structure).
 
 ### 3.3 User Stories Without PRD Coverage
 
-All 54 stories trace to a PRD section. However, E005-F025 (US053/US054) Snapshot & Restore — which *does* have PRD §5.9 coverage — is **absent from `sdlc-context.json`** (epics[], features[], stories[], `artifacts.gherkin_files[]`). Implementation exists; catalog registration is the gap.
+All 54 stories trace to a PRD section. However, E005-F025 (US053/US054) Snapshot & Restore — which *does* have PRD §5.9 coverage — ~~is **absent from `sdlc-context.json`** (epics[], features[], stories[], `artifacts.gherkin_files[]`). Implementation exists; catalog registration is the gap.~~
 
 ### 3.4 Features Without PRD Coverage
 
 | Feature | Note |
 |---|---|
-| F025 Snapshot & Restore | Has PRD §5.9 coverage but not in feature catalog (catalog jumps F024→F026). |
+| ~~F025 Snapshot & Restore~~ | ~~Has PRD §5.9 coverage but not in feature catalog (catalog jumps F024→F026).~~ |
 | F026 review command | PRD §5.5/§5.5a covers it; catalogued; **not implemented**. |
-| `extract` / `generate` CLI commands | Introduced by ADR-006; **not in PRD §5.7 command table** (PRD folds Phase 3 into `run`). ADR-driven extension that PRD never absorbed. |
+| ~~`extract` / `generate` CLI commands~~ | ~~Introduced by ADR-006; **not in PRD §5.7 command table** (PRD folds Phase 3 into `run`). ADR-driven extension that PRD never absorbed.~~ |
 
 ### 3.5 ADRs Without Clear Functional Justification
 
@@ -146,14 +146,14 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 | C11 | OpenRouter base URL | PRD §Appendix: `https://openrouter.ai/api/v1` | `:34`: `https://openrouter.ai/api` (no `/v1`) | Auth/routing divergence |
 | C12 | Default model | PRD §Appendix: `${OPENROUTER_MODEL:deepseek/deepseek-v4-flash:free}` (env-overridable) | `:37`: hardcoded `openai/gpt-oss-20b:free` | No env override |
 | C13 | `@Async` usage | PRD §2.2: `@Async("orchestratorTaskExecutor")` | `LlmEnrichmentService:61,116`: manual `taskExecutor.execute(work)` | Threading model differs |
-| C14 | Test existence | `AGENTS.md`: "No tests exist yet (src/test/java/ is empty)" | 76 test files exist | Onboarding mismatch |
+| ~~C14~~ | ~~Test existence~~ | ~~`AGENTS.md`: "No tests exist yet (src/test/java/ is empty)"~~ | ~~76 test files exist~~ | ~~Onboarding mismatch~~ |
 
 ### 3.7 Ambiguous or Incomplete Documentation
 
 - **No `Status:` field on any of 54 user stories.** Status only inferable via checkboxes (US032 14/14 [x], US049 4/7 [x], all else unchecked). Unreliable.
-- **`features/CHANGELOG.md` is stale**: stops 2026-06-12 14:30, covers only F001–F009, scenario counts wrong (F001 says 8 → actually 10; F003 says 14 → actually 26). F010–F028 and F025 unlogged.
-- **F025 header** reads `# Phase 14 draft` — project has Phases 1–3. Likely a typo.
-- **PRD §2.1.7 checklist** mixes `[ ]`/`[x]` inconsistently (e.g., `EndpointDetector` SPI marked `[x]` while many implemented items remain `[ ]`). Not a reliable progress indicator.
+- ~~**`features/CHANGELOG.md` is stale**: stops 2026-06-12 14:30, covers only F001–F009, scenario counts wrong (F001 says 8 → actually 10; F003 says 14 → actually 26). F010–F028 and F025 unlogged~~.
+-~~ **F025 header** reads `# Phase 14 draft` — project has Phases 1–3. Likely a typo~~.
+- ~~**PRD §2.1.7 checklist** mixes `[ ]`/`[x]` inconsistently (e.g., `EndpointDetector` SPI marked `[x]` while many implemented items remain `[ ]`). Not a reliable progress indicator.~~
 - **`sdlc-context.json` `meta.phase = "3"`** vs `scope.out_of_scope` listing Phase 3 — internally ambiguous about current phase.
 - **US049** marked 4/7 `[x]` ("Embabel initializes at startup" unchecked), yet `pom.xml` has dep and `AppConfig` builds beans — runtime-init criteria **[Requires Manual Validation]**.
 - **Task ID formula** in `AGENTS.md` omits `target_name` from the hash; PRD §5.1 and §2.1.6 SQL comment disagree about whether `target_name` is included. **Code (`TaskIdHasher`) should be audited.**
@@ -166,14 +166,14 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 
 | Functionality | Code Evidence | Doc Gap |
 |---|---|---|
-| Snapshot & Restore (full feature) | `SnapshotService`, `SnapshotCommand`, `RefreshableDataSource` | Present in PRD §5.9 + US053/US054 + `.feature`, but **absent from `sdlc-context.json` catalog** (E005/F025/US053/US054). |
-| `extract` and `generate` standalone commands | `ExtractCommand.java:32`, `GenerateCommand.java:24` | Introduced by ADR-006, but **PRD §5.7 command table never updated** (still folds Phase 3 under `run`). |
+| ~~Snapshot & Restore (full feature)~~ | ~~`SnapshotService`, `SnapshotCommand`, `RefreshableDataSource`~~ | ~~Present in PRD §5.9 + US053/US054 + `.feature`, but **absent from `sdlc-context.json` catalog** (E005/F025/US053/US054).~~ |
+| ~~`extract` and `generate` standalone commands~~ | ~~`ExtractCommand.java:32`, `GenerateCommand.java:24`~~ | ~~Introduced by ADR-006, but **PRD §5.7 command table never updated** (still folds Phase 3 under `run`).~~ |
 | `DtoValidationRule` planner rule | `enrichment/domain/planner/rule/DtoValidationRule` (11th rule) | Has orphan `E003-F016-US056` story + 2 Gherkin scenarios, but **not in PRD §2.2 qualification list** (PRD lists 9 rules; code has 11). |
-| `WebXmlAnalyzer` | `indexing/domain/analyzer/web/endpoint/WebXmlAnalyzer.java` | PRD §2.1.2 documents; **no story/feature** covers it. |
-| `NamedQueryDetector`, `RawJdbcDetector` | `indexing/.../db/detector/` | PRD §2.1.2 documents; **no story/feature**. |
-| `CommandSuggestionAspect` + `SuggestionService` ("did you mean?" AOP) | `infrastructure/cli/support/` | Not in PRD/US/Feature. |
-| 76 test files | `src/test/java/...` | `AGENTS.md` claims none (C14). |
-| `common/port/*` repository interfaces | `common/port/{Task,ExecutionFinding,TopicLink,FloatingLink,Metrics}Repository` | Not in any doc; **not implemented by the stores** — parallel hierarchy, appears unused. |
+| ~~`WebXmlAnalyzer` ~~| ~~`indexing/domain/analyzer/web/endpoint/WebXmlAnalyzer.java`~~ | ~~PRD §2.1.2 documents; story US058 + 3 Gherkin scenarios added.~~ |
+| ~~`NamedQueryDetector`, `RawJdbcDetector`~~ | ~~`indexing/.../db/detector/`~~ | ~~PRD §2.1.2 documents; stories US059/US060 + 7 Gherkin scenarios added.~~ |
+| ~~`CommandSuggestionAspect` + `SuggestionService` ("did you mean?" AOP)~~ | ~~`infrastructure/cli/support/`~~ | ~~Not in PRD/US/Feature.~~ |
+| ~~76 test files~~ | ~~`src/test/java/...`~~ | ~~`AGENTS.md` claims none (C14).~~ |
+| ~~`common/port/*` repository interfaces~~ | ~~`common/port/{Task,ExecutionFinding,TopicLink,FloatingLink,Metrics}Repository`~~ | ~~Not in any doc; **not implemented by the stores** — parallel hierarchy, appears unused.~~ |
 | `spring-ai-client-chat` + `spring-ai-autoconfigure-model-chat-client` deps; 3 Maven profiles with `embabel-agent-starter-dockermodels`/`-openai-custom` | `pom.xml:97-104, 159-224` | Not in PRD §Appendix pom blueprint. |
 | `strict-response-format`, `X-OpenRouter-Plugins: response-healing` header, `BeanOutputConverter`+`ResponseFormat.JSON_SCHEMA` | `LlmEnrichmentService`, `application-opencode.properties` | Not in PRD. |
 
@@ -191,7 +191,7 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 | PRD §3.5 fail-stop guards on `run` (halt on FAILED after scan; halt if 0 qualified after plan; halt on ENRICH_FAILED after enrich) | PRD §3.5 | `RunCommand` chains outputs and strips suggestions; **no halt logic**. |
 | `validate` of `code-graph-index.json` structure | PRD §5.7 | `ValidateCommand.java:27` validates **manifest YAML only**. |
 | ~~`tasks.json_payload` column~~ | ~~PRD §2.1.6~~ | ~~`TaskStoreSchema.java:31` has `content_hash` instead of `source_hash` and **no `json_payload`**.~~ |
-| Snapshot metadata git commit hash | PRD §5.9 §5 | `SnapshotService` writes name/date/cli_version/sizes/checksums — **no git hash**. |
+| ~~Snapshot metadata git commit hash~~ | ~~PRD §5.9 §5~~| ~~`SnapshotService` writes name/date/cli_version/sizes/checksums — **no git hash**.~~ |
 | `SemanticManifestWriter` / `MarkdownSpecWriter` as distinct classes | F027/US056-b | Manifest is now serialized from typed POJOs (`ManifestMapper` + Jackson) directly from `SynthesizeSpecAction`. No separate writer classes needed — the POJO structure itself defines the output contract. |
 
 ### 4.3 Partially Implemented Items
@@ -200,14 +200,14 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 |---|---|---|
 | ~~F002 Maven depgraph~~ | ~~**REMOVED** — `MavenDependencyResolver` was dead code (zero callers, never wired); class and tests deleted 2026-07-01~~ | ~~—~~ |
 | F019 plan + run | `plan` ✅; `run` chains scan→plan→enrich→extract→generate with `--dry-run/--resume/--llm-threshold/--force` | `--force-phase3`, `--interactive`, `--interactive-timeout`; PRD §3.5 fail-stop guards. |
-| F023 Embabel agent | 6 GOAP actions + quarantine; priority scoring; sub-chain cache; orphan detection; progressive disclosure | `SynthesizeSpec` not an agent action (per ADR-006 — intentional); `UserInteractionService`/`NoOp` missing; guardrails hardcoded `MAX_DEPTH=5`/`LOW_CONFIDENCE_THRESHOLD=0.3` (PRD §2.3 §9 says 0.7, and config exists). |
+| F023 Embabel agent | 6 GOAP actions + quarantine; priority scoring; sub-chain cache; orphan detection; progressive disclosure | `SynthesizeSpec` not an agent action (per ADR-006 — intentional); `UserInteractionService`/`NoOp` missing; guardrails now config-driven (resolved). |
 | F027 Domain model + writers | All PRD §2.3 records present (29 model files); `generate` command ✅; `spec.md` produced; 16 manifest POJOs in `generation/domain/model/manifest/`; `ManifestMapper` + Jackson serialization. | `semantic_manifest.json` **conforms to PRD §6.2** — entry_point is structured object, steps present, acceptance_criteria has given/when/then, traceability_graph/review_required/unresolved_reason/mermaid_diagram all present. Serialized from typed manifest POJOs, not hand-built JSON. |
 | F021 Embabel setup | pom dep ✅, embabel model props ✅, `AppConfig` ChatClient beans ✅ | US049's "Embabel initializes at startup" / "AgentPlatform available" unchecked — **[Requires Manual Validation]** at runtime. |
 
 ### 4.4 Implementation Deviations
 
-1. **Maven plugin**: `MavenDependencyResolver.java:55` runs `mvn dependency:tree --batch-mode`; PRD §2.1.1 mandates `com.github.ferstl:depgraph-maven-plugin:4.0.3:graph -DgraphFormat=json -DoutputDirectory=.`. **REMOVED** — resolver deleted 2026-07-01 (dead code). (High confidence.)
-2. **`@Async` vs manual executor**: PRD §2.2 says `@Async("orchestratorTaskExecutor")`. `LlmEnrichmentService:61,116` uses manual `taskExecutor.execute(work)`. `@EnableAsync` present but `@Async` unused. (High.)
+1. ~~**Maven plugin**: `MavenDependencyResolver.java:55` runs `mvn dependency:tree --batch-mode`; PRD §2.1.1 mandates `com.github.ferstl:depgraph-maven-plugin:4.0.3:graph -DgraphFormat=json -DoutputDirectory=.`. **REMOVED** — resolver deleted 2026-07-01 (dead code). (High confidence.)~~
+2. ~~**`@Async` vs manual executor**: PRD §2.2 says `@Async("orchestratorTaskExecutor")`. `LlmEnrichmentService:61,116` uses manual `taskExecutor.execute(work)`. `@EnableAsync` present but `@Async` unused. (High.)~~
 3. ~~**`tasks` schema**: `source_hash`→`content_hash`; no `json_payload`; extra `content_type`; `target_name` defaults `''`. (High.)~~
 4. ~~**`floating_links` schema**: extra `client_type`, `source_method` (not in PRD §2.1.6). (High.)~~
 5. ~~**`metrics.phase`**: `INTEGER NOT NULL DEFAULT 1` vs PRD `TEXT NOT NULL`. (High.)~~
@@ -216,17 +216,17 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 8. ~~**Config bug**: `application.properties:72` is `code2req.snapshot.dir=./snapshotscode2req.execution.phase3-timeout-minutes=60` (two properties concatenated). `SnapshotService` masks via `@Value` default. (High.)~~
 9. **Dual DB path**: `spring.datasource.url=jdbc:sqlite:sqlite.db` vs `code2req.output.db-path=./spec-output/sqlite.db`. (High.)
 10. ~~**Command naming**: PRD §5.7 uses hyphenated `task-list`/`task-findings`/`task-set-status`; code uses Spring Shell groups `task list`/`task findings`/`task set-status`. (High.)~~
-11. **`CombinedTypeSolver`**: PRD §2.1.2 mandates it with annotation fallback. Code uses `StaticJavaParser` + `LanguageLevel` + heuristics — no `CombinedTypeSolver`. (High.)
-12. **Embabel `SynthesizeSpec`**: PRD §2.3/§3.8 list as an agent action; ADR-006 deliberately moves it out of the agent. **Intentional, ADR-sanctioned deviation**, but PRD text never updated. (High.)
+11. ~~**`CombinedTypeSolver`**: PRD §2.1.2 mandates it with annotation fallback. Code uses `StaticJavaParser` + `LanguageLevel` + heuristics — no `CombinedTypeSolver`. (High.)~~
+12. ~~**Embabel `SynthesizeSpec`**: PRD §2.3/§3.8 list as an agent action; ADR-006 deliberately moves it out of the agent. **Intentional, ADR-sanctioned deviation**, but PRD text never updated. (High.)~~
 
 ### 4.5 Potentially Obsolete or Dead Functionality
 
-- **`MavenDependencyResolver`** — **REMOVED 2026-07-01** (was dead code, zero callers).
-- **`common/port/*Repository` interfaces** — 5 ports defined; stores do **not** implement them. Possibly abandoned hexagonal skeleton.
-- **`indexing/application/port/input/ScanProjectUseCase` + `ScanProjectService`** — DDD skeleton bypassed by `ScanCommand` calling `IndexingOrchestrator` directly. Appears unused.
-- **`synthesis/` test package** — `LinkRegistryTest`/`SemanticEnrichmentTest` with **no corresponding main-source `synthesis/` package**. Tested classes live in `extraction/domain/model`. Stale package layout.
-- **`.code2req-history`** (repo root) + `code2req.log`/`spring-shell.log` + committed `sqlite.db*` — runtime artifacts. `sqlite.db*` **not** in `.gitignore` (only `.code2req_cache.db*` are).
-- **PRD §2.1.7 Phase-1 checklist** — many `[ ]` items are implemented (`GlobalDeclarationRegistry`, `CallGraphVisitor`, `DbAccessVisitor`, `TopicLinkResolver`, `FloatingLinkResolver`, `execution_findings`/`topic_links`/`floating_links`/`metrics` tables) but still unchecked. Stale indicator.
+- ~~**`MavenDependencyResolver`** — **REMOVED 2026-07-01** (was dead code, zero callers).~~
+- ~~**`common/port/*Repository` interfaces** — 5 ports defined; stores do **not** implement them. Possibly abandoned hexagonal skeleton.~~
+- ~~**`indexing/application/port/input/ScanProjectUseCase` + `ScanProjectService`** — DDD skeleton bypassed by `ScanCommand` calling `IndexingOrchestrator` directly. Appears unused.~~
+- ~~**`synthesis/` test package** — `LinkRegistryTest`/`SemanticEnrichmentTest` with **no corresponding main-source `synthesis/` package**. Tested classes live in `extraction/domain/model`. Stale package layout.~~
+- ~~**`.code2req-history`** (repo root) + `code2req.log`/`spring-shell.log` + committed `sqlite.db*` — runtime artifacts. `sqlite.db*` **not** in `.gitignore` (only `.code2req_cache.db*` are).~~
+- ~~**PRD §2.1.7 Phase-1 checklist** — many `[ ]` items are implemented (`GlobalDeclarationRegistry`, `CallGraphVisitor`, `DbAccessVisitor`, `TopicLinkResolver`, `FloatingLinkResolver`, `execution_findings`/`topic_links`/`floating_links`/`metrics` tables) but still unchecked. Stale indicator.~~
 
 ---
 
@@ -248,7 +248,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | F008 | 5 | — | ✅ US020-21 | ❌ | All | No registry |
 | F009 | 3 | — | ✅ US022 | ❌ | All | Consequence of F007/8 |
 | F010 | 13 | ✅ | ⚠ US036 tagged (6 scen), **no story file** | ✅ | — | Missing story file for US036 |
-| F011 | 7 | ✅ | ✅ US031 | ✅ | @NamedQuery, raw JDBC, NamedParameterJdbcTemplate | Code implements these |
+| F011 | 14 | ✅ | ✅ US031, US059, US060 | ✅ | — | Stories US059/US060 + 7 scenarios cover NamedQuery and raw JDBC |
 | F012 | 15 | ✅ | ✅ US032 (all [x]) | ✅ (≢ confidence) | — | Confidence 0.6/0.4 not in PRD §3.2 |
 | F013 | 6 | ✅ | ✅ US033 | ✅ | — | — |
 | F014 | 7 | ✅ | ✅ US034-35 | ✅ (only non-`@draft`) | — | Extra cols |
@@ -260,7 +260,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | F020 | 5 | ✅ | ✅ US048 | ✅ | — | — |
 | F021 | 3 | ✅ | ✅ US049 (4/7 [x]) | ✅ | Runtime init [Requires Manual Validation] | Story status stale |
 | F022 | 5 | ✅ | ✅ US050 | ✅ | — | — |
-| F023 | 11 | ✅ | ✅ US051 | ◑ | UserInteractionService/NoOp (PRD says in F023) | Guardrails hardcoded |
+| F023 | 11 | ✅ | ✅ US051 | ◑ | UserInteractionService/NoOp (PRD says in F023) | Guardrails config-driven (resolved); UserInteractionService open |
 | ~~F024~~ | ~~2~~ | ~~✅~~ | ~~✅ US052~~ | ~~⚠ Superseded~~ | ~~Both scenarios~~ | ~~Superseded — manifest schema enforced at compile time via typed POJOs~~ |
 | F025 | 8 | ✅ | ⚠ US053-54 uncatalogued | ✅ (missing git hash) | Git commit hash in metadata | Unregistered in catalog |
 | F026 | 6 | ✅ | ✅ US055 | ❌ | All | No `ReviewCommand` |
@@ -285,7 +285,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | US015-016, US028 | F006 | ✅ | US028 uncatalogued in F006 |
 | US018-022 | F007-009 | ❌ | **No implementation.** All acceptance criteria unmet. |
 | US030 (+ US036) | F010 | ✅ | **US036 has NO story file** (catalog + 6 Gherkin scenarios reference it) |
-| US031 | F011 | ✅ | Missing AC for @NamedQuery, raw JDBC (code implements these) |
+| US031 | F011 | ✅ | Missing AC for @NamedQuery, raw JDBC — covered by new US059/US060 |
 | US032 | F012 | ✅ (14/14 [x]) | Only fully done story; 0.6/0.4 confidence in AC |
 | US033 | F013 | ✅ | — |
 | US034-035 | F014 | ✅ | — |
@@ -326,15 +326,15 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 
 ## 8. Traceability Gaps
 
-- **Requirements with no User Story:** web.xml discovery, @NamedQuery/raw JDBC detection, NamedParameterJdbcTemplate/SimpleJdbcCall, CLI Visual Telemetry (§5.6), Phase 3 marker lifecycle, error-feedback retry (§5.4), `--force-phase3`/`--interactive` semantics.
+- **Requirements with no User Story:** ~~web.xml discovery~~, ~~@NamedQuery/raw JDBC detection~~, NamedParameterJdbcTemplate/SimpleJdbcCall, CLI Visual Telemetry (§5.6), Phase 3 marker lifecycle, error-feedback retry (§5.4), `--force-phase3`/`--interactive` semantics.
 - **User Stories with no Feature file:** none.
 - **Features with no implementation:** F007, F008, F009, ~~F024~~, F026, F028 (6 features).
-- **Code with no documented origin:** `WebXmlAnalyzer`, `NamedQueryDetector`, `RawJdbcDetector`, `DtoValidationRule`, `CommandSuggestionAspect`/`SuggestionService`, `common/port/*Repository` (unused), `synthesis/` test package, `spring-ai-client-chat`/`-autoconfigure-model-chat-client` deps, 3 Maven profiles.
+- **Code with no documented origin:** ~~WebXmlAnalyzer~~, ~~NamedQueryDetector~~, ~~RawJdbcDetector~~, `DtoValidationRule`, ~~CommandSuggestionAspect~~/~~SuggestionService~~, `common/port/*Repository` (unused), ~~`synthesis/` test package~~, `spring-ai-client-chat`/`-autoconfigure-model-chat-client` deps, 3 Maven profiles.
 - **ADRs with no implementation evidence:** none.
 - **Broken links:**
   - **US036** — catalog + Gherkin (6 scenarios), **no story file**.
   - **US056** — duplicate ID across F016 and F027.
-  - **E005/F025/US053/US054** — implemented, documented in PRD/US/feature, **absent from `sdlc-context.json` catalog**.
+  - ~~**E005/F025/US053/US054** — implemented, documented in PRD/US/feature, **absent from `sdlc-context.json` catalog**.~~
   - **F006 header** mislabels US017 (should be US028); catalog F006 omits US028.
   - **F003** tags US023; catalog F003 omits US023.
   - **US024/US025/US029** — gap IDs (no file, no reference).
@@ -383,7 +383,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | 7 | PRD §5.7 | **`resume` standalone command** | Low | Low | — | Add `ResumeCommand` |
 | 8 | PRD §5.7/§3.5 | **`run --force-phase3`** + Phase 3 marker task (`__phase3_marker__`) + `.tmp.` cleanup + fail-stop guards | High | Medium | #1 (marker FAILED) | Add marker + flag + guards |
 | 9 | PRD §5.7 | **`validate` should validate `code-graph-index.json`** | Low | Low | — | Extend `ValidateCommand` |
-| 10 | F023/PRD §2.3 §9 | **Read guardrails from config** instead of hardcoding `MAX_DEPTH=5`/`LOW_CONFIDENCE_THRESHOLD=0.3` (should be 0.7) | Medium | Low | — | Inject `@Value` into actions |
+| 10 | ~~F023/PRD §2.3 §9~~ | ~~**Read guardrails from config** instead of hardcoding `MAX_DEPTH=5`/`LOW_CONFIDENCE_THRESHOLD=0.3` (should be 0.7)~~ | ~~Medium~~ | ~~Low~~ | ~~—~~ | ~~Inject `@Value` into actions~~ |
 | 11 | F023/PRD §5.5b | **Add `UserInteractionService` + `NoOpUserInteractionService`** (PRD says in F023) | Medium | Low | #4 | Add SPI + NoOp |
 | 12 | F025/PRD §5.9 §5 | **Add git commit hash to `snapshot.json`** | Low | Low | — | `git rev-parse HEAD` in `SnapshotService` |
 | 13 | ~~PRD §2.1.6~~ | ~~**Add `tasks.json_payload` column**~~ | ~~Low~~ | ~~Low~~ | ~~—~~ | ~~Migration in `TaskStoreSchema`~~ |
@@ -414,7 +414,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 
 ### Reduce Technical Debt
 
-10. **`MavenDependencyResolver` removed** (dead code); also address the `common/port/*Repository` + `ScanProjectService` DDD skeleton.
+10. ~~**`MavenDependencyResolver` removed** (dead code); also address the `common/port/*Repository` + `ScanProjectService` DDD skeleton.~~
 11. **Fix `application.properties:72`** concatenated-line bug and dual DB-path ambiguity (`sqlite.db` vs `./spec-output/sqlite.db`).
 12. **Add `.gitignore` entries for `sqlite.db*`** and remove committed runtime DB/log files.
 13. **Make guardrails config-driven** in `TraceFlowAction`/`QuarantineFlowAction` (Backlog #10) — hardcoded 0.3 vs PRD's 0.7 is a latent behavioral bug.

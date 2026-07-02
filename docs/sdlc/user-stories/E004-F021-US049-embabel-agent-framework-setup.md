@@ -13,7 +13,7 @@
 - [x] `embabel-agent-starter-dockermodels` dependency is added in pom.xml
 - [x] `embabel.models.default-llm`, `embabel.models.llms.cheapest`, and `embabel.models.llms.best` properties are configured in application.properties
 - [x] `mvn compile` succeeds with Embabel on classpath
-- [ ] Embabel initializes at application startup without errors
+- [x] Embabel initializes at application startup without errors
 - [ ] The `AgentPlatform` is available for Phase 3 invocation
 - [ ] If the Embabel repo is unreachable, the build fails with a clear Maven error
 

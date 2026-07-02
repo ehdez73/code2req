@@ -6,11 +6,11 @@
 # Last updated: 2026-06-17
 
 Feature: Phase 2 Orchestrator
-  Manages the enrichment DAG, submits tasks asynchronously via @Async, tracks progress via CompletableFuture, and handles dynamic re-planning.
+  Manages the enrichment DAG, submits tasks asynchronously via CompletableFuture, tracks progress via CompletableFuture, and handles dynamic re-planning.
 
   Background:
     Given the planner has produced qualification decisions for all tasks
-    And the @Async thread pool is configured with core=5, max=10
+    And the thread pool is configured with core=5, max=10
 
   Rule: The orchestrator submits qualified tasks to the async pool and blocks Phase 3 until all complete
 

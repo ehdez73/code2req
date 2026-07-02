@@ -45,21 +45,11 @@ To enable inter-file structural tracing without LLM dependencies, Phase 1 operat
 
 This design ensures that Controller → Service → Repository / Database / External System traces are resolved without LLM calls. The LLM is reserved exclusively for semantic enrichment in Phase 2.
 
-#### 2.1.1 Dual-Engine Indexing & Ecosystem Discovery
+#### 2.1.1 Pure-Java AST Structural Parsing
 
-To maximize dependency resolution accuracy without inducing build-time hard blocks, Phase 1 operates a dual-engine indexing sequence categorized into "Static Compilation Telemetry" and "Text-Based AST Structural Parsing."
+Regardless of build-system state, JavaParser runs as the authoritative engine to build an in-memory Abstract Syntax Tree (AST). It handles "dirty code" (broken syntax or non-compiling files) by evaluating them directly as text streams.
 
-1. **Ecosystem Discovery Step (Optional / Non-Blocking):**
-* At boot time, the engine checks for the presence of a build-system configuration (e.g., `pom.xml`).
-* If present, the CLI spawns an isolated background OS process to execute an offline maven dependency tree evaluation:
-  `mvn com.github.ferstl:depgraph-maven-plugin:4.0.3:graph -DgraphFormat=json -DoutputDirectory=.`
-* If successful, the resulting artifact is ingested to pre-populate classpaths, third-party libraries, and multi-module relationships.
-* **Fault-Tolerance:** If Maven is missing, the workspace lacks a repository connection, or the project is in a non-compiling state, the process must catch the failure gracefully, log an optimization warning (`"Ecosystem telemetry unavailable; proceeding with standalone heuristic mode"`), and proceed unhindered.
-
-
-2. **Pure-Java AST Parsing Step (Authoritative / Mandatory):**
-* Regardless of build-system state, JavaParser runs as the authoritative engine to build an in-memory Abstract Syntax Tree (AST). It handles "dirty code" (broken syntax or non-compiling files) by evaluating them directly as text streams.
-* **Type Solver Fallback:** The indexer must configure JavaParser's `CombinedTypeSolver` to prioritize local source directories first. If a type cannot be resolved statically (e.g., a third-party framework or missing compiled class), the engine must gracefully switch to an **Annotation-Driven Strategy** rather than throwing a parsing exception. If a class contains methods with `@PostMapping`, it is designated as a REST entrypoint regardless of what base framework class it extends.
+* **Parser Configuration:** The indexer configures JavaParser's `LanguageLevel` per file based on the target's `java-version` (via `JavaVersionMapper`), then parses with `StaticJavaParser`. No `CombinedTypeSolver` or type-resolution layer is configured — component classification uses annotation presence as the primary strategy, falling back to structural heuristics (naming conventions, package patterns) when type information is unavailable.
 
 
 
@@ -334,24 +324,22 @@ CREATE TABLE IF NOT EXISTS metrics (
 
 #### 2.1.7 Developer Implementation Checklist: Phase 1
 
-* [ ] Implement `project-manifest.yaml` parsing.
-* [ ] Integrate optional non-blocking `depgraph-maven-plugin` execution step.
-* [ ] Integrate **JavaParser** core engines without native OS wrapper layers.
-* [ ] Configure `CombinedTypeSolver` with annotation fallback heuristic behavior.
+* [x] Implement `project-manifest.yaml` parsing.
+* [x] Integrate **JavaParser** core engines without native OS wrapper layers.
 * [x] Implement `EndpointDetector` SPI + `SpringEndpointDetector` + `ServletEndpointDetector` (OCP-friendly pluggable detector interface, covers both Spring MVC and Servlet-based endpoints).
-* [ ] Implement `unresolved_signatures` collection inside the traversal visitor.
-* [ ] Create the Secret Redaction pipeline filter (in-memory swapping of hardcoded strings to `[REDACTED:secret_type]`).
-* [ ] Output a structurally valid `code-graph-index.json` file.
-* [ ] Write the Spring JDBC ingestion loop to transform JSON entities into `PENDING` relational rows inside SQLite, applying `PRAGMA journal_mode=WAL;`.
-* [ ] Implement `GlobalDeclarationRegistry` (Pass 1 collector).
-* [ ] Implement `CallGraphVisitor` (Pass 2 method call resolver).
-* [ ] Implement `DbAccessVisitor` + `DbAccessDetector` SPI (Pass 2 database access patterns, OCP-friendly pluggable detector interface).
+* [x] Implement `unresolved_signatures` collection inside the traversal visitor.
+* [x] Create the Secret Redaction pipeline filter (in-memory swapping of hardcoded strings to `[REDACTED:secret_type]`).
+* [x] Output a structurally valid `code-graph-index.json` file.
+* [x] Write the Spring JDBC ingestion loop to transform JSON entities into `PENDING` relational rows inside SQLite, applying `PRAGMA journal_mode=WAL;`.
+* [x] Implement `GlobalDeclarationRegistry` (Pass 1 collector).
+* [x] Implement `CallGraphVisitor` (Pass 2 method call resolver).
+* [x] Implement `DbAccessVisitor` + `DbAccessDetector` SPI (Pass 2 database access patterns, OCP-friendly pluggable detector interface).
 * [x] Implement `OutboundHttpVisitor` + 9 `HttpClientDetector` implementations (Pass 2 outbound HTTP calls for RestTemplate, WebClient, FeignClient, RestClient, @HttpExchange, java.net.http.HttpClient, HttpURLConnection, Apache HttpClient, OkHttp).
-* [ ] Implement `TopicLinkResolver` (post-pass producer&#8596;consumer matching).
-* [ ] Implement `FloatingLinkResolver` (post-pass URL&#8596;endpoint matching).
-* [ ] Implement `execution_findings`, `topic_links`, `floating_links`, `metrics` tables with extended columns.
-* [ ] Update `IndexWriter` with new finding types and link sections.
-* [ ] Add metrics collector for edges, topic links, floating links counts.
+* [x] Implement `TopicLinkResolver` (post-pass producer&#8596;consumer matching).
+* [x] Implement `FloatingLinkResolver` (post-pass URL&#8596;endpoint matching).
+* [x] Implement `execution_findings`, `topic_links`, `floating_links`, `metrics` tables with extended columns.
+* [x] Update `IndexWriter` with new finding types and link sections.
+* [x] Add metrics collector for edges, topic links, floating links counts.
 
 ### 2.1.8 Task State Machine
 
@@ -449,9 +437,8 @@ The agent requires `embabel-agent-starter` (core GOAP engine) on the classpath.
    - `TraceFlow` — For the highest-priority unscheduled entry point, follow call graph edges through the codebase. Build a `FlowStep` list tracing from entry point through services to repositories. Adaptive depth — agent decides when to stop based on complexity.
    - `AnalyzeFlow` — For a traced flow, extract business semantics: user story, Gherkin scenarios, business rules, edge cases. Uses Phase 2 enrichment as context, raw source for gaps.
    - `GroupFlows` — After analyzing multiple flows, cluster related flows into features using semantic similarity (e.g., GET/POST /orders -> "Order Management").
-   - `CrossReferenceFlows` — Resolve inter-flow dependencies (Order flow -> Payment flow). Match floating HTTP calls and topic publications to known endpoints.
-   - `SynthesizeSpec` — Aggregate all analyzed and grouped flows into the final Markdown + JSON output.
-   - `QuarantineFlow` — When a flow cannot be fully resolved (exceeds investigation budget, low confidence), flag it for human review.
+    - `CrossReferenceFlows` — Resolve inter-flow dependencies (Order flow -> Payment flow). Match floating HTTP calls and topic publications to known endpoints.
+    - `QuarantineFlow` — When a flow cannot be fully resolved (exceeds investigation budget, low confidence), flag it for human review.
    
    Each action declares preconditions and postconditions as world-state condition identifiers. The GOAP planner uses these to determine action ordering and goal satisfaction.
 
@@ -600,9 +587,8 @@ Phase 3 employs Embabel's **Goal-Oriented Action Planning (GOAP)** to dynamicall
   - `AnalyzeFlow` — Extract business semantics from traced flow: user story, Gherkin scenarios, business rules, edge cases.
   - `GroupFlows` — Cluster related flows into features using semantic similarity from Phase 2 enrichment.
   - `CrossReferenceFlows` — Resolve inter-flow dependencies (HTTP calls, topic events between flows).
-  - `SynthesizeSpec` — Aggregate all resolved knowledge into the final Markdown + JSON specification.
   - `QuarantineFlow` — Flag flows that cannot be completed after exhausting investigation budget; set to `AWAITING_HUMAN_REVIEW`.
-- **Conditions:** Each action declares preconditions and postconditions as world-state condition identifiers (e.g., `entry_points_discovered = true` enables `TraceFlow`; `flows_grouped = true` enables `SynthesizeSpec`). Conditions are managed on the Embabel blackboard and drive the GOAP planner's action chaining automatically.
+- **Conditions:** Each action declares preconditions and postconditions as world-state condition identifiers (e.g., `entry_points_discovered = true` enables `TraceFlow`; `flows_grouped = true` enables spec generation via `GenerateCommand`). Conditions are managed on the Embabel blackboard and drive the GOAP planner's action chaining automatically.
 
 **Improvements over previous design:**
 - **Flow Priority Scoring:** Entry points are scored by enrichment availability, complexity, user-facing status, and test file presence. High-priority flows are traced first.
@@ -956,13 +942,16 @@ The application must expose the following commands via Spring Shell:
 
 | Command | Arguments | Purpose |
 |---|---|---|---|
+| `clean` | `[--manifest path]` | Delete all tasks in SQLite store, remove output JSON index files, and reset AUTOINCREMENT counters via sqlite_sequence |
 | `scan` | `[--manifest path] [--resume]` | Run Phase 1 (indexing) only — produces `code-graph-index.json` and populates SQLite. `--resume` skips already-completed files. |
 | `plan` | `[--manifest path]` | Evaluate INDEXED tasks, transition qualified ones to ENRICH_PENDING and non-qualified ones to SKIPPED, and show the enrichment plan |
-| `run` | `[--manifest path] [--dry-run] [--resume] [--llm-threshold N] [--force] [--force-phase3] [--interactive] [--interactive-timeout N]` | Execute all 3 phases end-to-end. Halts on FAILED tasks after scan, 0 qualified tasks after plan, or ENRICH_FAILED tasks after enrich. Phase 2 LLM enrichment only activates for files exceeding N unresolved signatures (default: 5). `--resume` recovers orphaned tasks (ENRICHING, ENRICH_PENDING, FAILED, PENDING) before Phase 2 and Phase 3 (ENRICHING marker). ENRICH_PENDING orphans self-heal automatically via the planner. `--force-phase3` re-runs Phase 3 even if completed. `--interactive` enables Phase 3 user prompts (deferred). |
+| `enrich` | `[--manifest path] [--dry-run] [--resume] [--llm-threshold N]` | Run Phase 2 LLM-powered per-file semantic enrichment via Spring AI + OpenRouter. `--resume` recovers orphaned tasks; `--llm-threshold` sets the minimum unresolved signatures to qualify (default: 5). |
+| `extract` | `[--manifest path] [--dry-run] [--force]` | Run Phase 3 Embabel GOAP agent for functional requirement extraction over enriched data; caches results for spec generation. `--force` re-executes even if no new enrichments. |
+| `generate` | | Generate `spec.md` and `semantic_manifest.json` from cached extraction results |
+| `run` | `[--manifest path] [--resume] [--dry-run] [--force] [--llm-threshold N]` | Execute full pipeline: scan → plan → enrich → extract → generate. Chains each phase's output as input to the next. |
 | `status` | | Show current SQLite task state summary and counters |
 | `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `ENRICHING`, `ENRICH_PENDING`, `FAILED`, and `PENDING` tasks, skip completed files. Delegates to `scan --resume`. |
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |
-| `clean` | `[--manifest path]` | Delete all tasks in SQLite store, remove output JSON index files, and reset AUTOINCREMENT counters via sqlite_sequence |
 | `snapshot create` | `[--name label]` | Create a point-in-time snapshot of local state (DB + JSON index) |
 | `snapshot list` | | List available snapshots with name, date, and metadata |
 | `snapshot restore` | `<name>` | Restore local state (DB + JSON index) from a named snapshot |
@@ -971,6 +960,8 @@ The application must expose the following commands via Spring Shell:
 | `task set-status` | `--task <id> --status <s> [--delete-findings] [--dry-run]` | Change a task's status; cascades deletion of findings, topic_links, and floating_links when resetting. Supports prefix matching. |
 
 The `--dry-run` flag on the `run` command enables simulation mode (see §5.8).
+
+* **CLI Suggestion System:** After every shell command completes, a `CommandSuggestionAspect` transparently appends a contextual "Suggested Next" footer based on pipeline state (task counts, enrichment status, Phase 3 completion). The `SuggestionService` inspects `TaskStore` and `MetricsStore` to recommend the optimal next command — e.g., `plan` when INDEXED tasks exist, `enrich` when ENRICH_PENDING tasks are ready, `extract` after enrichment completes, or `generate` when the pipeline is done. This is an AOP cross-cutting concern; no explicit user invocation is required.
 
 ### 5.8 Testing Isolation & Simulation Mode
 
@@ -985,7 +976,7 @@ To enable safe experimentation and rollback during iterative analysis, the CLI s
 2. Creates `{snapshot.dir}/{name}/` directory.
 3. Executes `VACUUM INTO` on the SQLite database — produces a transactionally consistent, optimised copy without stopping the application.
 4. Copies `code-graph-index.json` from the spec output directory.
-5. Writes `snapshot.json` metadata (timestamp, CLI version, git commit hash, file list with sizes and checksums).
+5. Writes `snapshot.json` metadata (timestamp, CLI version, file list with sizes and checksums).
 
 **Restore workflow (`restore` command):**
 1. Verifies the named snapshot directory exists.

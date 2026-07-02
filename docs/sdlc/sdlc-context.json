@@ -230,14 +230,6 @@
       "affected_stories": ["US006"]
     },
     {
-      "id": "R002",
-      "description": "Maven depgraph plugin unavailable or incompatible with target project",
-      "impact": "low",
-      "probability": "medium",
-      "mitigation": "Graceful failure with clear warning; standalone heuristic mode proceeds without dependency metadata",
-      "affected_stories": ["US004", "US005"]
-    },
-    {
       "id": "R003",
       "description": "SQLite locking under concurrent access during Phase 2 (design concern carried forward)",
       "impact": "medium",
@@ -323,6 +315,12 @@
       "name": "Agentic Functional Requirement Extraction (Embabel GOAP)",
       "description": "Phase 3 of the pipeline: an Embabel GOAP agent discovers entry points, traces execution flows through the call graph, and extracts functional requirements (user stories, Gherkin scenarios, business rules). Persists intermediate results to extraction-cache.json; a separate generate command produces the Markdown specification and semantic_manifest.json from the cache.",
       "priority": "must"
+    },
+    {
+      "id": "E005",
+      "name": "Snapshot & Restore",
+      "description": "Point-in-time snapshots of local state (SQLite database + JSON index) for safe experimentation and rollback during iterative analysis. VACUUM INTO creates transactionally consistent copies without stopping the application.",
+      "priority": "should"
     }
   ],
   "features": [
@@ -344,21 +342,6 @@
       ]
     },
     {
-      "id": "F002",
-      "epic_id": "E001",
-      "name": "Dependency Graph Resolution",
-      "description": "Optional Maven dependency resolution with graceful fallback to standalone heuristic mode when Maven is unavailable.",
-      "background": "Manifest parsed and scan targets resolved.",
-      "business_rules": [
-        "If Maven is unavailable or pom.xml is missing, CLI proceeds with standalone heuristic mode and logs a clear warning",
-        "Dependency resolution is optional — the pipeline never blocks or fails on Maven failure"
-      ],
-      "user_stories": [
-        { "id": "US004", "title": "Developer resolves project dependencies automatically", "priority": "should", "type": "story", "gherkin_file": "features/E001-F002-dependency-graph-resolution.feature" },
-        { "id": "US005", "title": "Developer operates without Maven available", "priority": "should", "type": "story", "gherkin_file": "features/E001-F002-dependency-graph-resolution.feature" }
-      ]
-    },
-    {
       "id": "F003",
       "epic_id": "E001",
       "name": "Java Source AST Analysis (JavaParser implementation)",
@@ -376,7 +359,8 @@
         { "id": "US009", "title": "Developer extracts custom validation logic", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
         { "id": "US010", "title": "Developer discovers scheduled tasks", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
         { "id": "US026", "title": "Developer traces RabbitMQ event flows", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
-        { "id": "US027", "title": "Developer traces ActiveMQ (JMS) event flows", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" }
+        { "id": "US027", "title": "Developer traces ActiveMQ (JMS) event flows", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US058", "title": "Developer discovers servlet endpoints in web.xml", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" }
       ]
     },
     {
@@ -509,7 +493,10 @@
         "Spring Data interfaces (CrudRepository, JpaRepository) registered as virtual database access points"
       ],
       "user_stories": [
-        { "id": "US031", "title": "Developer traces database access patterns", "priority": "should", "type": "story", "gherkin_file": "features/E001-F011-database-access-detection.feature" }
+        { "id": "US031", "title": "Developer traces database access patterns", "priority": "should", "type": "story", "gherkin_file": "features/E001-F011-database-access-detection.feature" },
+        { "id": "US059", "title": "Developer detects @NamedQuery and @NamedNativeQuery in entities", "priority": "should", "type": "story", "gherkin_file": "features/E001-F011-database-access-detection.feature" },
+        { "id": "US060", "title": "Developer detects raw JDBC calls in service code", "priority": "should", "type": "story", "gherkin_file": "features/E001-F011-database-access-detection.feature" },
+        { "id": "US061", "title": "Developer detects NamedParameterJdbcTemplate and SimpleJdbcCall", "priority": "should", "type": "story", "gherkin_file": "features/E001-F011-database-access-detection.feature" }
       ]
     },
     {
@@ -583,7 +570,8 @@
         { "id": "US037", "title": "Developer detects view-returning controllers", "priority": "should", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" },
         { "id": "US038", "title": "Developer parses JSP templates for forms and links", "priority": "should", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" },
         { "id": "US039", "title": "Developer parses Thymeleaf templates for forms and links", "priority": "should", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" },
-        { "id": "US040", "title": "Developer links template forms to controller endpoints", "priority": "could", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" }
+        { "id": "US040", "title": "Developer links template forms to controller endpoints", "priority": "could", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" },
+        { "id": "US062", "title": "Developer detects view-returning void controllers", "priority": "should", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" }
       ]
     },
     {
@@ -622,7 +610,8 @@
       ],
       "user_stories": [
         { "id": "US043", "title": "Executor enriches a single file with LLM", "priority": "must", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" },
-        { "id": "US044", "title": "Executor supports dry-run simulation mode", "priority": "should", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" }
+        { "id": "US044", "title": "Executor supports dry-run simulation mode", "priority": "should", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" },
+        { "id": "US063", "title": "System retries LLM enrichment with error-feedback", "priority": "should", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" }
       ]
     },
     {
@@ -750,6 +739,24 @@
       ]
     },
     {
+      "id": "F025",
+      "epic_id": "E005",
+      "name": "Snapshot and Restore",
+      "description": "Create and restore point-in-time snapshots of local state for crash recovery and iterative experimentation.",
+      "background": "Pipeline has completed at least once and SQLite + JSON index exist.",
+      "business_rules": [
+        "Snapshot uses VACUUM INTO for transactionally consistent DB copies",
+        "Snapshot copies code-graph-index.json alongside the DB",
+        "Restore drains HikariCP pool, overwrites live files, reinitializes pool",
+        "Snapshots are independent of clean command",
+        "Directory and contents are gitignored via snapshots/ pattern"
+      ],
+      "user_stories": [
+        { "id": "US053", "title": "Developer creates and lists snapshots", "priority": "must", "type": "story", "gherkin_file": "features/E005-F025-snapshot-restore.feature" },
+        { "id": "US054", "title": "Developer restores state from a snapshot", "priority": "must", "type": "story", "gherkin_file": "features/E005-F025-snapshot-restore.feature" }
+      ]
+    },
+    {
       "id": "F026",
       "epic_id": "E004",
       "name": "Review CLI Command — AWAITING_HUMAN_REVIEW lifecycle",
@@ -854,7 +861,6 @@
   "artifacts": {
     "gherkin_files": [
       "features/E001-F001-project-configuration-and-manifest-parsing.feature",
-      "features/E001-F002-dependency-graph-resolution.feature",
       "features/E001-F003-java-source-ast-analysis.feature",
       "features/E001-F004-secret-redaction-and-exclude-filtering.feature",
       "features/E001-F005-index-output-and-sqlite-persistence.feature",
@@ -877,6 +883,7 @@
       "features/E004-F022-codebase-knowledge.feature",
       "features/E004-F023-embabel-agent.feature",
       "features/E004-F024-quality-audit.feature",
+      "features/E005-F025-snapshot-restore.feature",
       "features/E004-F026-review-command.feature",
       "features/E004-F027-domain-model-output-writers.feature",
       "features/E004-F028-interactive-mode.feature"

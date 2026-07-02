@@ -17,11 +17,21 @@ public interface TaskRepository {
 
     List<Task> findByStatusWithoutFinding(TaskStatus status, String findingType);
 
+    List<Task> findByStatusesWithoutFinding(List<TaskStatus> statuses, String findingType);
+
     void updateStatus(String taskId, TaskStatus status);
+
+    int updateStatusByOldStatus(TaskStatus oldStatus, TaskStatus newStatus);
 
     void deleteAll();
 
+    int deleteByStatus(TaskStatus status);
+
     int count();
+
+    int countByStatus(TaskStatus status);
+
+    Task findByIdOrPrefix(String input);
 
     List<Task> findByPrefix(String prefix);
 
