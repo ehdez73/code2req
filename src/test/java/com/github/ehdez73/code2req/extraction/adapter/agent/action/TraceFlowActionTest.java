@@ -24,12 +24,12 @@ class TraceFlowActionTest {
 
     private TraceFlowAction action(StructuralGraph graph) {
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
-        return new TraceFlowAction(knowledge);
+        return new TraceFlowAction(knowledge, null);
     }
 
     private TraceFlowAction action(StructuralGraph graph, LinkRegistry registry) {
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), registry);
-        return new TraceFlowAction(knowledge);
+        return new TraceFlowAction(knowledge, null);
     }
 
     @Test

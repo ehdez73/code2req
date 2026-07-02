@@ -149,6 +149,7 @@ public class ExtractionOrchestrator {
             Map<String, Object> initialBlackboard = new HashMap<>();
             initialBlackboard.put("codebaseKnowledge", knowledge);
             initialBlackboard.put("outputDir", specDir);
+            initialBlackboard.put("executionConfig", executionConfig);
 
             AgentProcess process = agentPlatform.createAgentProcess(
                 agent, ProcessOptions.DEFAULT, initialBlackboard);

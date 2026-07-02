@@ -8,6 +8,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.scheduledtask.ScheduledTaskInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
+import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
@@ -35,16 +36,18 @@ import java.util.stream.Collectors;
 public class TraceFlowAction {
 
     private static final Logger log = LoggerFactory.getLogger(TraceFlowAction.class);
-    private static final int MAX_DEPTH = 5;
 
     private final CodebaseKnowledge knowledge;
     private final Map<String, List<FlowStep>> subChainCache;
     private final Map<String, FlowStepComponentType> componentTypeLookup;
+    private final int maxDepth;
 
-    public TraceFlowAction(CodebaseKnowledge knowledge) {
+    public TraceFlowAction(CodebaseKnowledge knowledge, ExecutionConfig config) {
         this.knowledge = knowledge;
         this.subChainCache = new HashMap<>();
         this.componentTypeLookup = buildComponentTypeLookup();
+        this.maxDepth = config != null && config.maxInvestigationStepsPerFlow() != null
+            ? config.maxInvestigationStepsPerFlow() : 5;
     }
 
     private Map<String, FlowStepComponentType> buildComponentTypeLookup() {
@@ -127,7 +130,7 @@ public class TraceFlowAction {
                                   List<FlowStep> steps, List<String> unresolvedCalls,
                                   Set<String> visited, int depth, String entryMethodName,
                                   int sourceStartLine, int sourceEndLine) {
-        if (depth >= MAX_DEPTH) return;
+        if (depth >= maxDepth) return;
 
         String visitKey = sourceFilePath + ":" + sourceClassName;
         if (visited.contains(visitKey)) return;

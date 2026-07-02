@@ -152,111 +152,87 @@ The indexer flushes its in-memory graph into a standardized local JSON file save
 
 ```json
 {
-  "repository_name": "order-management-service",
-  "indexed_at": "2026-06-12T08:15:00Z",
-  "files": [
+  "version": "1.0",
+  "generated_at": "2026-07-02T12:00:00",
+  "targets": [
     {
-      "file_path": "src/main/java/com/acme/orders/controller/OrderController.java",
-      "module_tag": "order-management",
-      "component_type": "REST_ENDPOINT",
-      "source_hash": "a1b2c3d4e5f6...",
-      "paired_test_file": "src/test/java/com/acme/orders/controller/OrderControllerTest.java",
-      "ingress_points": [
+      "name": "order-management",
+      "endpoints": [
         {
-          "type": "HTTP",
-          "verb": "POST",
-          "path": "/api/v1/orders"
+          "httpMethod": "GET",
+          "path": "/api/v1/orders",
+          "controllerName": "OrderController",
+          "methodName": "listOrders",
+          "pathVariables": [],
+          "queryParameters": [],
+          "filePath": "src/main/java/com/acme/orders/controller/OrderController.java",
+          "servesView": false,
+          "viewName": "",
+          "requestBodies": [],
+          "startLine": 0,
+          "endLine": 0
         }
       ],
-      "egress_points": [
+      "components": [
         {
-          "type": "INTERNAL_CALL",
-          "target_signature": "com.acme.orders.service.OrderService.createOrder"
+          "annotationType": "RestController",
+          "className": "OrderController",
+          "packageName": "com.acme.orders.controller",
+          "filePath": "src/main/java/com/acme/orders/controller/OrderController.java"
         }
       ],
-      "companion_logic_dependencies": {
-        "custom_validators": [
-          "com.acme.orders.validation.OrderValidator"
-        ],
-        "database_procedures": []
-      },
-      "unresolved_signatures": [
-        "com.thirdparty.telemetry.MetricsLogger.logEntry"
+      "scheduled_tasks": [],
+      "event_listeners": [],
+      "event_publishers": [],
+      "validators": [],
+      "kafka_listeners": [],
+      "kafka_publishers": [],
+      "bean_methods": [],
+      "rabbitmq_listeners": [],
+      "rabbitmq_publishers": [],
+      "activemq_listeners": [],
+      "activemq_publishers": [],
+      "xml_beans": [],
+      "database_access": [
+        {
+          "className": "OrderRepository",
+          "methodName": "findAll",
+          "filePath": "src/main/java/com/acme/orders/repository/OrderRepository.java",
+          "accessType": "JPA_REPOSITORY",
+          "type": "JPA_REPOSITORY",
+          "sql": "",
+          "startLine": 0,
+          "endLine": 0
+        }
       ],
+      "xml_component_scans": [],
+      "xml_aop_configs": [],
+      "xml_namespace_beans": [],
       "call_graph_edges": [
         {
-          "source_method": "createOrder",
-          "target_class": "com.acme.orders.service.OrderService",
-          "target_method": "createOrder",
-          "target_file": "src/main/java/com/acme/orders/service/OrderService.java",
-          "resolved": true
-        }
-      ]
-    },
-    {
-      "file_path": "src/main/java/com/acme/orders/service/OrderService.java",
-      "module_tag": "order-management",
-      "component_type": "SERVICE_LOGIC",
-      "source_hash": "f9e8d7c6b5a4...",
-      "paired_test_file": null,
-      "ingress_points": [
-        {
-          "type": "SCHEDULED",
-          "schedule": "0 0 2 * * ?"
+          "sourceClassName": "OrderController",
+          "sourceMethodName": "listOrders",
+          "sourceFilePath": "src/main/java/com/acme/orders/controller/OrderController.java",
+          "targetClassName": "OrderService",
+          "targetMethodName": "findAll",
+          "targetFilePath": "src/main/java/com/acme/orders/service/OrderService.java",
+          "argCount": 0,
+          "resolvedStatus": "RESOLVED",
+          "ambiguousCandidates": [],
+          "targetStartLine": 0,
+          "targetEndLine": 0
         }
       ],
-      "egress_points": [
-        {
-          "type": "TOPIC_PUBLISH",
-          "broker": "KAFKA",
-          "channel": "order-events-topic"
-        },
-        {
-          "type": "DATABASE_PROCEDURE_CALL",
-          "procedure_name": "PR_RESERVE_INVENTORY"
-        },
-        {
-          "type": "DATABASE_CALL",
-          "access_type": "JDBCTEMPLATE_QUERY",
-          "sql_literal": "SELECT * FROM orders WHERE status = ?",
-          "table_hint": "orders"
-        },
-        {
-          "type": "HTTP_CALL",
-          "method": "POST",
-          "url_pattern": "${payment.service.url}/api/v1/charges",
-          "is_expression": true,
-          "encapsulated_in": "processPayment"
-        }
-      ],
-      "companion_logic_dependencies": {
-        "custom_validators": [],
-        "database_procedures": [
-          "schema/procedures/PR_RESERVE_INVENTORY.sql"
-        ]
-      },
-      "unresolved_signatures": []
+      "outbound_http_calls": []
     }
   ],
-  "topic_links": [
-    {
-      "broker": "KAFKA",
-      "topic": "order-events-topic",
-      "producer_task_id": "abc123...",
-      "consumer_task_id": "def456..."
-    }
-  ],
-  "floating_links": [
-    {
-      "method": "POST",
-      "url_pattern": "${payment.service.url}/api/v1/charges",
-      "is_expression": true,
-      "source_task_id": "abc123..."
-    }
-  ]
+  "topic_links": [],
+  "template_endpoint_links": [],
+  "floating_links": []
 }
-
 ```
+
+The output is organized by manifest scan target. Each target contains typed arrays of analysis findings: components, endpoints, call graph edges, database accesses, event listeners/publishers, scheduled tasks, validators, Kafka/RabbitMQ/ActiveMQ bindings, bean methods, XML configuration, and template forms. Cross-cutting link registrations (topic links, floating links, template-to-endpoint matches) are stored at the root level. Per-file metadata such as content hash, status, and test pairing is stored in the SQLite `tasks` table rather than the JSON index.
 
 #### 2.1.4 Secret Redaction Gate
 
@@ -272,21 +248,18 @@ Immediately after Pass 2 resolution completes, the indexer persists all findings
 
 ```sql
 INSERT INTO tasks (
-    task_id, 
-    file_path, 
-    target_name, 
-    status, 
-    source_hash, 
-    paired_test_path, 
-    json_payload
+    task_id, file_path, status, content_type, content_hash,
+    target_name, paired_test_path, created_at, updated_at
 ) VALUES (
     ?, -- SHA-256: target_name | file_path | sha256(content)
     ?, -- file_path
-    ?, -- target_name — the manifest target this file belongs to
     'PENDING', -- Initial State
-    ?, -- source_hash
+    ?, -- content_type (e.g. 'java', 'jsp')
+    ?, -- content_hash
+    ?, -- target_name — the manifest target this file belongs to
     ?, -- paired_test_file (nullable)
-    NULL -- Reserved for Phase 2 executor output
+    datetime('now'), -- created_at
+    datetime('now')  -- updated_at
 );
 
 ```
@@ -299,13 +272,13 @@ INSERT INTO tasks (
 CREATE TABLE IF NOT EXISTS tasks (
     task_id         TEXT PRIMARY KEY,
     file_path       TEXT NOT NULL,
-    target_name     TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'PENDING',
-    source_hash     TEXT NOT NULL,
+    content_type    TEXT,
+    content_hash    TEXT NOT NULL,
+    target_name     TEXT NOT NULL DEFAULT '',
     paired_test_path TEXT,
-    json_payload    TEXT,
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now'))
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS execution_findings (
@@ -335,15 +308,18 @@ CREATE TABLE IF NOT EXISTS floating_links (
     url_or_path     TEXT NOT NULL,
     is_expression   INTEGER NOT NULL DEFAULT 0,
     source_task_id  TEXT NOT NULL REFERENCES tasks(task_id),
+    client_type     TEXT NOT NULL DEFAULT 'UNKNOWN',
+    source_method   TEXT,
     target_endpoint TEXT,
     confidence      REAL,
     resolved_status TEXT NOT NULL DEFAULT 'PENDING',
-    created_at      TEXT DEFAULT (datetime('now'))
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS metrics (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id          TEXT NOT NULL,
+    phase           INTEGER NOT NULL DEFAULT 1,
     tasks_total     INTEGER DEFAULT 0,
     tasks_completed INTEGER DEFAULT 0,
     edges_resolved  INTEGER DEFAULT 0,
@@ -352,8 +328,7 @@ CREATE TABLE IF NOT EXISTS metrics (
     floating_links_registered INTEGER DEFAULT 0,
     tokens_consumed INTEGER DEFAULT 0,
     api_cost_estimated REAL DEFAULT 0.0,
-    phase           TEXT NOT NULL,
-    recorded_at     TEXT DEFAULT (datetime('now'))
+    recorded_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ```
 
@@ -436,7 +411,7 @@ The structural trace produced by Phase 1 resolves all deterministic call paths (
 
 * **The Centralized Lightweight State Store:** An embedded SQLite database managed via high-performance, low-overhead native **Spring JDBC (JdbcTemplate)** instead of an ORM framework. It tracks enriched findings alongside the Phase 1 structural data.
 
-* **The Executors:** Short-lived, isolated software workers configured as native Spring beans with `@Async("orchestratorTaskExecutor")`. Each Executor receives **the pre-resolved structural context** from Phase 1 (its own call graph edges, database accesses, and link registrations) plus the raw source file. The LLM prompt explicitly instructs the model to NOT resolve structural dependencies (those are already complete) and to focus only on:
+* **The Executors:** Short-lived, isolated software workers configured as native Spring beans. Each Executor receives a `ThreadPoolTaskExecutor` bean (injected via `@Qualifier("orchestratorTaskExecutor")`) and wraps each unit of work in a `CompletableFuture` submitted via `taskExecutor.execute(work)`. This provides fine-grained control over retry, timeout, and error handling per enrichment call. Each Executor receives **the pre-resolved structural context** from Phase 1 (its own call graph edges, database accesses, and link registrations) plus the raw source file. The LLM prompt explicitly instructs the model to NOT resolve structural dependencies (those are already complete) and to focus only on:
   * Business purpose description (1&#8211;2 sentences per method).
   * Implicit validation rules not captured by annotations.
   * Inferred SQL for Spring Data derived query methods.
@@ -551,7 +526,7 @@ targets:
 
 The application must trace execution pathways across network boundaries.
 
-**Phase 1 (Deterministic):** The `OutboundHttpVisitor` detects outbound HTTP calls from `RestTemplate`, `WebClient`, `@FeignClient`, `RestClient` (Spring 6.1), `@HttpExchange` (Spring 6), `java.net.http.HttpClient`, `HttpURLConnection`, Apache `HttpClient`, and OkHttp declarations. Each call is registered as a `floating_link` in the SQLite store with its HTTP method, URL pattern (literal or expression), and source file task ID. After all files are processed, the `FloatingLinkResolver` performs deterministic matching: if a URL pattern is a literal string matching a known backend endpoint path (same HTTP method + path), the link is marked `RESOLVED` with confidence 1.0. If the URL contains path variables or query parameters matching structural patterns, the link is marked `RESOLVED` with confidence 0.8. Unresolved links remain `PENDING` for optional Phase 2 semantic enrichment, where the LLM can infer the intended target from method name, payload structure, and endpoint descriptions.
+**Phase 1 (Deterministic):** The `OutboundHttpVisitor` detects outbound HTTP calls from `RestTemplate`, `WebClient`, `@FeignClient`, `RestClient` (Spring 6.1), `@HttpExchange` (Spring 6), `java.net.http.HttpClient`, `HttpURLConnection`, Apache `HttpClient`, and OkHttp declarations. Each call is registered as a `floating_link` in the SQLite store with its HTTP method, URL pattern (literal or expression), and source file task ID. After all files are processed, the `FloatingLinkResolver` performs deterministic matching using a scoring system (method match + path match + parameter match). Literal string URLs matching a known backend endpoint (same HTTP method + path) receive confidence **1.0** (score ≥ 0.9). URLs with path variables or query parameters matching structural patterns receive confidence **0.8** (score ≥ 0.7), **0.6** (score ≥ 0.5), or **0.4** (score ≥ 0.3). A separate prefix-match rule also assigns **0.4** when a URL prefix matches a known endpoint path. Unresolved links remain `PENDING` for optional Phase 2 semantic enrichment, where the LLM can infer the intended target from method name, payload structure, and endpoint descriptions.
 
 **Phase 2 (Planner):** Files with unresolved floating links (`floating_links.resolved_status = 'PENDING'`) qualify for LLM enrichment. The LLM receives the HTTP method, URL pattern, and call-site context (surrounding method, parameters) and infers the external service's business purpose — e.g., `POST ${payment.service.url}/api/v1/charges` → "Delegates payment processing to the external Payment Service; expects a charge response."
 
@@ -991,9 +966,9 @@ The application must expose the following commands via Spring Shell:
 | `snapshot create` | `[--name label]` | Create a point-in-time snapshot of local state (DB + JSON index) |
 | `snapshot list` | | List available snapshots with name, date, and metadata |
 | `snapshot restore` | `<name>` | Restore local state (DB + JSON index) from a named snapshot |
-| `task-list` | `[--status] [--target] [--limit N]` | List all tasks with truncated ID, file path, status, target name. Supports prefix matching on task IDs. |
-| `task-findings` | `--task <id> [--type] [--limit N]` | List enrichment findings for a task. Supports prefix matching on task ID. |
-| `task-set-status` | `--task <id> --status <s> [--delete-findings] [--dry-run]` | Change a task's status; cascades deletion of findings, topic_links, and floating_links when resetting. Supports prefix matching. |
+| `task list` | `[--status] [--target] [--limit N]` | List all tasks with truncated ID, file path, status, target name. Supports prefix matching on task IDs. |
+| `task findings` | `--task <id> [--type] [--limit N]` | List enrichment findings for a task. Supports prefix matching on task ID. |
+| `task set-status` | `--task <id> --status <s> [--delete-findings] [--dry-run]` | Change a task's status; cascades deletion of findings, topic_links, and floating_links when resetting. Supports prefix matching. |
 
 The `--dry-run` flag on the `run` command enables simulation mode (see §5.8).
 
@@ -1443,7 +1418,7 @@ A CLI run is considered successful when all of the following conditions are met.
 
     <properties>
         <java.version>21</java.version>
-        <spring-ai.version>1.0.0</spring-ai.version>
+        <spring-ai.version>1.1.1</spring-ai.version>
         <spring-shell.version>3.4.2</spring-shell.version>
         <sqlite-jdbc.version>3.45.1.0</sqlite-jdbc.version>
         <javaparser.version>3.25.9</javaparser.version>
@@ -1574,14 +1549,17 @@ A CLI run is considered successful when all of the following conditions are met.
 
 ```properties
 spring.application.name=code2req
+spring.config.import=optional:file:.env
 
 # application.properties
 spring.main.web-application-type=none
 
 spring.shell.interactive.enabled=true
+spring.shell.history.enabled=true
+spring.shell.history.name=.code2req-history
 
 # HikariCP Data Source Target Setup for Embedded SQLite Cache
-spring.datasource.url=jdbc:sqlite:.code2req_cache.db
+spring.datasource.url=jdbc:sqlite:sqlite.db
 spring.datasource.driver-class-name=org.sqlite.JDBC
 
 # HikariCP Concurrency Isolation (Optimized for multi-thread WAL reads and busy timeouts)
@@ -1594,7 +1572,7 @@ spring.datasource.hikari.connection-init-sql=PRAGMA journal_mode=WAL; PRAGMA bus
 spring.task.execution.pool.core-size=5
 spring.task.execution.pool.max-size=10
 spring.task.execution.pool.queue-capacity=1000
-spring.task.execution.thread-name-prefix=c2r-executor-
+spring.task.execution.thread-name-prefix=c2r-orchestrator-
 
 # Enforce explicit Async support termination lifecycles
 spring.task.execution.shutdown.await-termination=true
@@ -1602,11 +1580,47 @@ spring.task.execution.shutdown.await-termination-period=30s
 
 # ===================================================================
 # OpenRouter LLM Provider (via Spring AI OpenAI-compatible client)
+# Override api-key via SPRING_AI_OPENAI_API_KEY env var or OPENROUTER_API_KEY env var
 # ===================================================================
-spring.config.import=optional:file:.env
-
-spring.ai.openai.base-url=https://openrouter.ai/api/v1
+spring.ai.openai.base-url=https://openrouter.ai/api
 spring.ai.openai.api-key=${OPENROUTER_API_KEY}
-spring.ai.openai.chat.options.model=${OPENROUTER_MODEL:deepseek/deepseek-v4-flash:free}
+#spring.ai.openai.chat.options.model=openrouter/free
+spring.ai.openai.chat.options.model=openai/gpt-oss-20b:free
 
+# ===================================================================
+# Embabel Agent Framework (Phase 3 GOAP planning)
+# ===================================================================
+embabel.agent.platform.scanning.annotation=true
+embabel.models.default-llm=${spring.ai.openai.chat.options.model}
+embabel.models.llms.cheapest=${spring.ai.openai.chat.options.model}
+embabel.models.llms.best=${spring.ai.openai.chat.options.model}
+
+logging.level.org.springframework.ai=INFO
+
+# ===================================================================
+# code2req Execution Config (defaults for pipeline phases)
+# ===================================================================
+code2req.execution.max-concurrent-llm-calls=5
+code2req.execution.max-discovery-depth=3
+code2req.execution.semantic-validation-sample-rate=0.20
+code2req.execution.llm-unresolved-threshold=5
+code2req.execution.max-investigation-steps-per-flow=5
+code2req.execution.max-tokens-per-run=500000
+code2req.execution.ambiguity-confidence-threshold=0.7
+code2req.execution.test-suffixes=Test,IT
+code2req.execution.execution-mode=async
+
+# ===================================================================
+# code2req Output Config (defaults for index file and spec output)
+# ===================================================================
+code2req.output.spec-dir=./spec-output
+code2req.output.index-file=code-graph-index.json
+code2req.output.extraction-cache-file=extraction-cache.json
+code2req.output.db-path=./spec-output/sqlite.db
+
+# ===================================================================
+# code2req Snapshot Config
+# ===================================================================
+code2req.snapshot.dir=./snapshots
+code2req.execution.phase3-timeout-minutes=60
 ```

@@ -7,6 +7,7 @@ import com.embabel.agent.api.common.OperationContext;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.extraction.ExtractionCache;
 import com.github.ehdez73.code2req.extraction.adapter.agent.action.*;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.*;
@@ -65,8 +66,9 @@ public class FunctionalRequirementAgent {
         log.info("GOAP Action: TraceFlow ({} entry points)", discoveryResult.entryPoints().size());
         CodebaseKnowledge knowledge = (CodebaseKnowledge) context.get("knowledge");
         WorldState ws = (WorldState) context.get("worldState");
-        TraceFlowAction traceAction = new TraceFlowAction(knowledge);
-        QuarantineFlowAction quarantineAction = new QuarantineFlowAction();
+        ExecutionConfig config = (ExecutionConfig) context.get("executionConfig");
+        TraceFlowAction traceAction = new TraceFlowAction(knowledge, config);
+        QuarantineFlowAction quarantineAction = new QuarantineFlowAction(config);
         TracedFlowResult traced = traceAction.traceAll(discoveryResult);
         QuarantineFlowAction.QuarantineFlowResult quarantineResult = quarantineAction.quarantineWithResult(traced);
         if (!quarantineResult.gaps().isEmpty()) {

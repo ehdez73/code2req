@@ -34,7 +34,7 @@ class QuarantineFlowActionTest {
         var clean = flow(FlowStatus.TRACED, 3, 2, 0);
         var traced = new TracedFlowResult(List.of(clean), List.of());
 
-        var result = new QuarantineFlowAction().quarantine(traced);
+        var result = new QuarantineFlowAction(null).quarantine(traced);
 
         assertEquals(1, result.flows().size());
         assertEquals(FlowStatus.TRACED, result.flows().get(0).status());
@@ -46,7 +46,7 @@ class QuarantineFlowActionTest {
         var bad = flow(FlowStatus.QUARANTINED, 0, 0, 0);
         var traced = new TracedFlowResult(List.of(bad), List.of());
 
-        var result = new QuarantineFlowAction().quarantine(traced);
+        var result = new QuarantineFlowAction(null).quarantine(traced);
 
         assertTrue(result.flows().isEmpty());
         assertEquals(1, result.allQuarantinedFlowIds().size());
@@ -57,7 +57,7 @@ class QuarantineFlowActionTest {
         var bad = flow(FlowStatus.TRACED, 21, 1, 0);
         var traced = new TracedFlowResult(List.of(bad), List.of());
 
-        var result = new QuarantineFlowAction().quarantine(traced);
+        var result = new QuarantineFlowAction(null).quarantine(traced);
 
         assertTrue(result.flows().isEmpty());
         assertEquals(1, result.allQuarantinedFlowIds().size());
@@ -68,7 +68,7 @@ class QuarantineFlowActionTest {
         var bad = flow(FlowStatus.TRACED, 3, 6, 0);
         var traced = new TracedFlowResult(List.of(bad), List.of());
 
-        var result = new QuarantineFlowAction().quarantine(traced);
+        var result = new QuarantineFlowAction(null).quarantine(traced);
 
         assertTrue(result.flows().isEmpty());
         assertEquals(1, result.allQuarantinedFlowIds().size());
@@ -79,7 +79,7 @@ class QuarantineFlowActionTest {
         var bad = flow(FlowStatus.TRACED, 3, 1, 4);
         var traced = new TracedFlowResult(List.of(bad), List.of());
 
-        var result = new QuarantineFlowAction().quarantine(traced);
+        var result = new QuarantineFlowAction(null).quarantine(traced);
 
         assertTrue(result.flows().isEmpty());
         assertEquals(1, result.allQuarantinedFlowIds().size());
@@ -90,7 +90,7 @@ class QuarantineFlowActionTest {
         var bad = flow(FlowStatus.QUARANTINED, 0, 0, 0);
         var traced = new TracedFlowResult(List.of(bad), List.of());
 
-        var result = new QuarantineFlowAction().quarantineWithResult(traced);
+        var result = new QuarantineFlowAction(null).quarantineWithResult(traced);
 
         assertEquals(1, result.gaps().size());
         assertEquals(GapReason.LOW_CONFIDENCE, result.gaps().get(0).reason());
@@ -104,7 +104,7 @@ class QuarantineFlowActionTest {
         var bad = flow(FlowStatus.TRACED, 21, 1, 0);
         var traced = new TracedFlowResult(List.of(clean, bad), List.of());
 
-        var result = new QuarantineFlowAction().quarantine(traced);
+        var result = new QuarantineFlowAction(null).quarantine(traced);
 
         assertEquals(1, result.flows().size());
         assertEquals(1, result.allQuarantinedFlowIds().size());
@@ -115,9 +115,9 @@ class QuarantineFlowActionTest {
         var clean = flow(FlowStatus.TRACED, 3, 2, 0);
         var bad = flow(FlowStatus.QUARANTINED, 0, 0, 0);
         var original = new TracedFlowResult(List.of(clean, bad), List.of());
-        var quarantined = new QuarantineFlowAction().quarantine(original);
+        var quarantined = new QuarantineFlowAction(null).quarantine(original);
 
-        var gaps = new QuarantineFlowAction().getQuarantineGaps(original, quarantined);
+        var gaps = new QuarantineFlowAction(null).getQuarantineGaps(original, quarantined);
 
         assertEquals(1, gaps.size());
         assertTrue(gaps.get(0).flowId().contains("0-0"));
@@ -129,7 +129,7 @@ class QuarantineFlowActionTest {
         var original = new TracedFlowResult(List.of(clean), List.of());
         var quarantined = new TracedFlowResult(List.of(), List.of("nonexistent"));
 
-        var gaps = new QuarantineFlowAction().getQuarantineGaps(original, quarantined);
+        var gaps = new QuarantineFlowAction(null).getQuarantineGaps(original, quarantined);
 
         assertEquals(0, gaps.size());
     }

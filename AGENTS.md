@@ -11,9 +11,9 @@ mvn spring-boot:run        # run interactive shell
 
 ## Architecture (3-Phase Pipeline)
 
-- **Phase 1** (active focus): deterministic indexing — JavaParser AST → `code-graph-index.json` → SQLite task store. Zero network or LLM calls.
-- **Phase 2** (future): LLM-powered per-file analysis via Spring `@Async("orchestratorTaskExecutor")`.
-- **Phase 3** (future): Embabel agentic functional requirement extraction (GOAP planning).
+- **Phase 1** (active): deterministic indexing — JavaParser AST parsing, secret redaction, SQLite task store, JSON code graph export. Zero network or LLM calls.
+- **Phase 2** (active): LLM-powered per-file semantic enrichment via Spring AI + OpenRouter, with `CompletableFuture` orchestration on a dedicated executor pool.
+- **Phase 3** (active): Embabel GOAP agent — entry-point-driven functional requirement extraction with dynamic flow tracing and spec synthesis.
 
 ## Key Constraints
 

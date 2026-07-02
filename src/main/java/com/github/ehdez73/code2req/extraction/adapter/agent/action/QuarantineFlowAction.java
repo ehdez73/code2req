@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
+import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
@@ -23,8 +24,18 @@ public class QuarantineFlowAction {
 
     private static final Logger log = LoggerFactory.getLogger(QuarantineFlowAction.class);
 
-    private static final int MAX_STEPS = 20;
-    private static final double LOW_CONFIDENCE_THRESHOLD = 0.3;
+    private final int maxSteps;
+    private final double lowConfidenceThreshold;
+    private final int maxHopDepth;
+
+    public QuarantineFlowAction(ExecutionConfig config) {
+        this.maxSteps = config != null && config.maxInvestigationStepsPerFlow() != null
+            ? config.maxInvestigationStepsPerFlow() * 4 : 20;
+        this.lowConfidenceThreshold = config != null && config.ambiguityConfidenceThreshold() != null
+            ? config.ambiguityConfidenceThreshold() : 0.3;
+        this.maxHopDepth = config != null && config.maxInvestigationStepsPerFlow() != null
+            ? config.maxInvestigationStepsPerFlow() : 5;
+    }
 
     public TracedFlowResult quarantine(TracedFlowResult tracedResult) {
         QuarantineFlowResult result = quarantineWithResult(tracedResult);
@@ -109,17 +120,17 @@ public class QuarantineFlowAction {
             );
         }
 
-        if (flow.steps().size() > MAX_STEPS) {
+        if (flow.steps().size() > maxSteps) {
             return new QuarantineReason(
-                "Flow exceeds maximum step limit (" + flow.steps().size() + " > " + MAX_STEPS + ")",
+                "Flow exceeds maximum step limit (" + flow.steps().size() + " > " + maxSteps + ")",
                 "Split into sub-flows or increase investigation budget",
                 0.4, GapReason.STEPS_EXCEEDED
             );
         }
 
-        if (flow.depth() > 5) {
+        if (flow.depth() > maxHopDepth) {
             return new QuarantineReason(
-                "Call chain depth exceeds maximum (" + flow.depth() + " > 5)",
+                "Call chain depth exceeds maximum (" + flow.depth() + " > " + maxHopDepth + ")",
                 "Review deep call chains for potential abstraction layers",
                 0.3, GapReason.HOP_DEPTH
             );
