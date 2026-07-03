@@ -32,7 +32,7 @@ class SnapshotCommandTest {
         jdbc.execute("INSERT INTO test VALUES (1)");
 
         var refreshableDs = new RefreshableDataSource(liveDs);
-        var outputConfig = new OutputConfig(tempDir.toString(), "index.json", dbPath.toString());
+        var outputConfig = new OutputConfig(tempDir.toString(), "index.json", "extraction-cache.json", dbPath.toString());
 
         var service = new SnapshotService(
             refreshableDs, outputConfig,

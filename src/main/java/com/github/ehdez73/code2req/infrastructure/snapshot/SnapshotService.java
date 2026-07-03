@@ -73,6 +73,12 @@ public class SnapshotService {
                 log.info("JSON index snapshot saved to {}", dir.resolve("code-graph-index.json"));
             }
 
+            Path cachePath = Path.of(outputConfig.specDir(), outputConfig.extractionCacheFile());
+            if (Files.exists(cachePath)) {
+                Files.copy(cachePath, dir.resolve("extraction-cache.json"), REPLACE_EXISTING);
+                log.info("Extraction cache snapshot saved to {}", dir.resolve("extraction-cache.json"));
+            }
+
             writeMetadata(dir, effectiveName);
             log.info("Snapshot metadata written for '{}'", effectiveName);
 
@@ -92,6 +98,7 @@ public class SnapshotService {
 
         Path snapshotDb = dir.resolve("sqlite.db");
         Path snapshotIndex = dir.resolve("code-graph-index.json");
+        Path snapshotCache = dir.resolve("extraction-cache.json");
 
         if (!Files.exists(snapshotDb)) {
             throw new IllegalArgumentException("Snapshot '" + name + "' is missing sqlite.db");
@@ -113,6 +120,13 @@ public class SnapshotService {
             if (Files.exists(snapshotIndex)) {
                 Files.copy(snapshotIndex, liveIndex, REPLACE_EXISTING);
                 log.info("JSON index restored from snapshot '{}'", name);
+            }
+
+            Path liveCache = Path.of(outputConfig.specDir(), outputConfig.extractionCacheFile());
+            Files.createDirectories(liveCache.getParent());
+            if (Files.exists(snapshotCache)) {
+                Files.copy(snapshotCache, liveCache, REPLACE_EXISTING);
+                log.info("Extraction cache restored from snapshot '{}'", name);
             }
 
             var newPool = new HikariDataSource();
