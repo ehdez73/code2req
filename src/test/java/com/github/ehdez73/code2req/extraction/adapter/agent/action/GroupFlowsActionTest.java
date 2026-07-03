@@ -11,13 +11,13 @@ class GroupFlowsActionTest {
 
     @Test
     void groupEmptyFlowsReturnsEmptyFeatures() {
-        var result = new GroupFlowsAction().group(new AnalyzedFlowResult(List.of()), null);
+        var result = new GroupFlowsAction(null,null, true).group(new AnalyzedFlowResult(List.of()), null);
         assertTrue(result.features().isEmpty());
     }
 
     @Test
     void groupWithMultipleFlowsReturnsResult() {
-        var result = new GroupFlowsAction().group(new AnalyzedFlowResult(List.of()), null);
+        var result = new GroupFlowsAction(null, null, false).group(new AnalyzedFlowResult(List.of()), null);
         assertNotNull(result);
     }
 }

@@ -1,17 +1,22 @@
 package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.AnalyzedFlowResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.GroupedFlowsResult;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFeature;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
+import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
+import com.github.ehdez73.code2req.infrastructure.persistence.FindingType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -24,11 +29,41 @@ public class GroupFlowsAction {
 
     private static final Logger log = LoggerFactory.getLogger(GroupFlowsAction.class);
 
+    private final ExecutionFindingStore executionFindingStore;
+    private final ObjectMapper objectMapper;
+    private final boolean resume;
+
+    public GroupFlowsAction(ExecutionFindingStore executionFindingStore, ObjectMapper objectMapper, boolean resume) {
+        this.executionFindingStore = executionFindingStore;
+        this.objectMapper = objectMapper;
+        this.resume = resume;
+    }
+
     public GroupedFlowsResult group(AnalyzedFlowResult analyzedResult, OperationContext context) {
+
+
         List<FunctionalFlow> flows = analyzedResult.flows();
 
         if (flows.isEmpty()) {
             return new GroupedFlowsResult(List.of());
+        }
+
+        String groupingKey = deterministicGroupKey(flows);
+
+        if (resume) {
+            List<Map<String, Object>> existing = executionFindingStore.findByTaskIdAndType(groupingKey, FindingType.FLOW_GROUPING);
+            if (!existing.isEmpty()) {
+                try {
+                    String json = (String) existing.get(0).get("finding_json");
+                    GroupingResponse cached = objectMapper.readValue(json, GroupingResponse.class);
+                    log.info("Reusing cached flow grouping for {} flows", flows.size());
+                    List<FunctionalFeature> features = buildFeatures(cached, flows);
+                    log.info("Grouped {} flows into {} features", analyzedResult.flows().size(), features.size());
+                    return new GroupedFlowsResult(features);
+                } catch (Exception e) {
+                    log.warn("Failed to deserialize cached FLOW_GROUPING: {}", e.getMessage());
+                }
+            }
         }
 
         if (flows.size() == 1) {
@@ -92,58 +127,45 @@ public class GroupFlowsAction {
             ## Flows
             %s
             """.formatted(flowSummaries);
+
+
         GroupingResponse response = context.ai()
             .withDefaultLlm()
             .createObject(prompt, GroupingResponse.class);
 
-        List<FunctionalFeature> features = new ArrayList<>();
-
-        if (response.groups() != null) {
-            int featureIndex = 1;
-            for (GroupDto group : response.groups()) {
-                List<FunctionalFlow> matchedFlows = new ArrayList<>();
-                if (group.flowIds() != null) {
-                    for (String flowId : group.flowIds()) {
-                        flows.stream()
-                            .filter(f -> f.flowId().equals(flowId))
-                            .findFirst()
-                            .ifPresent(matchedFlows::add);
-                    }
-                }
-
-                if (matchedFlows.isEmpty()) {
-                    matchedFlows.addAll(flows);
-                    flows.clear();
-                } else {
-                    flows.removeAll(matchedFlows);
-                }
-
-                features.add(new FunctionalFeature(
-                    "feature-" + featureIndex++,
-                    group.featureName(),
-                    group.featureDescription(),
-                    matchedFlows,
-                    List.of()
-                ));
-            }
+        try {
+            String json = objectMapper.writeValueAsString(response);
+            executionFindingStore.save(groupingKey, FindingType.FLOW_GROUPING, json, true);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize FLOW_GROUPING: {}", e.getMessage());
         }
 
-        if (!flows.isEmpty()) {
-            int featureIndex = features.size() + 1;
-            features.add(new FunctionalFeature(
-                "feature-" + featureIndex,
-                "Ungrouped Flows",
-                "Flows that could not be automatically grouped",
-                flows,
-                List.of()
-            ));
-        }
+        List<FunctionalFeature> features = buildFeatures(response, flows);
 
         log.info("Grouped {} flows into {} features", analyzedResult.flows().size(), features.size());
         return new GroupedFlowsResult(features);
     }
 
     private String generateFeatureDescription(FunctionalFlow flow, OperationContext context) {
+
+        String descKey = "GRP-DESC:" + flow.flowId();
+
+        if (resume) {
+            List<Map<String, Object>> existing = executionFindingStore.findByTaskIdAndType(descKey, FindingType.FLOW_GROUPING);
+            if (!existing.isEmpty()) {
+                try {
+                    String json = (String) existing.get(0).get("finding_json");
+                    DescriptionResponse cached = objectMapper.readValue(json, DescriptionResponse.class);
+                    if (cached != null && cached.description() != null && !cached.description().isBlank()) {
+                        log.info("Reusing cached feature description for {}", flow.flowId());
+                        return cached.description();
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to deserialize cached FLOW_GROUPING description for {}: {}", flow.flowId(), e.getMessage());
+                }
+            }
+        }
+
         String stepsSummary = flow.steps().stream()
             .map(s -> "  - " + s.componentType() + ": " + s.className()
                 + (s.methodName() != null ? "." + s.methodName() : "")
@@ -195,9 +217,18 @@ public class GroupFlowsAction {
                 flow.userStory() != null ? flow.userStory() : "N/A"
         );
 
+
+
         DescriptionResponse response = context.ai()
             .withDefaultLlm()
             .createObject(prompt, DescriptionResponse.class);
+
+        try {
+            String json = objectMapper.writeValueAsString(response);
+            executionFindingStore.save(descKey, FindingType.FLOW_GROUPING, json, true);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize FLOW_GROUPING description for {}: {}", flow.flowId(), e.getMessage());
+        }
 
         if (response != null && response.description() != null && !response.description().isBlank()) {
             return response.description();
@@ -227,6 +258,61 @@ public class GroupFlowsAction {
     private String capitalize(String s) {
         if (s == null || s.isEmpty()) return s;
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    private List<FunctionalFeature> buildFeatures(GroupingResponse response, List<FunctionalFlow> allFlows) {
+        List<FunctionalFlow> remaining = new ArrayList<>(allFlows);
+        List<FunctionalFeature> features = new ArrayList<>();
+
+        if (response.groups() != null) {
+            int featureIndex = 1;
+            for (GroupDto group : response.groups()) {
+                List<FunctionalFlow> matchedFlows = new ArrayList<>();
+                if (group.flowIds() != null) {
+                    for (String flowId : group.flowIds()) {
+                        remaining.stream()
+                            .filter(f -> f.flowId().equals(flowId))
+                            .findFirst()
+                            .ifPresent(matchedFlows::add);
+                    }
+                }
+
+                if (matchedFlows.isEmpty()) {
+                    matchedFlows.addAll(remaining);
+                    remaining.clear();
+                } else {
+                    remaining.removeAll(matchedFlows);
+                }
+
+                features.add(new FunctionalFeature(
+                    "feature-" + featureIndex++,
+                    group.featureName(),
+                    group.featureDescription(),
+                    matchedFlows,
+                    List.of()
+                ));
+            }
+        }
+
+        if (!remaining.isEmpty()) {
+            int featureIndex = features.size() + 1;
+            features.add(new FunctionalFeature(
+                "feature-" + featureIndex,
+                "Ungrouped Flows",
+                "Flows that could not be automatically grouped",
+                remaining,
+                List.of()
+            ));
+        }
+
+        return features;
+    }
+
+    private static String deterministicGroupKey(List<FunctionalFlow> flows) {
+        return "GRP:" + flows.stream()
+            .map(FunctionalFlow::flowId)
+            .sorted()
+            .collect(Collectors.joining("|"));
     }
 
     record DescriptionResponse(String description) {}

@@ -31,6 +31,9 @@ public final class FindingType {
     // Phase 3 caching — per-flow analysis LLM result
     public static final String FLOW_ANALYSIS = "FLOW_ANALYSIS";
 
+    // Phase 3 caching — flow grouping LLM result
+    public static final String FLOW_GROUPING = "FLOW_GROUPING";
+
     // Phase 2 Planner — granular finding types for qualification
     public static final String SPRING_DATA_INTERFACE = "SPRING_DATA_INTERFACE";
     public static final String DATABASE_PROCEDURE_CALL = "DATABASE_PROCEDURE_CALL";

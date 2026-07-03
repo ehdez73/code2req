@@ -123,7 +123,9 @@ public class FunctionalRequirementAgent {
             return new GroupedFlowsResult(List.of());
         }
         AnalyzedFlowResult analyzedResult = new AnalyzedFlowResult(allAnalyzed.flows());
-        GroupFlowsAction action = new GroupFlowsAction();
+        Boolean resumeFlag = (Boolean) context.get("resume");
+        boolean resume = resumeFlag != null && resumeFlag;
+        GroupFlowsAction action = new GroupFlowsAction(executionFindingStore, objectMapper, resume);
         GroupedFlowsResult result = action.group(analyzedResult, context);
         ws.setFlowsGrouped(true);
         return result;
