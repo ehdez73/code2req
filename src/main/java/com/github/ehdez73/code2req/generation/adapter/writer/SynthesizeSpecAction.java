@@ -129,7 +129,7 @@ public class SynthesizeSpecAction {
 
     private void appendFlowSection(StringBuilder sb, FunctionalFlow flow) {
         sb.append("<a name=\"").append(slugify(flow.name())).append("\"></a>\n");
-        sb.append("### ").append(flow.name()).append("\n\n");
+        sb.append("### ").append(flow.name()).append(" (`#").append(shortId(flow.flowId())).append("`)\n\n");
 
         if (flow.userStory() != null) {
             sb.append("**User Story:** ").append(flow.userStory()).append("\n\n");
@@ -395,17 +395,27 @@ public class SynthesizeSpecAction {
     private void appendCrossFlowRelationships(StringBuilder sb, CrossReferencedResult result) {
         if (result.crossFlowRelationships().isEmpty()) return;
 
+        var flowLookup = result.features().stream()
+            .flatMap(f -> f.flows().stream())
+            .collect(java.util.stream.Collectors.toMap(FunctionalFlow::flowId, f -> f));
+
         sb.append("## Cross-Flow Relationships\n\n");
         sb.append("| Source Flow | Target Flow | Type | Description |\n");
         sb.append("|---|---|---|---|\n");
         result.crossFlowRelationships().forEach(rel ->
-            sb.append("| ").append(rel.sourceFlowId())
-              .append(" | ").append(rel.targetFlowId())
+            sb.append("| ").append(flowLink(rel.sourceFlowId(), flowLookup.get(rel.sourceFlowId())))
+              .append(" | ").append(flowLink(rel.targetFlowId(), flowLookup.get(rel.targetFlowId())))
               .append(" | ").append(rel.type())
               .append(" | ").append(rel.description())
               .append(" |\n")
         );
         sb.append("\n");
+    }
+
+    private static String flowLink(String rawId, FunctionalFlow flow) {
+        String hash = shortId(rawId);
+        if (flow == null) return hash;
+        return "[`#" + hash + "` - " + flow.name() + "](#" + slugify(flow.name()) + ")";
     }
 
     private void appendOrphanedMethods(StringBuilder sb, List<OrphanedMethod> orphanedMethods) {
@@ -431,14 +441,19 @@ public class SynthesizeSpecAction {
         sb.append("## Unresolved Dependencies\n\n");
         sb.append("Flows flagged for human review:\n\n");
         quarantineGaps.forEach(gap -> {
-            sb.append("- **").append(gap.flowId()).append("** (`").append(gap.filePath()).append("`): ").append(gap.missingContext()).append("\n");
+            sb.append("- **").append(gap.flowName()).append("** (`").append(gap.filePath()).append("`): ").append(gap.missingContext()).append("\n");
             sb.append("  - Suggested: ").append(gap.suggestedApproach()).append("\n");
             sb.append("  - Confidence: ").append(String.format("%.0f", gap.confidence() * 100)).append("%\n");
             sb.append("  - Reason: ").append(gap.reason()).append("\n\n");
         });
     }
 
-    private String slugify(String text) {
+    private static String shortId(String id) {
+        if (id == null || id.isBlank()) return "";
+        return Integer.toHexString(id.hashCode());
+    }
+
+    private static String slugify(String text) {
         return text.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
     }
 

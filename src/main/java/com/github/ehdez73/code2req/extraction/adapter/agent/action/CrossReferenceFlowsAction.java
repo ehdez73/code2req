@@ -17,6 +17,8 @@ import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -101,10 +103,13 @@ public class CrossReferenceFlowsAction {
     private void matchFlowByUrl(List<FlowRelationship> relationships, GroupedFlowsResult groupedResult,
                                  Map<String, List<FunctionalFlow>> flowsByPath,
                                  String sourceFile, String method, String urlPattern) {
-        String targetPath = normalizePath(urlPattern);
+        String targetRawPath = extractPath(urlPattern);
+        String targetPath = normalizePath(targetRawPath);
+        if (targetPath.isEmpty()) return;
 
         for (Map.Entry<String, List<FunctionalFlow>> entry : flowsByPath.entrySet()) {
-            if (targetPath.contains(entry.getKey()) || entry.getKey().contains(targetPath)) {
+            if (entry.getKey().isEmpty()) continue;
+            if (pathsMatch(targetPath, entry.getKey())) {
                 List<FunctionalFlow> sourceFlows = groupedResult.features().stream()
                     .flatMap(f -> f.flows().stream())
                     .filter(f -> f.entryPoint().filePath().equals(sourceFile)
@@ -194,9 +199,36 @@ public class CrossReferenceFlowsAction {
             .collect(Collectors.toList());
     }
 
+    private static String extractPath(String url) {
+        if (url == null || url.isBlank()) return "";
+        url = url.trim();
+        if (url.matches("^https?://.*")) {
+            try {
+                String p = new URI(url).getPath();
+                return p != null ? p : url;
+            } catch (URISyntaxException e) {
+                return url;
+            }
+        }
+        return url;
+    }
+
+    private static boolean pathsMatch(String target, String entry) {
+        String[] tSegs = target.split("/");
+        String[] eSegs = entry.split("/");
+        if (tSegs.length != eSegs.length) return false;
+        for (int i = 0; i < tSegs.length; i++) {
+            if (eSegs[i].startsWith("{") && eSegs[i].endsWith("}")) continue;
+            if (!tSegs[i].equals(eSegs[i])) return false;
+        }
+        return true;
+    }
+
     private String normalizePath(String path) {
         if (path == null) return "";
-        return path.replaceAll("\\{[^}]+\\}", "").replaceAll("/+", "/").replaceAll("^/|/$", "");
+        String normalized = path.replaceAll("/+", "/")
+            .replaceAll("^/+", "").replaceAll("/+$", "");
+        return normalized.isEmpty() ? "/" : normalized;
     }
 
     private List<FunctionalFeature> attachRelationships(List<FunctionalFeature> features, List<FlowRelationship> relationships) {

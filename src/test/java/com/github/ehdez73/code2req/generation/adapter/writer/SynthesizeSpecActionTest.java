@@ -177,7 +177,7 @@ class SynthesizeSpecActionTest {
             ComplexityLevel.MINIMAL, null);
         var feature = new FunctionalFeature("feature-1", "Test Feature", "A test feature", List.of(flow), List.of());
         var result = new CrossReferencedResult(List.of(feature), List.of());
-        var gaps = List.of(new AmbiguityGap("flow-x", "/f.java", "Missing information", "Review manually", 0.3, GapReason.LOW_CONFIDENCE));
+        var gaps = List.of(new AmbiguityGap("flow-x", "flow-x", "/f.java", "Missing information", "Review manually", 0.3, GapReason.LOW_CONFIDENCE));
 
         var specResult = action.synthesize(result, List.of(), gaps, null);
         var content = Files.readString(specResult.markdownPath());
@@ -520,7 +520,7 @@ class SynthesizeSpecActionTest {
             ComplexityLevel.MINIMAL, null);
         var feature = new FunctionalFeature("feature-1", "Test Feature", "A test feature", List.of(flow), List.of());
         var result = new CrossReferencedResult(List.of(feature), List.of());
-        var gaps = List.of(new AmbiguityGap("flow-1", "/f.java",
+        var gaps = List.of(new AmbiguityGap("flow-1", "Test Flow", "/f.java",
             "Missing context", "Review manually", 0.3, GapReason.LOW_CONFIDENCE));
 
         var specResult = action.synthesize(result, List.of(), gaps, null);

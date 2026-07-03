@@ -2,10 +2,17 @@ package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
+import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
+import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.EventListenerEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStatus;
 import com.github.ehdez73.code2req.extraction.domain.model.GapReason;
+import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.RabbitMqEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,6 +66,7 @@ public class QuarantineFlowAction {
 
                 gaps.add(new AmbiguityGap(
                     flow.flowId(),
+                    deriveFlowName(flow.entryPoint()),
                     flow.entryPoint().filePath(),
                     reason.description,
                     reason.suggestedApproach,
@@ -92,12 +100,14 @@ public class QuarantineFlowAction {
                 QuarantineReason reason = evaluateQuarantine(f);
                 if (reason != null) {
                     return new AmbiguityGap(
-                        f.flowId(), f.entryPoint().filePath(), reason.description, reason.suggestedApproach,
+                        f.flowId(), deriveFlowName(f.entryPoint()), f.entryPoint().filePath(),
+                        reason.description, reason.suggestedApproach,
                         reason.confidence, reason.gapReason
                     );
                 }
                 return new AmbiguityGap(
-                    f.flowId(), f.entryPoint().filePath(), "Unknown quarantine reason", "Manual review required",
+                    f.flowId(), deriveFlowName(f.entryPoint()), f.entryPoint().filePath(),
+                    "Unknown quarantine reason", "Manual review required",
                     0.0, GapReason.LOW_CONFIDENCE
                 );
             })
@@ -146,6 +156,17 @@ public class QuarantineFlowAction {
         }
 
         return null;
+    }
+
+    private static String deriveFlowName(EntryPoint ep) {
+        return switch (ep) {
+            case HttpEntryPoint h -> h.httpMethod() + " " + h.path();
+            case ScheduledEntryPoint s -> s.className() + "." + s.methodName();
+            case KafkaEntryPoint k -> k.className() + "." + k.methodName();
+            case RabbitMqEntryPoint r -> r.className() + "." + r.methodName();
+            case ActiveMqEntryPoint a -> a.className() + "." + a.methodName();
+            case EventListenerEntryPoint e -> e.className() + "." + e.methodName();
+        };
     }
 
     record QuarantineReason(
