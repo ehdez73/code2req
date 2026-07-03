@@ -43,7 +43,7 @@ class ExtractCommandTest {
         var floatingLinkStore = new FloatingLinkStore(jdbc);
         var topicLinkStore = new TopicLinkStore(jdbc);
 
-        var executionConfig = new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null);
+        var executionConfig = new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null);
         var orchestrator = new ExtractionOrchestrator(
             taskStore, findingStore, floatingLinkStore, topicLinkStore, metricsStore,
             mock(AgentPlatform.class), executionConfig);

@@ -85,7 +85,7 @@ class EnrichmentOrchestratorTest {
         taskIdHasher = new TaskIdHasher();
         budgetCalculator = new ContextBudgetCalculator();
         simulationStub = new SimulationStub();
-        executionConfig = new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null, null);
+        executionConfig = new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null, null, null);
 
         var tfm = new TestFileMatcher(executionConfig);
         defaultRules = List.of(
@@ -215,7 +215,7 @@ class EnrichmentOrchestratorTest {
             var per = new PairedExecutionResolver(
                 new TestFileMatcher(executionConfig), new TestAssertionExtractor());
             var orchestratorWithDeps = new EnrichmentOrchestrator(planner, executor, taskStore, metricsStore,
-                new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null, null),
+                new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null, null, null),
                 taskIdHasher, budgetCalculator, new ManifestLoader(),
                 new FilePathResolver(), per);
 

@@ -50,7 +50,7 @@ class LlmEnrichmentServiceTest {
         var budgetCalculator = new ContextBudgetCalculator();
         var simulationStub = new SimulationStub();
 
-        var executionConfig = new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null);
+        var executionConfig = new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null);
         var txManager = new DataSourceTransactionManager(ds);
         var txTemplate = new TransactionTemplate(txManager);
         executor = new LlmEnrichmentService(null, findingStore, taskStore,

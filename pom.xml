@@ -121,6 +121,13 @@
             <artifactId>spring-ai-autoconfigure-model-chat-client</artifactId>
         </dependency>
 
+        <!-- Configuration property metadata generation (IDE auto-completion) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- YAML Manifest Parsing -->
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
@@ -169,6 +176,18 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <jvmArguments>-Djline.terminal=jline.UnixTerminal</jvmArguments>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-configuration-processor</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
             <plugin>

@@ -86,6 +86,29 @@ class QuarantineFlowActionTest {
     }
 
     @Test
+    void quarantineQuarantinesFlowBelowConfidenceThreshold() {
+        var bad = flow(FlowStatus.TRACED, 1, 1, 3);
+        var traced = new TracedFlowResult(List.of(bad), List.of());
+
+        var result = new QuarantineFlowAction(null).quarantine(traced);
+
+        assertTrue(result.flows().isEmpty());
+        assertEquals(1, result.allQuarantinedFlowIds().size());
+    }
+
+    @Test
+    void quarantineKeepsFlowAboveConfidenceThreshold() {
+        var good = flow(FlowStatus.TRACED, 3, 1, 1);
+        var traced = new TracedFlowResult(List.of(good), List.of());
+
+        var result = new QuarantineFlowAction(null).quarantine(traced);
+
+        assertEquals(1, result.flows().size());
+        assertEquals(FlowStatus.TRACED, result.flows().get(0).status());
+        assertTrue(result.allQuarantinedFlowIds().isEmpty());
+    }
+
+    @Test
     void quarantineWithResultReturnsGaps() {
         var bad = flow(FlowStatus.QUARANTINED, 0, 0, 0);
         var traced = new TracedFlowResult(List.of(bad), List.of());

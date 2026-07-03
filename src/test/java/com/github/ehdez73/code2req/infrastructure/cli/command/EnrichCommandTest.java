@@ -70,7 +70,7 @@ class EnrichCommandTest {
         var taskIdHasher = new TaskIdHasher();
         var budgetCalculator = new ContextBudgetCalculator();
         var simulationStub = new SimulationStub();
-        var executionConfig = new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null, null);
+        var executionConfig = new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null, null, null);
 
         var tfm = new TestFileMatcher(executionConfig);
         List<QualificationRule> rules = List.of(

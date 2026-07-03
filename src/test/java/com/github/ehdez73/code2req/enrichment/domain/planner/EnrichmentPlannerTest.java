@@ -52,7 +52,7 @@ class EnrichmentPlannerTest {
         findingStore = new ExecutionFindingStore(jdbc);
         floatingLinkStore = new FloatingLinkStore(jdbc);
         var testFileMatcher = new TestFileMatcher(
-            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null));
+            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null));
         defaultRules = List.of(
             new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
@@ -241,7 +241,7 @@ class EnrichmentPlannerTest {
         @Test
         void customThresholdLower() {
             var tfm = new TestFileMatcher(
-            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null));
+            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null));
             var rules = List.of(
                 new SpringDataInterfaceRule(),
                 new StoredProcedureCallRule(),

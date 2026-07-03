@@ -23,9 +23,9 @@ class TestFileMatcherTest {
     @BeforeEach
     void setUp() {
         matcher = new TestFileMatcher(
-            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null));
+            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null));
         matcherWithCustomSuffixes = new TestFileMatcher(
-            new ExecutionConfig(null, null, null, null, null, null, null, List.of("Test", "IT", "Spec"), null, null, null));
+            new ExecutionConfig(null, null, null, null, null, null, null, List.of("Test", "IT", "Spec"), null, null, null, null));
     }
 
     @Nested

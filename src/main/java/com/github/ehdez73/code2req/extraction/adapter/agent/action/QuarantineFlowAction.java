@@ -34,14 +34,13 @@ public class QuarantineFlowAction {
     private final int maxSteps;
     private final double lowConfidenceThreshold;
     private final int maxHopDepth;
+    private final int maxUnresolvedCalls;
 
     public QuarantineFlowAction(ExecutionConfig config) {
-        this.maxSteps = config != null && config.maxInvestigationStepsPerFlow() != null
-            ? config.maxInvestigationStepsPerFlow() * 4 : 20;
-        this.lowConfidenceThreshold = config != null && config.ambiguityConfidenceThreshold() != null
-            ? config.ambiguityConfidenceThreshold() : 0.3;
-        this.maxHopDepth = config != null && config.maxInvestigationStepsPerFlow() != null
-            ? config.maxInvestigationStepsPerFlow() : 5;
+        this.maxSteps = config != null ? config.maxInvestigationStepsPerFlow() * 4 : 20;
+        this.lowConfidenceThreshold = config != null ? config.ambiguityConfidenceThreshold() : 0.3;
+        this.maxHopDepth = config != null  ? config.maxInvestigationStepsPerFlow() : 5;
+        this.maxUnresolvedCalls = config != null ? config.resolvedUnresolvedFlowCountThreshold() : 3;
     }
 
     public TracedFlowResult quarantine(TracedFlowResult tracedResult) {
@@ -147,12 +146,25 @@ public class QuarantineFlowAction {
         }
 
         long unresolvedCount = flow.unresolvedCalls().size();
-        if (unresolvedCount > 3) {
+        if (unresolvedCount > maxUnresolvedCalls) {
             return new QuarantineReason(
                 "Too many unresolved calls (" + unresolvedCount + ")",
                 "Resolve external dependencies or add LLM enrichment context",
                 0.4, GapReason.LOW_CONFIDENCE
             );
+        }
+
+        int totalReferences = flow.steps().size() + flow.unresolvedCalls().size();
+        if (totalReferences > 0) {
+            double confidence = 1.0 - (double) flow.unresolvedCalls().size() / totalReferences;
+            if (confidence < lowConfidenceThreshold) {
+                return new QuarantineReason(
+                    "Flow confidence below threshold (" + String.format("%.2f", confidence)
+                        + " < " + lowConfidenceThreshold + ")",
+                    "Improve call graph resolution or add manual annotations for unresolved calls",
+                    confidence, GapReason.LOW_CONFIDENCE
+                );
+            }
         }
 
         return null;

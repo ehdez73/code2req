@@ -67,7 +67,7 @@ class ExtractionOrchestratorTest {
         mapper = new ObjectMapper();
 
         agentPlatform = mock(AgentPlatform.class);
-        var executionConfig = new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null);
+        var executionConfig = new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null);
 
         orchestrator = new ExtractionOrchestrator(
             taskStore, executionFindingStore, floatingLinkStore,
