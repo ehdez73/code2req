@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record OutputConfig(
     String specDir,
     String indexFile,
+    String extractionCacheFile,
     String dbPath
 ) {
 }

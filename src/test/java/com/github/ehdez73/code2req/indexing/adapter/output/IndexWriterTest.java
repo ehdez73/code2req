@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class IndexWriterTest {
 
     private JsonIndexWriter writer(String indexFile) {
-        return new JsonIndexWriter(new OutputConfig(tempDir.toString(), indexFile, null));
+        return new JsonIndexWriter(new OutputConfig(tempDir.toString(), indexFile, null, null));
     }
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -102,8 +102,13 @@ class IndexWriterTest {
         assertEquals(1, targetNode.get("event_listeners").size());
         assertEquals("UserCreatedEvent", targetNode.get("event_listeners").get(0).get("payLoadType").asText());
 
+        assertTrue(targetNode.has("validators"));
         assertEquals(1, targetNode.get("validators").size());
+        assertEquals(filePath, targetNode.get("validators").get(0).get("filePath").asText());
         assertEquals("EmailValidator", targetNode.get("validators").get(0).get("className").asText());
+        assertEquals(1, targetNode.get("validators").get(0).get("constraints").size());
+        assertEquals("email", targetNode.get("validators").get(0).get("constraints").get(0).get("elementName").asText());
+        assertEquals("Constraint", targetNode.get("validators").get(0).get("constraints").get(0).get("annotationType").asText());
 
         assertEquals(1, targetNode.get("kafka_listeners").size());
         assertEquals("orders", targetNode.get("kafka_listeners").get(0).get("topics").asText());
@@ -125,7 +130,7 @@ class IndexWriterTest {
         ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
 
-        var iw = new JsonIndexWriter(new OutputConfig(customDir.toString(), "my-index.json", null));
+        var iw = new JsonIndexWriter(new OutputConfig(customDir.toString(), "my-index.json", null, null));
         Path outputPath = iw.write(manifest, List.of());
 
         assertEquals("my-index.json", outputPath.getFileName().toString());
@@ -236,7 +241,7 @@ class IndexWriterTest {
         ScanTarget target = new ScanTarget("app", tempDir.resolve("src").toString(), "backend", "java", List.of(), List.of(), null);
         ProjectManifest manifest = new ProjectManifest(List.of(target));
 
-        var roWriter = new JsonIndexWriter(new OutputConfig(readOnlyDir.toString(), "index.json", null));
+        var roWriter = new JsonIndexWriter(new OutputConfig(readOnlyDir.toString(), "index.json", null, null));
         IOException exception = assertThrows(IOException.class, () -> roWriter.write(manifest, List.of()));
         assertTrue(exception.getMessage().toLowerCase().contains("writ"));
     }

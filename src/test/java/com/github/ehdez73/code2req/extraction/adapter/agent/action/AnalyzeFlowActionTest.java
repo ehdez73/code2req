@@ -14,12 +14,15 @@ import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType
 import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
 import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;
 import com.github.ehdez73.code2req.extraction.domain.model.StructuralGraph;
+import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 class AnalyzeFlowActionTest {
 
@@ -31,7 +34,8 @@ class AnalyzeFlowActionTest {
 
     private AnalyzeFlowAction action() {
         return new AnalyzeFlowAction(
-            new CodebaseKnowledge(new StructuralGraph(), new SemanticEnrichment(), new LinkRegistry()));
+            new CodebaseKnowledge(new StructuralGraph(), new SemanticEnrichment(), new LinkRegistry()),
+            mock(ExecutionFindingStore.class), new ObjectMapper(), false);
     }
 
     private ExecutionFlow flow(FlowStatus status, List<FlowStep> steps, EntryPoint entryPoint) {

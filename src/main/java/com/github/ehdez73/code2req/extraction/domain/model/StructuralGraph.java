@@ -117,7 +117,7 @@ public class StructuralGraph {
         List<EntryPoint> entryPoints = new ArrayList<>();
 
         for (EndpointInfo ep : endpoints) {
-            String id = ep.httpMethod() + " " + ep.path();
+            String id = ep.filePath() + ":" + ep.className() + ":" + ep.methodName() + " " + ep.httpMethod() + " " + ep.path();
             entryPoints.add(new HttpEntryPoint(
                 id, ep.className(), ep.methodName(), ep.filePath(),
                 0.0, false,
@@ -127,12 +127,10 @@ public class StructuralGraph {
         }
 
         for (ScheduledTaskInfo st : scheduledTasks) {
-            String id = st.cron() != null ? st.cron()
-                : (st.fixedRate() != null ? "fixedRate=" + st.fixedRate()
-                : "fixedDelay=" + st.fixedDelay());
             String schedule = st.cron() != null ? st.cron()
                 : (st.fixedRate() != null ? "fixedRate=" + st.fixedRate()
                 : "fixedDelay=" + st.fixedDelay());
+            String id = st.filePath() + ":" + st.className() + ":" + st.methodName() + " " + schedule;
             entryPoints.add(new ScheduledEntryPoint(
                 id, st.className(), st.methodName(), st.filePath(),
                 0.0, false, schedule,
@@ -141,32 +139,36 @@ public class StructuralGraph {
         }
 
         for (KafkaInfo k : kafkaListeners) {
+            String id = k.filePath() + ":" + k.className() + ":" + k.methodName() + " " + k.topics();
             entryPoints.add(new KafkaEntryPoint(
-                k.topics(), k.className(), k.methodName(), k.filePath(),
+                id, k.className(), k.methodName(), k.filePath(),
                 0.0, false,
                 k.topics(), k.isPattern(), k.payloadType()
             ));
         }
 
         for (RabbitMqInfo r : rabbitmqListeners) {
+            String id = r.filePath() + ":" + r.className() + ":" + r.methodName() + " " + r.queues();
             entryPoints.add(new RabbitMqEntryPoint(
-                r.queues(), r.className(), r.methodName(), r.filePath(),
+                id, r.className(), r.methodName(), r.filePath(),
                 0.0, false,
                 r.queues(), r.payloadType()
             ));
         }
 
         for (ActiveMqInfo a : activemqListeners) {
+            String id = a.filePath() + ":" + a.className() + ":" + a.methodName() + " " + a.destination();
             entryPoints.add(new ActiveMqEntryPoint(
-                a.destination(), a.className(), a.methodName(), a.filePath(),
+                id, a.className(), a.methodName(), a.filePath(),
                 0.0, false,
                 a.destination(), a.payloadType()
             ));
         }
 
         for (EventListenerInfo el : eventListeners) {
+            String id = el.filePath() + ":" + el.className() + ":" + el.methodName() + " " + el.payLoadType();
             entryPoints.add(new EventListenerEntryPoint(
-                el.payLoadType(), el.className(), el.methodName(), el.filePath(),
+                id, el.className(), el.methodName(), el.filePath(),
                 0.0, false,
                 el.payLoadType()
             ));

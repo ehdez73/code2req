@@ -224,8 +224,8 @@ class StructuralGraphTest {
 
         var entryPoints = graph.getEntryPoints();
 
-        assertEquals("POST /api/orders", entryPoints.get(0).id());
-        assertEquals("fixedRate=5000", entryPoints.get(1).id());
+        assertEquals("/src/Ctrl.java:Ctrl: POST /api/orders", entryPoints.get(0).id());
+        assertEquals("/src/Task.java:Task:run fixedRate=5000", entryPoints.get(1).id());
     }
 
     @Test

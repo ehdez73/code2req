@@ -1,6 +1,8 @@
 package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
 import com.embabel.agent.api.common.OperationContext;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.AnalyzedFlowResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
@@ -22,6 +24,8 @@ import com.github.ehdez73.code2req.extraction.domain.model.ExternalCall;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.GherkinScenario;
 import com.github.ehdez73.code2req.extraction.domain.model.NonFunctionalRequirement;
+import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
+import com.github.ehdez73.code2req.infrastructure.persistence.FindingType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +35,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -46,9 +51,16 @@ public class AnalyzeFlowAction {
     private static final Logger log = LoggerFactory.getLogger(AnalyzeFlowAction.class);
 
     private final CodebaseKnowledge knowledge;
+    private final ExecutionFindingStore executionFindingStore;
+    private final ObjectMapper objectMapper;
+    private final boolean resume;
 
-    public AnalyzeFlowAction(CodebaseKnowledge knowledge) {
+    public AnalyzeFlowAction(CodebaseKnowledge knowledge, ExecutionFindingStore executionFindingStore,
+                             ObjectMapper objectMapper, boolean resume) {
         this.knowledge = knowledge;
+        this.executionFindingStore = executionFindingStore;
+        this.objectMapper = objectMapper;
+        this.resume = resume;
     }
 
     public AnalyzedFlowResult analyze(TracedFlowResult tracedResult, OperationContext context) {
@@ -69,6 +81,22 @@ public class AnalyzeFlowAction {
         ComplexityLevel complexity = assessComplexity(flow);
 
         EntryPoint ep = flow.entryPoint();
+        String flowKey = deterministicFlowKey(ep);
+
+        if (resume) {
+            List<Map<String, Object>> existing = executionFindingStore.findByTaskIdAndType(flowKey, FindingType.FLOW_ANALYSIS);
+            if (!existing.isEmpty()) {
+                try {
+                    String json = (String) existing.get(0).get("finding_json");
+                    FlowAnalysisResponse cached = objectMapper.readValue(json, FlowAnalysisResponse.class);
+                    log.info("Reusing cached flow analysis for {} ({})", flowKey, ep.filePath());
+                    return buildFunctionalFlow(flow, complexity, cached);
+                } catch (Exception e) {
+                    log.warn("Failed to deserialize cached FLOW_ANALYSIS for {}: {}", flowKey, e.getMessage());
+                }
+            }
+        }
+
         Optional<ExecutionFinding> enrichment = knowledge.semanticEnrichment()
             .findByFilePath(ep.filePath());
 
@@ -280,6 +308,17 @@ public class AnalyzeFlowAction {
             .withDefaultLlm()
             .createObject(prompt, FlowAnalysisResponse.class);
 
+        try {
+            String json = objectMapper.writeValueAsString(response);
+            executionFindingStore.save(flowKey, FindingType.FLOW_ANALYSIS, json, true);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize FLOW_ANALYSIS for {}: {}", flowKey, e.getMessage());
+        }
+
+        return buildFunctionalFlow(flow, complexity, response);
+    }
+
+    private FunctionalFlow buildFunctionalFlow(ExecutionFlow flow, ComplexityLevel complexity, FlowAnalysisResponse response) {
         List<GherkinScenario> gherkinScenarios = new ArrayList<>();
         if (response.gherkinScenarios() != null) {
             for (GherkinScenarioDto dto : response.gherkinScenarios()) {
@@ -364,6 +403,10 @@ public class AnalyzeFlowAction {
             mermaid,
             nonFunctionalRequirements
         );
+    }
+
+    private static String deterministicFlowKey(EntryPoint ep) {
+        return ep.type().name() + ":" + ep.filePath() + ":" + ep.className() + ":" + ep.methodName();
     }
 
     private ComplexityLevel assessComplexity(ExecutionFlow flow) {

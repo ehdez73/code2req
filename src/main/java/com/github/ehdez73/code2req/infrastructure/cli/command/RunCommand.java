@@ -30,7 +30,7 @@ public class RunCommand {
             @ShellOption(value = "--manifest", defaultValue = "project-manifest.yaml",
                          help = "Path to the project manifest YAML file") String manifestPath,
             @ShellOption(value = "--resume", defaultValue = "false",
-                         help = "Resume mode for scan and enrich") boolean resume,
+                         help = "Resume mode for scan, enrich, and extract") boolean resume,
             @ShellOption(value = "--dry-run", defaultValue = "false",
                          help = "Dry-run mode for enrich and extract") boolean dryRun,
             @ShellOption(value = "--force", defaultValue = "false",
@@ -44,7 +44,7 @@ public class RunCommand {
         sb.append(stripSuggestions(scanCommand.executeScan(manifestPath, resume))).append("\n");
         sb.append(stripSuggestions(planCommand.plan(manifestPath))).append("\n");
         sb.append(stripSuggestions(enrichCommand.enrich(manifestPath, dryRun, resume, llmThreshold))).append("\n");
-        sb.append(stripSuggestions(extractCommand.extract(manifestPath, dryRun, force))).append("\n");
+        sb.append(stripSuggestions(extractCommand.extract(manifestPath, dryRun, force, resume))).append("\n");
         sb.append(stripSuggestions(generateCommand.generate())).append("\n");
 
         sb.append("=== Full Pipeline Complete ===");

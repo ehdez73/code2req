@@ -87,7 +87,7 @@ class ScanCommandTest {
         );
         astAnalyzer = new JavaAstAnalyzer(visitors);
 
-        indexWriter = new JsonIndexWriter(new com.github.ehdez73.code2req.common.domain.OutputConfig(tempDir.toString(), "code-graph-index.json", null));
+        indexWriter = new JsonIndexWriter(new com.github.ehdez73.code2req.common.domain.OutputConfig(tempDir.toString(), "code-graph-index.json", null, null));
         var txManager = new DataSourceTransactionManager(ds);
         var txTemplate = new TransactionTemplate(txManager);
         var executionFindingStore = new ExecutionFindingStore(jdbc);

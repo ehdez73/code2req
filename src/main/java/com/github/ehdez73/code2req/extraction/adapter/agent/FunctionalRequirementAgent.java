@@ -13,6 +13,7 @@ import com.github.ehdez73.code2req.extraction.adapter.agent.action.*;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.*;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
+import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,6 +29,15 @@ import java.util.List;
 public class FunctionalRequirementAgent {
 
     private static final Logger log = LoggerFactory.getLogger(FunctionalRequirementAgent.class);
+
+    private final ExecutionFindingStore executionFindingStore;
+    private final ObjectMapper objectMapper;
+
+    public FunctionalRequirementAgent(ExecutionFindingStore executionFindingStore) {
+        this.executionFindingStore = executionFindingStore;
+        this.objectMapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
 
     public KnowledgeLoaded loadKnowledge(OperationContext context) {
         CodebaseKnowledge knowledge = (CodebaseKnowledge) context.get("codebaseKnowledge");
@@ -88,7 +98,9 @@ public class FunctionalRequirementAgent {
             ws.setFlowAnalyzed(true);
             return new AnalyzedFlowResult(List.of());
         }
-        AnalyzeFlowAction action = new AnalyzeFlowAction(knowledge);
+        Boolean resumeFlag = (Boolean) context.get("resume");
+        boolean resume = resumeFlag != null && resumeFlag;
+        AnalyzeFlowAction action = new AnalyzeFlowAction(knowledge, executionFindingStore, objectMapper, resume);
         AnalyzedFlowResult result = action.analyze(tracedResult, context);
         ws.setFlowAnalyzed(true);
         return result;

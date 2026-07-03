@@ -36,7 +36,9 @@ public class ExtractCommand {
             @ShellOption(value = "--dry-run", defaultValue = "false",
                          help = "Simulation mode: no actual extraction") boolean dryRun,
             @ShellOption(value = "--force", defaultValue = "false",
-                         help = "Force re-execution even if no new enrichments") boolean force) {
+                         help = "Force re-execution even if no new enrichments") boolean force,
+            @ShellOption(value = "--resume", defaultValue = "false",
+                         help = "Resume previous extraction: reuse cached per-flow LLM results") boolean resume) {
 
         var sb = new StringBuilder("=== Extract ===\n\n");
         var start = Instant.now();
@@ -55,8 +57,11 @@ public class ExtractCommand {
         if (force) {
             sb.append("  Mode: FORCE (re-executing Phase 3)\n");
         }
+        if (resume) {
+            sb.append("  Mode: RESUME (reusing cached flow analyses)\n");
+        }
 
-        ExtractionResult result = extractionOrchestrator.execute(dryRun, force);
+        ExtractionResult result = extractionOrchestrator.execute(dryRun, force, resume);
         long p3Elapsed = Duration.between(phase3Start, Instant.now()).toSeconds();
 
         if (result.isBlocked()) {
@@ -90,6 +95,9 @@ public class ExtractCommand {
         }
         if (force) {
             sb.append("  Force mode: Phase 3 re-executed.\n");
+        }
+        if (resume) {
+            sb.append("  Resume mode: reused cached flow analyses.\n");
         }
 
         return sb.toString();

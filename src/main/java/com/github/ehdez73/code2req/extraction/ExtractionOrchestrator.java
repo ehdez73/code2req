@@ -108,6 +108,14 @@ public class ExtractionOrchestrator {
     }
 
     public ExtractionResult execute(boolean dryRun, boolean force) {
+        return execute(dryRun, force, false);
+    }
+
+    public ExtractionResult execute(boolean dryRun, boolean force, boolean resume) {
+        if (resume && force) {
+            throw new IllegalArgumentException("--resume and --force are mutually exclusive");
+        }
+
         if (dryRun) {
             log.info("Phase 3 dry-run: simulation mode, using stubbed synthesis");
             CodebaseKnowledge knowledge = simulateKnowledge();
@@ -116,8 +124,14 @@ public class ExtractionOrchestrator {
             return result;
         }
 
-        if (!requireAllTasksTerminal(force)) {
+        boolean gateOk = resume || force;
+        if (!requireAllTasksTerminal(gateOk)) {
             return ExtractionResult.blocked("All tasks must be SKIPPED or ENRICHED before Phase 3. Run 'enrich --resume' first.");
+        }
+
+        if (force) {
+            executionFindingStore.deleteAllByType(FindingType.FLOW_ANALYSIS);
+            log.info("Force mode: deleted all cached FLOW_ANALYSIS findings");
         }
 
         log.info("Phase 3: building CodebaseKnowledge from SQLite");
@@ -150,6 +164,7 @@ public class ExtractionOrchestrator {
             initialBlackboard.put("codebaseKnowledge", knowledge);
             initialBlackboard.put("outputDir", specDir);
             initialBlackboard.put("executionConfig", executionConfig);
+            initialBlackboard.put("resume", resume);
 
             AgentProcess process = agentPlatform.createAgentProcess(
                 agent, ProcessOptions.DEFAULT, initialBlackboard);
@@ -183,11 +198,11 @@ public class ExtractionOrchestrator {
     }
 
     public ExtractionResult execute() {
-        return execute(false, false);
+        return execute(false, false, false);
     }
 
     public ExtractionResult execute(boolean dryRun) {
-        return execute(dryRun, false);
+        return execute(dryRun, false, false);
     }
 
     boolean shouldSkipPhase3(CodebaseKnowledge knowledge, boolean force) {

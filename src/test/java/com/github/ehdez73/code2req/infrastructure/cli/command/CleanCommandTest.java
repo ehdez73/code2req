@@ -46,7 +46,7 @@ class CleanCommandTest {
         var floatingLinkStore = new FloatingLinkStore(jdbc);
         var metricsStore = new MetricsStore(jdbc);
         command = new CleanCommand(taskStore, executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore,
-            new OutputConfig(specDir.toString(), "code-graph-index.json", null), jdbc);
+            new OutputConfig(specDir.toString(), "code-graph-index.json", null, null), jdbc);
     }
 
     @Test

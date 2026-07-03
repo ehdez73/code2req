@@ -56,7 +56,7 @@ public class JsonIndexWriter implements IndexWriter {
         FINDING_KEYS.put(ScheduledTaskInfo.class, "scheduled_tasks");
         FINDING_KEYS.put(EventListenerInfo.class, "event_listeners");
         FINDING_KEYS.put(EventPublisherInfo.class, "event_publishers");
-        FINDING_KEYS.put(ValidatorInfo.class, "validators");
+
         FINDING_KEYS.put(KafkaInfo.class, "kafka_listeners");
         FINDING_KEYS.put(KafkaPublisherInfo.class, "kafka_publishers");
         FINDING_KEYS.put(BeanMethodInfo.class, "bean_methods");
@@ -161,6 +161,39 @@ public class JsonIndexWriter implements IndexWriter {
             if (!collected.isEmpty()) {
                 node.set(entry.getValue(), mapper.valueToTree(collected));
             }
+        }
+
+        List<ValidatorInfo> allValidators = new ArrayList<>();
+        for (AnalysisResult result : results) {
+            for (AnalysisFinding f : result.findings(ValidatorInfo.class)) {
+                allValidators.add((ValidatorInfo) f);
+            }
+        }
+        if (!allValidators.isEmpty()) {
+            Map<String, Map<String, List<ValidatorInfo>>> byFileAndClass = new LinkedHashMap<>();
+            for (ValidatorInfo v : allValidators) {
+                byFileAndClass
+                    .computeIfAbsent(v.filePath(), k -> new LinkedHashMap<>())
+                    .computeIfAbsent(v.className(), k -> new ArrayList<>())
+                    .add(v);
+            }
+            ArrayNode arr = mapper.createArrayNode();
+            for (var fileEntry : byFileAndClass.entrySet()) {
+                for (var classEntry : fileEntry.getValue().entrySet()) {
+                    ObjectNode group = mapper.createObjectNode();
+                    group.put("filePath", fileEntry.getKey());
+                    group.put("className", classEntry.getKey());
+                    ArrayNode constraints = mapper.valueToTree(classEntry.getValue());
+                    constraints.forEach(c -> {
+                        ((ObjectNode) c).remove("className");
+                        ((ObjectNode) c).remove("filePath");
+                        ((ObjectNode) c).remove("resolved");
+                    });
+                    group.set("constraints", constraints);
+                    arr.add(group);
+                }
+            }
+            node.set("validators", arr);
         }
 
         if (!templateForms.isEmpty()) {

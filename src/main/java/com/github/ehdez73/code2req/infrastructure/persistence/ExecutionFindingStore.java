@@ -109,6 +109,10 @@ public class ExecutionFindingStore implements ExecutionFindingRepository {
         """, findingType);
     }
 
+    public void deleteAllByType(String findingType) {
+        jdbc.update("DELETE FROM execution_findings WHERE finding_type = ?", findingType);
+    }
+
     public int deleteOrphanedSemanticEnrichment() {
         return jdbc.update("""
             DELETE FROM execution_findings

@@ -17,7 +17,7 @@ class RunCommandTest {
 
         when(plan.plan(any())).thenReturn("plan ok");
         when(enrich.enrich(any(), anyBoolean(), anyBoolean(), any())).thenReturn("enrich ok");
-        when(extract.extract(any(), anyBoolean(), anyBoolean())).thenReturn("extract ok");
+        when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn("extract ok");
         when(generate.generate()).thenReturn("generate ok");
 
         var run = new RunCommand(scan, plan, enrich, extract, generate);
@@ -25,7 +25,7 @@ class RunCommandTest {
 
         verify(plan).plan("manifest.yaml");
         verify(enrich).enrich("manifest.yaml", false, false, null);
-        verify(extract).extract("manifest.yaml", false, false);
+        verify(extract).extract("manifest.yaml", false, false, false);
         verify(generate).generate();
         assertTrue(result.contains("Pipeline Complete"));
     }
@@ -40,7 +40,7 @@ class RunCommandTest {
 
         when(plan.plan(any())).thenReturn("plan ok");
         when(enrich.enrich(any(), anyBoolean(), anyBoolean(), any())).thenReturn("enrich ok");
-        when(extract.extract(any(), anyBoolean(), anyBoolean())).thenReturn("extract ok");
+        when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn("extract ok");
         when(generate.generate()).thenReturn("generate ok");
 
         var run = new RunCommand(scan, plan, enrich, extract, generate);
@@ -60,7 +60,7 @@ class RunCommandTest {
 
         when(plan.plan(any())).thenReturn("plan dry");
         when(enrich.enrich(any(), anyBoolean(), anyBoolean(), any())).thenReturn("enrich dry");
-        when(extract.extract(any(), anyBoolean(), anyBoolean())).thenReturn("extract dry");
+        when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn("extract dry");
         when(generate.generate()).thenReturn("generate dry");
 
         var run = new RunCommand(scan, plan, enrich, extract, generate);

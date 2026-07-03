@@ -55,20 +55,20 @@ class ExtractCommandTest {
 
     @Test
     void extractDryRunReturnsZeroCounts() {
-        String result = command.extract("project-manifest.yaml", true, false);
+        String result = command.extract("project-manifest.yaml", true, false, false);
         assertTrue(result.contains("Flows extracted: 0"));
         assertTrue(result.contains("Extract"));
     }
 
     @Test
     void extractWithInvalidManifestReturnsError() {
-        String result = command.extract("nonexistent.yaml", false, false);
+        String result = command.extract("nonexistent.yaml", false, false, false);
         assertTrue(result.contains("Error: Manifest file not found"));
     }
 
     @Test
     void extractWithForceShowsForceMode() {
-        String result = command.extract("project-manifest.yaml", true, true);
+        String result = command.extract("project-manifest.yaml", true, true, false);
         assertTrue(result.contains("FORCE"));
         assertTrue(result.contains("Phase 3"));
     }

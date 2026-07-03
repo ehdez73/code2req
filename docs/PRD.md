@@ -435,7 +435,7 @@ The agent requires `embabel-agent-starter` (core GOAP engine) on the classpath.
 3. **Actions (pluggable, GOAP-scheduled via world-state conditions):**
    - `DiscoverEntryPoints` — Scan `CodebaseKnowledge` for all entry points (HTTP endpoints, @Scheduled, @KafkaListener, @RabbitListener, @JmsListener, @EventListener). Score each by priority and filter trivial endpoints (actuator, health, metrics).
    - `TraceFlow` — For the highest-priority unscheduled entry point, follow call graph edges through the codebase. Build a `FlowStep` list tracing from entry point through services to repositories. Adaptive depth — agent decides when to stop based on complexity.
-   - `AnalyzeFlow` — For a traced flow, extract business semantics: user story, Gherkin scenarios, business rules, edge cases. Uses Phase 2 enrichment as context, raw source for gaps.
+   - `AnalyzeFlow` — For a traced flow, extract business semantics: user story, Gherkin scenarios, business rules, edge cases. Uses Phase 2 enrichment as context, raw source for gaps. Each result is cached in SQLite (`execution_findings.finding_type = FLOW_ANALYSIS`) and reused on `extract --resume`.
    - `GroupFlows` — After analyzing multiple flows, cluster related flows into features using semantic similarity (e.g., GET/POST /orders -> "Order Management").
     - `CrossReferenceFlows` — Resolve inter-flow dependencies (Order flow -> Payment flow). Match floating HTTP calls and topic publications to known endpoints.
     - `QuarantineFlow` — When a flow cannot be fully resolved (exceeds investigation budget, low confidence), flag it for human review.
@@ -836,7 +836,7 @@ The `--resume` flag on `run` handles full crash recovery across all interruptibl
 3. **DAG Realignment:** The Planner rebuilds the dependency graph from the updated database state, resuming analysis with zero metadata corruption or double token expenditures.
 4. **Single-flag recovery:** A single `enrich --resume` recovers all interruptible states including AWAITING_HUMAN_REVIEW and FAILED tasks.
 
-5. **Phase 3 Marker Recovery:** Unlike Phase 2's per-task persistence, Phase 3 executes as a single synchronous pass with no intermediate checkpointing. To prevent redundant re-execution after a crash, a dedicated Phase 3 status marker task is maintained in the `tasks` table:
+5. **Phase 3 Marker Recovery:** Phase 3 persists each per-flow LLM result (`AnalyzeFlowAction` output) to SQLite as a `FLOW_ANALYSIS` finding. This enables `extract --resume` to skip already-analyzed flows on re-run. To prevent redundant re-execution after a crash, a dedicated Phase 3 status marker task is maintained in the `tasks` table:
    - **Marker task ID:** Deterministic SHA-256 of `__phase3_marker__`.
    - **Marker lifecycle:**
      - `PENDING` — Phase 3 not started or previous run completed cleanly.
@@ -946,9 +946,9 @@ The application must expose the following commands via Spring Shell:
 | `scan` | `[--manifest path] [--resume]` | Run Phase 1 (indexing) only — produces `code-graph-index.json` and populates SQLite. `--resume` skips already-completed files. |
 | `plan` | `[--manifest path]` | Evaluate INDEXED tasks, transition qualified ones to ENRICH_PENDING and non-qualified ones to SKIPPED, and show the enrichment plan |
 | `enrich` | `[--manifest path] [--dry-run] [--resume] [--llm-threshold N]` | Run Phase 2 LLM-powered per-file semantic enrichment via Spring AI + OpenRouter. `--resume` recovers orphaned tasks; `--llm-threshold` sets the minimum unresolved signatures to qualify (default: 5). |
-| `extract` | `[--manifest path] [--dry-run] [--force]` | Run Phase 3 Embabel GOAP agent for functional requirement extraction over enriched data; caches results for spec generation. `--force` re-executes even if no new enrichments. |
+| `extract` | `[--manifest path] [--dry-run] [--force] [--resume]` | Run Phase 3 Embabel GOAP agent for functional requirement extraction over enriched data; caches results for spec generation. `--force` re-executes even if no new enrichments. `--resume` reuses cached per-flow LLM results; skips analysis for already-completed flows. |
 | `generate` | | Generate `spec.md` and `semantic_manifest.json` from cached extraction results |
-| `run` | `[--manifest path] [--resume] [--dry-run] [--force] [--llm-threshold N]` | Execute full pipeline: scan → plan → enrich → extract → generate. Chains each phase's output as input to the next. |
+| `run` | `[--manifest path] [--resume] [--dry-run] [--force] [--llm-threshold N]` | Execute full pipeline: scan → plan → enrich → extract → generate. Chains each phase's output as input to the next. `--resume` propagates to all phases: recovers orphaned tasks in scan/enrich and reuses cached flow analyses in extract. |
 | `status` | | Show current SQLite task state summary and counters |
 | `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `ENRICHING`, `ENRICH_PENDING`, `FAILED`, and `PENDING` tasks, skip completed files. Delegates to `scan --resume`. |
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |

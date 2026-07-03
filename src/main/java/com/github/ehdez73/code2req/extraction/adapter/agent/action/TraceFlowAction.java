@@ -24,8 +24,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
+
 
 /**
  * For the highest-priority unscheduled entry point, follows call graph edges
@@ -102,7 +102,7 @@ public class TraceFlowAction {
             log.debug("Reusing cached trace for {}", cacheKey);
             List<FlowStep> cachedSteps = subChainCache.get(cacheKey);
             return new ExecutionFlow(
-                UUID.randomUUID().toString(), entryPoint,
+                entryPoint.id(), entryPoint,
                 cachedSteps, cachedSteps.size(), List.of(),
                 FlowStatus.TRACED
             );
@@ -121,7 +121,7 @@ public class TraceFlowAction {
         FlowStatus status = steps.isEmpty() ? FlowStatus.QUARANTINED : FlowStatus.TRACED;
 
         return new ExecutionFlow(
-            UUID.randomUUID().toString(), entryPoint,
+            entryPoint.id(), entryPoint,
             steps, steps.size(), unresolvedCalls, status
         );
     }
