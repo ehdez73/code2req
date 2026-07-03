@@ -5,7 +5,9 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.Endpoin
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
+import com.github.javaparser.ast.expr.ArrayInitializerExpr;
 import com.github.javaparser.ast.expr.MemberValuePair;
+import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
@@ -125,6 +127,20 @@ public class SpringEndpointDetector implements EndpointDetector {
                                     }
                                 }
                             }
+                            if (e instanceof MethodCallExpr mce) {
+                                var clazz = n.findAncestor(ClassOrInterfaceDeclaration.class);
+                                if (clazz.isPresent()) {
+                                    for (var method : clazz.get().getMethods()) {
+                                        if (method.getNameAsString().equals(mce.getNameAsString())
+                                            && method.getParameters().size() == mce.getArguments().size()) {
+                                            String viewName = extractViewName(method);
+                                            if (!viewName.isEmpty()) {
+                                                return viewName;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -153,12 +169,20 @@ public class SpringEndpointDetector implements EndpointDetector {
         if (ann instanceof NormalAnnotationExpr nae) {
             for (MemberValuePair pair : nae.getPairs()) {
                 if (pair.getNameAsString().equals(attr)) {
-                    return Optional.of(pair.getValue().toString().replaceAll("^\"|\"$", ""));
+                    var value = pair.getValue();
+                    if (value instanceof ArrayInitializerExpr aie && !aie.getValues().isEmpty()) {
+                        return Optional.of(aie.getValues().get(0).toString().replaceAll("^\"|\"$", ""));
+                    }
+                    return Optional.of(value.toString().replaceAll("^\"|\"$", ""));
                 }
             }
         }
         if (ann instanceof SingleMemberAnnotationExpr smae && "value".equals(attr)) {
-            return Optional.of(smae.getMemberValue().toString().replaceAll("^\"|\"$", ""));
+            var value = smae.getMemberValue();
+            if (value instanceof ArrayInitializerExpr aie && !aie.getValues().isEmpty()) {
+                return Optional.of(aie.getValues().get(0).toString().replaceAll("^\"|\"$", ""));
+            }
+            return Optional.of(value.toString().replaceAll("^\"|\"$", ""));
         }
         return Optional.empty();
     }
