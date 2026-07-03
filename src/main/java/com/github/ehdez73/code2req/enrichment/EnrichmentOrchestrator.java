@@ -47,7 +47,6 @@ public class EnrichmentOrchestrator {
     private final EnrichmentPlanner planner;
     private final LlmEnrichmentService semanticExecutor;
     private final TaskStore taskStore;
-    private final ExecutionFindingStore findingStore;
     private final MetricsStore metricsStore;
     private final ExecutionConfig executionConfig;
     private final TaskIdHasher taskIdHasher;
@@ -57,15 +56,13 @@ public class EnrichmentOrchestrator {
     private final PairedExecutionResolver pairedExecutionResolver;
 
     public EnrichmentOrchestrator(EnrichmentPlanner planner, LlmEnrichmentService executor,
-                                  TaskStore taskStore, ExecutionFindingStore findingStore,
-                                  MetricsStore metricsStore, ExecutionConfig executionConfig,
+                                  TaskStore taskStore, MetricsStore metricsStore, ExecutionConfig executionConfig,
                                   TaskIdHasher taskIdHasher, ContextBudgetCalculator budgetCalculator,
                                   ManifestLoader manifestLoader, FilePathResolver filePathResolver,
                                   PairedExecutionResolver per) {
         this.planner = planner;
         this.semanticExecutor = executor;
         this.taskStore = taskStore;
-        this.findingStore = findingStore;
         this.metricsStore = metricsStore;
         this.executionConfig = executionConfig;
         this.taskIdHasher = taskIdHasher;

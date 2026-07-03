@@ -31,6 +31,7 @@
         <sqlite-jdbc.version>3.45.1.0</sqlite-jdbc.version>
         <javaparser.version>3.25.9</javaparser.version>
         <embabel-agent.version>0.5.0</embabel-agent.version>
+        <byte-buddy-agent.version>1.17.8</byte-buddy-agent.version>
 
     </properties>
 
@@ -57,6 +58,16 @@
                 <version>${spring-shell.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>net.bytebuddy</groupId>
+                <artifactId>byte-buddy</artifactId>
+                <version>${byte-buddy-agent.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.bytebuddy</groupId>
+                <artifactId>byte-buddy-agent</artifactId>
+                <version>${byte-buddy-agent.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -158,6 +169,13 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <jvmArguments>-Djline.terminal=jline.UnixTerminal</jvmArguments>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Xshare:off -XX:+EnableDynamicAgentLoading -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${byte-buddy-agent.version}/byte-buddy-agent-${byte-buddy-agent.version}.jar</argLine>
                 </configuration>
             </plugin>
         </plugins>

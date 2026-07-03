@@ -101,10 +101,7 @@ class JavaAstAnalyzerTest {
 
         AnalysisResult result = analyzer.analyze(file);
 
-        assertEquals(1, result.findings(ComponentInfo.class).size());
-        assertEquals("other", result.findings(ComponentInfo.class).getFirst().annotationType());
-        assertEquals("PlainModel", result.findings(ComponentInfo.class).getFirst().className());
-        assertEquals("com.example.model", result.findings(ComponentInfo.class).getFirst().packageName());
+        assertTrue(result.findings(ComponentInfo.class).isEmpty());
         assertTrue(result.findings(EndpointInfo.class).isEmpty());
         assertTrue(result.findings(ScheduledTaskInfo.class).isEmpty());
         assertTrue(result.findings(EventListenerInfo.class).isEmpty());

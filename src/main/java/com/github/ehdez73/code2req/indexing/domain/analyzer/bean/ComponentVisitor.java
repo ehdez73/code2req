@@ -65,7 +65,9 @@ public class ComponentVisitor implements AstAnalysisVisitor {
                 })
                 .orElse("");
 
-            collector.add(new ComponentInfo(annotationType, n.getNameAsString(), packageName, filePath));
+            if (!"other".equals(annotationType)) {
+                collector.add(new ComponentInfo(annotationType, n.getNameAsString(), packageName, filePath));
+            }
             super.visit(n, collector);
         }
     }

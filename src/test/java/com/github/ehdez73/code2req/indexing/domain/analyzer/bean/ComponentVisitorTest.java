@@ -31,7 +31,7 @@ class ComponentVisitorTest {
             """);
 
         assertEquals(1, result.findings(ComponentInfo.class).size());
-        ComponentInfo c = result.findings(ComponentInfo.class).getFirst();
+        ComponentInfo c = result.findings(ComponentInfo.class).get(0);
         assertEquals("RestController", c.annotationType());
         assertEquals("MyController", c.className());
         assertEquals("com.example", c.packageName());
@@ -47,7 +47,7 @@ class ComponentVisitorTest {
             """);
 
         assertEquals(1, result.findings(ComponentInfo.class).size());
-        assertEquals("Service", result.findings(ComponentInfo.class).getFirst().annotationType());
+        assertEquals("Service", result.findings(ComponentInfo.class).get(0).annotationType());
     }
 
     @Test
@@ -60,7 +60,7 @@ class ComponentVisitorTest {
             """);
 
         assertEquals(1, result.findings(ComponentInfo.class).size());
-        assertEquals("Repository", result.findings(ComponentInfo.class).getFirst().annotationType());
+        assertEquals("Repository", result.findings(ComponentInfo.class).get(0).annotationType());
     }
 
     @Test
@@ -73,7 +73,7 @@ class ComponentVisitorTest {
             """);
 
         assertEquals(1, result.findings(ComponentInfo.class).size());
-        assertEquals("Component", result.findings(ComponentInfo.class).getFirst().annotationType());
+        assertEquals("Component", result.findings(ComponentInfo.class).get(0).annotationType());
     }
 
     @Test
@@ -86,7 +86,7 @@ class ComponentVisitorTest {
             """);
 
         assertEquals(1, result.findings(ComponentInfo.class).size());
-        assertEquals("Controller", result.findings(ComponentInfo.class).getFirst().annotationType());
+        assertEquals("Controller", result.findings(ComponentInfo.class).get(0).annotationType());
     }
 
     @Test
@@ -96,10 +96,7 @@ class ComponentVisitorTest {
             public class PlainClass {}
             """);
 
-        assertEquals(1, result.findings(ComponentInfo.class).size());
-        assertEquals("other", result.findings(ComponentInfo.class).getFirst().annotationType());
-        assertEquals("PlainClass", result.findings(ComponentInfo.class).getFirst().className());
-        assertEquals("com.example", result.findings(ComponentInfo.class).getFirst().packageName());
+        assertTrue(result.findings(ComponentInfo.class).isEmpty());
     }
 
     @Test
@@ -121,7 +118,8 @@ class ComponentVisitorTest {
             class HelperClass {}
             """);
 
-        assertEquals(2, result.findings(ComponentInfo.class).size());
+        assertEquals(1, result.findings(ComponentInfo.class).size());
+        assertEquals("Service", result.findings(ComponentInfo.class).get(0).annotationType());
     }
 
     @Test
@@ -131,6 +129,6 @@ class ComponentVisitorTest {
             public class MyApi {}
             """);
 
-        assertEquals("/path/to/MyApi.java", result.findings(ComponentInfo.class).getFirst().filePath());
+        assertEquals("/path/to/MyApi.java", result.findings(ComponentInfo.class).get(0).filePath());
     }
 }

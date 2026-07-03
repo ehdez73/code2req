@@ -112,8 +112,7 @@ class EnrichmentOrchestratorTest {
         var filePathResolver = new FilePathResolver();
         var per = new PairedExecutionResolver(
             new TestFileMatcher(executionConfig), new TestAssertionExtractor());
-        return new EnrichmentOrchestrator(planner, executor, taskStore, findingStore,
-            metricsStore, executionConfig, taskIdHasher, budgetCalculator,
+        return new EnrichmentOrchestrator(planner, executor, taskStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator,
             manifestLoader, filePathResolver, per);
     }
 
@@ -215,8 +214,7 @@ class EnrichmentOrchestratorTest {
                 executionConfig, null, txTemplate);
             var per = new PairedExecutionResolver(
                 new TestFileMatcher(executionConfig), new TestAssertionExtractor());
-            var orchestratorWithDeps = new EnrichmentOrchestrator(planner, executor, taskStore,
-                findingStore, metricsStore,
+            var orchestratorWithDeps = new EnrichmentOrchestrator(planner, executor, taskStore, metricsStore,
                 new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null, null),
                 taskIdHasher, budgetCalculator, new ManifestLoader(),
                 new FilePathResolver(), per);
@@ -254,7 +252,7 @@ class EnrichmentOrchestratorTest {
             var per = new PairedExecutionResolver(
                 new TestFileMatcher(executionConfig), new TestAssertionExtractor());
             var orchestratorWithDeps = new EnrichmentOrchestrator(planner, executor, taskStore,
-                findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator,
+                metricsStore, executionConfig, taskIdHasher, budgetCalculator,
                 new ManifestLoader(), new FilePathResolver(), per);
 
             CompletionStatus status = orchestratorWithDeps.execute(manifestPath.toString(), true);

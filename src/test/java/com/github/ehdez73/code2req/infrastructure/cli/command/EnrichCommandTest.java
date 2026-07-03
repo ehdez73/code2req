@@ -94,7 +94,7 @@ class EnrichCommandTest {
         var per = new PairedExecutionResolver(
             new TestFileMatcher(executionConfig), new TestAssertionExtractor());
         var orchestrator = new EnrichmentOrchestrator(planner, executor, taskStore,
-            findingStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator,
+            metricsStore, executionConfig, taskIdHasher, budgetCalculator,
             new ManifestLoader(), new FilePathResolver(), per);
 
         var manifestLoader = new ManifestLoader();
