@@ -47,10 +47,12 @@ public class AppConfig {
     }
 
     @Bean("orchestratorTaskExecutor")
-    public Executor orchestratorTaskExecutor() {
+    public Executor orchestratorTaskExecutor(ExecutionConfig executionConfig) {
+        int corePoolSize = executionConfig.maxConcurrentLlmCalls() != null
+            ? executionConfig.maxConcurrentLlmCalls() : 5;
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(10);
+        executor.setCorePoolSize(corePoolSize);
+        executor.setMaxPoolSize(Math.max(10, corePoolSize));
         executor.setQueueCapacity(1000);
         executor.setThreadNamePrefix("c2r-orchestrator-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
