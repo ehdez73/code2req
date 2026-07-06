@@ -1,6 +1,6 @@
 package com.github.ehdez73.code2req.enrichment.adapter.llm.testmining;
 
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
@@ -14,8 +14,8 @@ public class TestFileMatcher {
 
     private final List<String> testSuffixes;
 
-    public TestFileMatcher(ExecutionConfig executionConfig) {
-        this.testSuffixes = executionConfig.resolvedTestSuffixes();
+    public TestFileMatcher(IndexingConfig indexingConfig) {
+        this.testSuffixes = indexingConfig.resolvedTestSuffixes();
     }
 
     private boolean isTestFileName(String baseName) {

@@ -3,7 +3,7 @@ package com.github.ehdez73.code2req.extraction;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
@@ -63,7 +63,7 @@ public class ExtractionOrchestrator {
     private final TopicLinkStore topicLinkStore;
     private final MetricsStore metricsStore;
     private final AgentPlatform agentPlatform;
-    private final ExecutionConfig executionConfig;
+    private final ExtractionConfig extractionConfig;
     private final QuarantineConfig quarantineConfig;
     private final ObjectMapper objectMapper;
     private final Path cachePath;
@@ -73,11 +73,11 @@ public class ExtractionOrchestrator {
     public ExtractionOrchestrator(TaskStore taskStore, ExecutionFindingStore executionFindingStore,
                                   FloatingLinkStore floatingLinkStore, TopicLinkStore topicLinkStore,
                                   MetricsStore metricsStore, AgentPlatform agentPlatform,
-                                  ExecutionConfig executionConfig, QuarantineConfig quarantineConfig,
+                                  ExtractionConfig extractionConfig, QuarantineConfig quarantineConfig,
                                   @Value("${code2req.output.spec-dir:./spec-output}") String specDir,
                                   @Value("${code2req.output.extraction-cache-file:extraction-cache.json}") String cacheFile) {
         this(taskStore, executionFindingStore, floatingLinkStore, topicLinkStore,
-             metricsStore, agentPlatform, executionConfig, quarantineConfig,
+             metricsStore, agentPlatform, extractionConfig, quarantineConfig,
              Path.of(specDir).resolve(cacheFile).normalize(),
              Path.of(specDir).normalize());
     }
@@ -85,9 +85,9 @@ public class ExtractionOrchestrator {
     public ExtractionOrchestrator(TaskStore taskStore, ExecutionFindingStore executionFindingStore,
                             FloatingLinkStore floatingLinkStore, TopicLinkStore topicLinkStore,
                             MetricsStore metricsStore, AgentPlatform agentPlatform,
-                            ExecutionConfig executionConfig, QuarantineConfig quarantineConfig) {
+                            ExtractionConfig extractionConfig, QuarantineConfig quarantineConfig) {
         this(taskStore, executionFindingStore, floatingLinkStore, topicLinkStore,
-             metricsStore, agentPlatform, executionConfig, quarantineConfig,
+             metricsStore, agentPlatform, extractionConfig, quarantineConfig,
              Path.of("./spec-output").resolve("extraction-cache.json").normalize(),
              Path.of("./spec-output").normalize());
     }
@@ -95,7 +95,7 @@ public class ExtractionOrchestrator {
     private ExtractionOrchestrator(TaskStore taskStore, ExecutionFindingStore executionFindingStore,
                                    FloatingLinkStore floatingLinkStore, TopicLinkStore topicLinkStore,
                                    MetricsStore metricsStore, AgentPlatform agentPlatform,
-                                   ExecutionConfig executionConfig, QuarantineConfig quarantineConfig,
+                                   ExtractionConfig extractionConfig, QuarantineConfig quarantineConfig,
                                    Path cachePath, Path specDir) {
         this.taskStore = taskStore;
         this.executionFindingStore = executionFindingStore;
@@ -103,7 +103,7 @@ public class ExtractionOrchestrator {
         this.topicLinkStore = topicLinkStore;
         this.metricsStore = metricsStore;
         this.agentPlatform = agentPlatform;
-        this.executionConfig = executionConfig;
+        this.extractionConfig = extractionConfig;
         this.quarantineConfig = quarantineConfig;
         this.objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -167,14 +167,14 @@ public class ExtractionOrchestrator {
             Map<String, Object> initialBlackboard = new HashMap<>();
             initialBlackboard.put("codebaseKnowledge", knowledge);
             initialBlackboard.put("outputDir", specDir);
-            initialBlackboard.put("executionConfig", executionConfig);
+            initialBlackboard.put("extractionConfig", extractionConfig);
             initialBlackboard.put("quarantineConfig", quarantineConfig);
             initialBlackboard.put("resume", resume);
 
             AgentProcess process = agentPlatform.createAgentProcess(
                 agent, ProcessOptions.DEFAULT, initialBlackboard);
             agentPlatform.start(process).get(
-                executionConfig.resolvedPhase3TimeoutMinutes(), TimeUnit.MINUTES);
+                extractionConfig.resolvedPhase3TimeoutMinutes(), TimeUnit.MINUTES);
 
             ExtractionCache cache = process.resultOfType(ExtractionCache.class);
 

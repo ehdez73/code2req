@@ -10,7 +10,7 @@ import com.github.ehdez73.code2req.enrichment.adapter.llm.LlmEnrichmentService;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.PairedExecutionResolver;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.PairedExecutionResolver.PairedTestInfo;
 import com.github.ehdez73.code2req.enrichment.domain.model.CompletionStatus;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.enrichment.domain.model.PlannerDecision;
 import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
@@ -48,7 +48,7 @@ public class EnrichmentOrchestrator {
     private final LlmEnrichmentService semanticExecutor;
     private final TaskStore taskStore;
     private final MetricsStore metricsStore;
-    private final ExecutionConfig executionConfig;
+    private final IndexingConfig indexingConfig;
     private final TaskIdHasher taskIdHasher;
     private final ContextBudgetCalculator budgetCalculator;
     private final ManifestLoader manifestLoader;
@@ -56,7 +56,7 @@ public class EnrichmentOrchestrator {
     private final PairedExecutionResolver pairedExecutionResolver;
 
     public EnrichmentOrchestrator(EnrichmentPlanner planner, LlmEnrichmentService executor,
-                                  TaskStore taskStore, MetricsStore metricsStore, ExecutionConfig executionConfig,
+                                  TaskStore taskStore, MetricsStore metricsStore, IndexingConfig indexingConfig,
                                   TaskIdHasher taskIdHasher, ContextBudgetCalculator budgetCalculator,
                                   ManifestLoader manifestLoader, FilePathResolver filePathResolver,
                                   PairedExecutionResolver per) {
@@ -64,7 +64,7 @@ public class EnrichmentOrchestrator {
         this.semanticExecutor = executor;
         this.taskStore = taskStore;
         this.metricsStore = metricsStore;
-        this.executionConfig = executionConfig;
+        this.indexingConfig = indexingConfig;
         this.taskIdHasher = taskIdHasher;
         this.budgetCalculator = budgetCalculator;
         this.manifestLoader = manifestLoader;
@@ -80,7 +80,7 @@ public class EnrichmentOrchestrator {
         }
 
         EnrichmentDag dag = initializeDag(qualified);
-        int maxDepth = executionConfig.maxDiscoveryDepth();
+        int maxDepth = indexingConfig.resolvedMaxDiscoveryDepth();
 
         int totalTokens = 0;
         int tasksCompleted = 0;
@@ -144,7 +144,7 @@ public class EnrichmentOrchestrator {
     }
 
     private EnrichmentDag initializeDag(List<PlannerDecision> qualified) {
-        int maxDepth = executionConfig.maxDiscoveryDepth();
+        int maxDepth = indexingConfig.resolvedMaxDiscoveryDepth();
         EnrichmentDag dag = new EnrichmentDag(maxDepth);
         for (PlannerDecision d : qualified) {
             dag.registerRootTask(d);

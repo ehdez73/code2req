@@ -8,7 +8,8 @@ import com.github.ehdez73.code2req.enrichment.adapter.llm.SimulationStub;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.PairedExecutionResolver;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestAssertionExtractor;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestFileMatcher;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
+import com.github.ehdez73.code2req.enrichment.domain.model.EnrichmentConfig;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.enrichment.EnrichmentOrchestrator;
@@ -70,9 +71,10 @@ class EnrichCommandTest {
         var taskIdHasher = new TaskIdHasher();
         var budgetCalculator = new ContextBudgetCalculator();
         var simulationStub = new SimulationStub();
-        var executionConfig = new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null, null, null);
+        var indexingConfig = new IndexingConfig(3, List.of("Test", "IT"));
+        var enrichmentConfig = new EnrichmentConfig(5, 5, null, null, null, null);
 
-        var tfm = new TestFileMatcher(executionConfig);
+        var tfm = new TestFileMatcher(indexingConfig);
         List<QualificationRule> rules = List.of(
             new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
@@ -90,11 +92,11 @@ class EnrichCommandTest {
         var txTemplate = new TransactionTemplate(txManager);
         var executor = new LlmEnrichmentService(null, findingStore, taskStore,
             budgetCalculator, simulationStub, null, null, new TestAssertionExtractor(),
-            executionConfig, null, txTemplate);
+            enrichmentConfig, null, txTemplate);
         var per = new PairedExecutionResolver(
-            new TestFileMatcher(executionConfig), new TestAssertionExtractor());
+            new TestFileMatcher(indexingConfig), new TestAssertionExtractor());
         var orchestrator = new EnrichmentOrchestrator(planner, executor, taskStore,
-            metricsStore, executionConfig, taskIdHasher, budgetCalculator,
+            metricsStore, indexingConfig, taskIdHasher, budgetCalculator,
             new ManifestLoader(), new FilePathResolver(), per);
 
         var manifestLoader = new ManifestLoader();

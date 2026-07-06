@@ -5,7 +5,7 @@ import com.github.ehdez73.code2req.infrastructure.config.ManifestValidator;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.FloatingLinkStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.MetricsStore;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.infrastructure.persistence.TaskStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.TaskStoreSchema;
 import com.github.ehdez73.code2req.infrastructure.persistence.TopicLinkStore;
@@ -43,10 +43,10 @@ class ExtractCommandTest {
         var floatingLinkStore = new FloatingLinkStore(jdbc);
         var topicLinkStore = new TopicLinkStore(jdbc);
 
-        var executionConfig = new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null);
+        var extractionConfig = new ExtractionConfig(null, null);
         var orchestrator = new ExtractionOrchestrator(
             taskStore, findingStore, floatingLinkStore, topicLinkStore, metricsStore,
-            mock(AgentPlatform.class), executionConfig, null);
+            mock(AgentPlatform.class), extractionConfig, null);
         var manifestLoader = new ManifestLoader();
         var manifestValidator = new ManifestValidator(manifestLoader);
 

@@ -3,7 +3,7 @@ package com.github.ehdez73.code2req.infrastructure.cli.command;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestLoader;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestValidator;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestFileMatcher;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
@@ -54,7 +54,7 @@ class PlanCommandTest {
         var floatingLinkStore = new FloatingLinkStore(jdbc);
 
         var tfm = new TestFileMatcher(
-            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null));
+            new IndexingConfig(null, null));
         List<QualificationRule> rules = List.of(
             new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),

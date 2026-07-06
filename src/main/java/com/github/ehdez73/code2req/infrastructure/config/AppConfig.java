@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.enrichment.domain.model.EnrichmentConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.QuarantineConfig;
+import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import com.github.ehdez73.code2req.common.domain.OutputConfig;
 import com.github.ehdez73.code2req.infrastructure.snapshot.RefreshableDataSource;
 import com.zaxxer.hikari.HikariDataSource;
@@ -29,7 +31,7 @@ import java.io.IOException;
 import java.util.concurrent.Executor;
 
 @Configuration
-@EnableConfigurationProperties({ExecutionConfig.class, QuarantineConfig.class, OutputConfig.class})
+@EnableConfigurationProperties({EnrichmentConfig.class, IndexingConfig.class, ExtractionConfig.class, QuarantineConfig.class, OutputConfig.class})
 public class AppConfig {
 
     Logger logger = org.slf4j.LoggerFactory.getLogger(AppConfig.class);
@@ -48,9 +50,9 @@ public class AppConfig {
     }
 
     @Bean("orchestratorTaskExecutor")
-    public Executor orchestratorTaskExecutor(ExecutionConfig executionConfig) {
-        int corePoolSize = executionConfig.maxConcurrentLlmCalls() != null
-            ? executionConfig.maxConcurrentLlmCalls() : 5;
+    public Executor orchestratorTaskExecutor(EnrichmentConfig enrichmentConfig) {
+        int corePoolSize = enrichmentConfig.maxConcurrentLlmCalls() != null
+            ? enrichmentConfig.maxConcurrentLlmCalls() : 5;
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(corePoolSize);
         executor.setMaxPoolSize(Math.max(10, corePoolSize));

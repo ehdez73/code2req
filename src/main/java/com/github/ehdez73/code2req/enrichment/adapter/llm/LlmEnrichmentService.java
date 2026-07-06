@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestAssertionExtractor;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.enrichment.domain.model.EnrichmentConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionMode;
 import com.github.ehdez73.code2req.enrichment.domain.model.PlannerDecision;
 import com.github.ehdez73.code2req.common.domain.Task;
@@ -45,7 +45,7 @@ public class LlmEnrichmentService {
     private final ExecutionFindingValidator validator;
     private final ExecutionFindingParser parser;
     private final TestAssertionExtractor assertionExtractor;
-    private final ExecutionConfig executionConfig;
+    private final EnrichmentConfig enrichmentConfig;
     private final Executor taskExecutor;
     private final TransactionTemplate transactionTemplate;
 
@@ -57,7 +57,7 @@ public class LlmEnrichmentService {
                                 ExecutionFindingValidator validator,
                                 ExecutionFindingParser parser,
                                 TestAssertionExtractor assertionExtractor,
-                                ExecutionConfig executionConfig,
+                                EnrichmentConfig enrichmentConfig,
                                 @Qualifier("orchestratorTaskExecutor") Executor taskExecutor,
                                 TransactionTemplate transactionTemplate) {
         this.findingStore = findingStore;
@@ -67,7 +67,7 @@ public class LlmEnrichmentService {
         this.validator = validator;
         this.parser = parser;
         this.assertionExtractor = assertionExtractor;
-        this.executionConfig = executionConfig;
+        this.enrichmentConfig = enrichmentConfig;
         this.taskExecutor = taskExecutor;
         this.transactionTemplate = transactionTemplate;
         this.chatClient = chatClientBuilderProvider != null
@@ -80,7 +80,7 @@ public class LlmEnrichmentService {
                                                        String structuralContextJson, boolean dryRun) {
         log.info("Enriching task {}, {}", task.taskId(), task.filePath());
 
-        if (executionConfig.resolvedExecutionMode() == ExecutionMode.SYNC) {
+        if (enrichmentConfig.resolvedExecutionMode() == ExecutionMode.SYNC) {
             return executeSync(task, decision, sourceContent, testContent, structuralContextJson, dryRun);
         }
         return executeAsync(task, decision, sourceContent, testContent, structuralContextJson, dryRun);
@@ -169,7 +169,7 @@ public class LlmEnrichmentService {
         String rawSchema = outputConverter.getJsonSchema();
         String strictSchema = buildStrictSchema(rawSchema);
 
-        var responseFormat = executionConfig.resolvedStrictResponseFormat()
+        var responseFormat = enrichmentConfig.resolvedStrictResponseFormat()
             ? ResponseFormat.builder()
                 .type(ResponseFormat.Type.JSON_SCHEMA)
                 .jsonSchema(strictSchema)

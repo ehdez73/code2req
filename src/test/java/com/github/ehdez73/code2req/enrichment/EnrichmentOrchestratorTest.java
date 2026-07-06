@@ -8,7 +8,8 @@ import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.PairedExecu
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestAssertionExtractor;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestFileMatcher;
 import com.github.ehdez73.code2req.enrichment.domain.model.CompletionStatus;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
+import com.github.ehdez73.code2req.enrichment.domain.model.EnrichmentConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.enrichment.domain.service.BranchState;
 import com.github.ehdez73.code2req.enrichment.domain.service.EnrichmentDag;
@@ -63,7 +64,8 @@ class EnrichmentOrchestratorTest {
     private MetricsStore metricsStore;
     private FloatingLinkStore floatingLinkStore;
     private EnrichmentPlanner planner;
-    private ExecutionConfig executionConfig;
+    private IndexingConfig indexingConfig;
+    private EnrichmentConfig enrichmentConfig;
     private TaskIdHasher taskIdHasher;
     private ContextBudgetCalculator budgetCalculator;
     private SimulationStub simulationStub;
@@ -85,9 +87,10 @@ class EnrichmentOrchestratorTest {
         taskIdHasher = new TaskIdHasher();
         budgetCalculator = new ContextBudgetCalculator();
         simulationStub = new SimulationStub();
-        executionConfig = new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null, null, null);
+        indexingConfig = new IndexingConfig(3, List.of("Test", "IT"));
+        enrichmentConfig = new EnrichmentConfig(5, 5, null, null, null, null);
 
-        var tfm = new TestFileMatcher(executionConfig);
+        var tfm = new TestFileMatcher(indexingConfig);
         defaultRules = List.of(
             new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
@@ -107,12 +110,12 @@ class EnrichmentOrchestratorTest {
         var txTemplate = new TransactionTemplate(txManager);
         var executor = new LlmEnrichmentService(null, findingStore, taskStore,
             budgetCalculator, simulationStub, null, null, new TestAssertionExtractor(),
-            executionConfig, null, txTemplate);
+            enrichmentConfig, null, txTemplate);
         var manifestLoader = new ManifestLoader();
         var filePathResolver = new FilePathResolver();
         var per = new PairedExecutionResolver(
-            new TestFileMatcher(executionConfig), new TestAssertionExtractor());
-        return new EnrichmentOrchestrator(planner, executor, taskStore, metricsStore, executionConfig, taskIdHasher, budgetCalculator,
+            new TestFileMatcher(indexingConfig), new TestAssertionExtractor());
+        return new EnrichmentOrchestrator(planner, executor, taskStore, metricsStore, indexingConfig, taskIdHasher, budgetCalculator,
             manifestLoader, filePathResolver, per);
     }
 
@@ -211,11 +214,11 @@ class EnrichmentOrchestratorTest {
             var txTemplate = new TransactionTemplate(txManager);
             var executor = new LlmEnrichmentService(null, findingStore, taskStore,
                 budgetCalculator, controlledStub, null, null, new TestAssertionExtractor(),
-                executionConfig, null, txTemplate);
+                enrichmentConfig, null, txTemplate);
             var per = new PairedExecutionResolver(
-                new TestFileMatcher(executionConfig), new TestAssertionExtractor());
+                new TestFileMatcher(indexingConfig), new TestAssertionExtractor());
             var orchestratorWithDeps = new EnrichmentOrchestrator(planner, executor, taskStore, metricsStore,
-                new ExecutionConfig(5, 3, 0.20, 5, 5, 500000, 0.7, List.of("Test", "IT"), null, null, null, null),
+                indexingConfig,
                 taskIdHasher, budgetCalculator, new ManifestLoader(),
                 new FilePathResolver(), per);
 
@@ -248,11 +251,11 @@ class EnrichmentOrchestratorTest {
             var txTemplate = new TransactionTemplate(txManager);
             var executor = new LlmEnrichmentService(null, findingStore, taskStore,
                 budgetCalculator, controlledStub, null, null, new TestAssertionExtractor(),
-                executionConfig, null, txTemplate);
+                enrichmentConfig, null, txTemplate);
             var per = new PairedExecutionResolver(
-                new TestFileMatcher(executionConfig), new TestAssertionExtractor());
+                new TestFileMatcher(indexingConfig), new TestAssertionExtractor());
             var orchestratorWithDeps = new EnrichmentOrchestrator(planner, executor, taskStore,
-                metricsStore, executionConfig, taskIdHasher, budgetCalculator,
+                metricsStore, indexingConfig, taskIdHasher, budgetCalculator,
                 new ManifestLoader(), new FilePathResolver(), per);
 
             CompletionStatus status = orchestratorWithDeps.execute(manifestPath.toString(), true);

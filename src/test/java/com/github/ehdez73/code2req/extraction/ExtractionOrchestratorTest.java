@@ -8,7 +8,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
@@ -67,11 +67,11 @@ class ExtractionOrchestratorTest {
         mapper = new ObjectMapper();
 
         agentPlatform = mock(AgentPlatform.class);
-        var executionConfig = new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null);
+        var extractionConfig = new ExtractionConfig(null, null);
 
         orchestrator = new ExtractionOrchestrator(
             taskStore, executionFindingStore, floatingLinkStore,
-            topicLinkStore, metricsStore, agentPlatform, executionConfig, null);
+            topicLinkStore, metricsStore, agentPlatform, extractionConfig, null);
     }
 
     @Test

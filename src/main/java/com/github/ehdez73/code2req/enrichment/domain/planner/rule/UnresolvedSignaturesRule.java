@@ -1,6 +1,6 @@
 package com.github.ehdez73.code2req.enrichment.domain.planner.rule;
 
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.enrichment.domain.model.EnrichmentConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.QualificationReason;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.enrichment.domain.planner.PlanningContext;
@@ -23,8 +23,8 @@ public class UnresolvedSignaturesRule implements QualificationRule {
     private final int threshold;
 
     @Autowired
-    public UnresolvedSignaturesRule(JdbcTemplate jdbc, ExecutionConfig executionConfig) {
-        this(jdbc, executionConfig.resolvedUnresolvedThreshold());
+    public UnresolvedSignaturesRule(JdbcTemplate jdbc, EnrichmentConfig enrichmentConfig) {
+        this(jdbc, enrichmentConfig.resolvedLlmUnresolvedThreshold());
     }
 
     public UnresolvedSignaturesRule(JdbcTemplate jdbc, int threshold) {

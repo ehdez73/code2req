@@ -1,7 +1,7 @@
 package com.github.ehdez73.code2req.enrichment.domain.planner;
 
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestFileMatcher;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.QualificationReason;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
@@ -52,7 +52,7 @@ class EnrichmentPlannerTest {
         findingStore = new ExecutionFindingStore(jdbc);
         floatingLinkStore = new FloatingLinkStore(jdbc);
         var testFileMatcher = new TestFileMatcher(
-            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null));
+            new IndexingConfig(null, null));
         defaultRules = List.of(
             new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
@@ -241,7 +241,7 @@ class EnrichmentPlannerTest {
         @Test
         void customThresholdLower() {
             var tfm = new TestFileMatcher(
-            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null));
+            new IndexingConfig(null, null));
             var rules = List.of(
                 new SpringDataInterfaceRule(),
                 new StoredProcedureCallRule(),

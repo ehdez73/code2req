@@ -1,6 +1,6 @@
 package com.github.ehdez73.code2req.enrichment.adapter.llm.testmining;
 
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,9 +23,9 @@ class TestFileMatcherTest {
     @BeforeEach
     void setUp() {
         matcher = new TestFileMatcher(
-            new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null));
+            new IndexingConfig(null, null));
         matcherWithCustomSuffixes = new TestFileMatcher(
-            new ExecutionConfig(null, null, null, null, null, null, null, List.of("Test", "IT", "Spec"), null, null, null, null));
+            new IndexingConfig(null, List.of("Test", "IT", "Spec")));
     }
 
     @Nested

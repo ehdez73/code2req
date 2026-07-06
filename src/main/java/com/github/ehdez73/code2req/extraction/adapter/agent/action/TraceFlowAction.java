@@ -8,8 +8,8 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.scheduledtask.ScheduledTaskInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
+import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStatus;
@@ -42,12 +42,11 @@ public class TraceFlowAction {
     private final Map<String, FlowStepComponentType> componentTypeLookup;
     private final int maxDepth;
 
-    public TraceFlowAction(CodebaseKnowledge knowledge, ExecutionConfig config) {
+    public TraceFlowAction(CodebaseKnowledge knowledge, ExtractionConfig config) {
         this.knowledge = knowledge;
         this.subChainCache = new HashMap<>();
         this.componentTypeLookup = buildComponentTypeLookup();
-        this.maxDepth = config != null && config.maxInvestigationStepsPerFlow() != null
-            ? config.maxInvestigationStepsPerFlow() : 5;
+        this.maxDepth = config != null ? config.resolvedMaxInvestigationStepsPerFlow() : 5;
     }
 
     private Map<String, FlowStepComponentType> buildComponentTypeLookup() {
