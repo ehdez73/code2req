@@ -71,7 +71,7 @@ class ExtractionOrchestratorTest {
 
         orchestrator = new ExtractionOrchestrator(
             taskStore, executionFindingStore, floatingLinkStore,
-            topicLinkStore, metricsStore, agentPlatform, executionConfig);
+            topicLinkStore, metricsStore, agentPlatform, executionConfig, null);
     }
 
     @Test

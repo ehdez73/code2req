@@ -46,7 +46,7 @@ class ExtractCommandTest {
         var executionConfig = new ExecutionConfig(null, null, null, null, null, null, null, null, null, null, null, null);
         var orchestrator = new ExtractionOrchestrator(
             taskStore, findingStore, floatingLinkStore, topicLinkStore, metricsStore,
-            mock(AgentPlatform.class), executionConfig);
+            mock(AgentPlatform.class), executionConfig, null);
         var manifestLoader = new ManifestLoader();
         var manifestValidator = new ManifestValidator(manifestLoader);
 

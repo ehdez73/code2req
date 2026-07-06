@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.extraction.ExtractionCache;
+import com.github.ehdez73.code2req.extraction.domain.model.QuarantineConfig;
 import com.github.ehdez73.code2req.extraction.adapter.agent.action.*;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.*;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
@@ -77,8 +78,9 @@ public class FunctionalRequirementAgent {
         CodebaseKnowledge knowledge = (CodebaseKnowledge) context.get("knowledge");
         WorldState ws = (WorldState) context.get("worldState");
         ExecutionConfig config = (ExecutionConfig) context.get("executionConfig");
+        QuarantineConfig quarantineConfig = (QuarantineConfig) context.get("quarantineConfig");
         TraceFlowAction traceAction = new TraceFlowAction(knowledge, config);
-        QuarantineFlowAction quarantineAction = new QuarantineFlowAction(config);
+        QuarantineFlowAction quarantineAction = new QuarantineFlowAction(quarantineConfig);
         TracedFlowResult traced = traceAction.traceAll(discoveryResult);
         QuarantineFlowAction.QuarantineFlowResult quarantineResult = quarantineAction.quarantineWithResult(traced);
         if (!quarantineResult.gaps().isEmpty()) {

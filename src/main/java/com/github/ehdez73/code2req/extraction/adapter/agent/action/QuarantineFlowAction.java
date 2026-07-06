@@ -1,6 +1,5 @@
 package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionConfig;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
 import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
@@ -10,15 +9,23 @@ import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStatus;
 import com.github.ehdez73.code2req.extraction.domain.model.GapReason;
 import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.model.QuarantineConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.RabbitMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toList;
 
 /**
  * Flags flows that cannot be fully resolved for human review. Triggers when
@@ -35,12 +42,14 @@ public class QuarantineFlowAction {
     private final double lowConfidenceThreshold;
     private final int maxHopDepth;
     private final int maxUnresolvedCalls;
+    private final List<String> frameworkPrefixes;
 
-    public QuarantineFlowAction(ExecutionConfig config) {
-        this.maxSteps = config != null ? config.maxInvestigationStepsPerFlow() * 4 : 20;
-        this.lowConfidenceThreshold = config != null ? config.ambiguityConfidenceThreshold() : 0.3;
-        this.maxHopDepth = config != null  ? config.maxInvestigationStepsPerFlow() : 5;
-        this.maxUnresolvedCalls = config != null ? config.resolvedUnresolvedFlowCountThreshold() : 3;
+    public QuarantineFlowAction(QuarantineConfig config) {
+        this.maxSteps = config != null ? config.resolvedMaxSteps() : QuarantineConfig.DEFAULT_MAX_STEPS;
+        this.lowConfidenceThreshold = config != null ? config.resolvedAmbiguityConfidenceThreshold() : QuarantineConfig.DEFAULT_AMBIGUITY_CONFIDENCE_THRESHOLD;
+        this.maxHopDepth = config != null ? config.resolvedMaxHopDepth() : QuarantineConfig.DEFAULT_MAX_HOP_DEPTH;
+        this.maxUnresolvedCalls = config != null ? config.resolvedMaxUnresolvedCalls() : QuarantineConfig.DEFAULT_MAX_UNRESOLVED_CALLS;
+        this.frameworkPrefixes = config != null ? config.resolvedFrameworkPrefixes() : QuarantineConfig.DEFAULT_FRAMEWORK_PREFIXES;
     }
 
     public TracedFlowResult quarantine(TracedFlowResult tracedResult) {
@@ -145,18 +154,26 @@ public class QuarantineFlowAction {
             );
         }
 
-        long unresolvedCount = flow.unresolvedCalls().size();
+        if (flow.unresolvedCalls().isEmpty()) {
+            return null;
+        }
+
+        FileImports fileImports = readFileImports(flow.entryPoint().filePath());
+        List<String> nonFrameworkUnresolved = flow.unresolvedCalls().stream()
+            .filter(call -> !isFrameworkCall(call, fileImports))
+            .collect(toList());
+        long unresolvedCount = nonFrameworkUnresolved.size();
         if (unresolvedCount > maxUnresolvedCalls) {
             return new QuarantineReason(
-                "Too many unresolved calls (" + unresolvedCount + ")",
+                "Too many unresolved calls (" + unresolvedCount + " after excluding framework calls)",
                 "Resolve external dependencies or add LLM enrichment context",
                 0.4, GapReason.LOW_CONFIDENCE
             );
         }
 
-        int totalReferences = flow.steps().size() + flow.unresolvedCalls().size();
+        int totalReferences = flow.steps().size() + nonFrameworkUnresolved.size();
         if (totalReferences > 0) {
-            double confidence = 1.0 - (double) flow.unresolvedCalls().size() / totalReferences;
+            double confidence = 1.0 - (double) nonFrameworkUnresolved.size() / totalReferences;
             if (confidence < lowConfidenceThreshold) {
                 return new QuarantineReason(
                     "Flow confidence below threshold (" + String.format("%.2f", confidence)
@@ -168,6 +185,65 @@ public class QuarantineFlowAction {
         }
 
         return null;
+    }
+
+    private boolean isFrameworkCall(String unresolvedCall, FileImports fileImports) {
+        if (frameworkPrefixes.stream().anyMatch(unresolvedCall::startsWith)) {
+            return true;
+        }
+        String className = extractClassName(unresolvedCall);
+        if (className == null) {
+            return false;
+        }
+        String rest = unresolvedCall.substring(className.length() + 1);
+        String fqn = fileImports.classNameToFqn().get(className);
+        if (fqn != null) {
+            String reconstructed = fqn + "." + rest;
+            return frameworkPrefixes.stream().anyMatch(reconstructed::startsWith);
+        }
+        for (String pkg : fileImports.wildcardPackages()) {
+            String reconstructed = pkg + "." + unresolvedCall;
+            if (frameworkPrefixes.stream().anyMatch(reconstructed::startsWith)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String extractClassName(String unresolvedCall) {
+        int dot = unresolvedCall.lastIndexOf('.');
+        if (dot < 0) return null;
+        String beforeDot = unresolvedCall.substring(0, dot);
+        int lastDot = beforeDot.lastIndexOf('.');
+        return lastDot >= 0 ? beforeDot.substring(lastDot + 1) : beforeDot;
+    }
+
+    record FileImports(Map<String, String> classNameToFqn, List<String> wildcardPackages) {
+        static final FileImports EMPTY = new FileImports(Map.of(), List.of());
+    }
+
+    private FileImports readFileImports(String filePath) {
+        if (filePath == null) return FileImports.EMPTY;
+        try (var lines = Files.lines(Path.of(filePath))) {
+            Map<String, String> classNameToFqn = new HashMap<>();
+            List<String> wildcardPackages = new ArrayList<>();
+            lines.filter(line -> line.trim().startsWith("import "))
+                .map(line -> line.trim().substring(7).replace(";", "").trim())
+                .filter(imp -> !imp.startsWith("static"))
+                .filter(imp -> frameworkPrefixes.stream().anyMatch(imp::startsWith))
+                .forEach(imp -> {
+                    if (imp.endsWith(".*")) {
+                        wildcardPackages.add(imp.substring(0, imp.length() - 2));
+                    } else {
+                        String simpleName = imp.substring(imp.lastIndexOf('.') + 1);
+                        classNameToFqn.put(simpleName, imp);
+                    }
+                });
+            return new FileImports(classNameToFqn, wildcardPackages);
+        } catch (IOException e) {
+            log.debug("Could not read {} for import analysis: {}", filePath, e.toString());
+            return FileImports.EMPTY;
+        }
     }
 
     private static String deriveFlowName(EntryPoint ep) {
