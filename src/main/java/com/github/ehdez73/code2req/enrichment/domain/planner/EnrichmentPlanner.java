@@ -60,18 +60,18 @@ public class EnrichmentPlanner {
             PlannerDecision decision = evaluateTask(task, ctx);
             if (decision.qualified()) {
                 taskStore.updateStatus(task.taskId(), TaskStatus.ENRICH_PENDING);
-                log.debug("Transitioned task {} ({}) from INDEXED to ENRICH_PENDING",
+                log.debug("Planner: Transitioned task {} ({}) from INDEXED to ENRICH_PENDING",
                     task.taskId(), task.filePath());
             } else {
                 taskStore.updateStatus(task.taskId(), TaskStatus.SKIPPED);
-                log.debug("Transitioned task {} ({}) from INDEXED to SKIPPED",
+                log.debug("Planner: Transitioned task {} ({}) from INDEXED to SKIPPED",
                     task.taskId(), task.filePath());
             }
             decisions.add(decision);
         }
 
         int qualified = (int) decisions.stream().filter(PlannerDecision::qualified).count();
-        log.info("Planner evaluated {} task(s): {} qualified ({} from prior ENRICH_PENDING), {} not qualified",
+        log.info("Planner: Evaluated {} task(s): {} qualified ({} from prior ENRICH_PENDING), {} not qualified",
             decisions.size(), qualified, priorPending, decisions.size() - qualified);
         return decisions;
     }

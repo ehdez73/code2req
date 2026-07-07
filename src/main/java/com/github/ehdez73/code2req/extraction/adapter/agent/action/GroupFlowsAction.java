@@ -80,7 +80,7 @@ public class GroupFlowsAction {
         }
 
         String flowSummaries = flows.stream()
-            .map(f -> "Flow " + f.flowId() + ": " + f.name() + " - " + truncate(f.userStory(), 200)
+            .map(f -> "Flow " + shortId(f.flowId()) + ": " + f.name() + " - " + truncate(f.userStory(), 200)
                 + " | Entry: " + f.entryPoint().type()
                 + " | Steps: " + f.steps().size()
                 + " | External: " + f.steps().stream().filter(s -> s.componentType() == FlowStepComponentType.EXTERNAL_CALL).count()
@@ -271,7 +271,7 @@ public class GroupFlowsAction {
                 if (group.flowIds() != null) {
                     for (String flowId : group.flowIds()) {
                         remaining.stream()
-                            .filter(f -> f.flowId().equals(flowId))
+                            .filter(f -> shortId(f.flowId()).equals(flowId))
                             .findFirst()
                             .ifPresent(matchedFlows::add);
                     }
@@ -306,6 +306,10 @@ public class GroupFlowsAction {
         }
 
         return features;
+    }
+
+    private static String shortId(String id) {
+        return Integer.toHexString(id.hashCode());
     }
 
     private static String deterministicGroupKey(List<FunctionalFlow> flows) {

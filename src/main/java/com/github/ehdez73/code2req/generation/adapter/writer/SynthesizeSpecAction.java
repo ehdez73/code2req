@@ -34,6 +34,8 @@ public class SynthesizeSpecAction {
 
     private static final Logger log = LoggerFactory.getLogger(SynthesizeSpecAction.class);
 
+    private static final String COMPONENT_ARROW = " \u2192 ";
+
     private final Path outputDir;
     private final ObjectMapper mapper;
 
@@ -208,7 +210,9 @@ public class SynthesizeSpecAction {
         sb.append("| Class | Method | SQL / Details | Source File |\n");
         sb.append("|---|---|---|---|\n");
         for (var step : dbSteps) {
-            String sql = !step.enrichments().isEmpty() ? step.enrichments().get(0) : "";
+            String sql = step.enrichments().stream()
+                .filter(e -> !e.contains(COMPONENT_ARROW))
+                .findFirst().orElse("");
             sb.append("| ").append(step.className())
               .append(" | ").append(step.methodName())
               .append(" | ").append(sql)
@@ -311,8 +315,12 @@ public class SynthesizeSpecAction {
         sb.append("| # | Component Type | Class | Method | Source File |\n");
         sb.append("|---|---|---|---|---|\n");
         for (var step : flow.steps()) {
+            String sourceComponent = step.enrichments().size() > 1 ? step.enrichments().get(1) : null;
+            String componentLabel = sourceComponent != null && !sourceComponent.isEmpty()
+                ? sourceComponent + COMPONENT_ARROW + step.componentType().name()
+                : step.componentType().name();
             sb.append("| ").append(step.stepIndex())
-              .append(" | ").append(step.componentType())
+              .append(" | ").append(componentLabel)
               .append(" | ").append(step.className())
               .append(" | ").append(step.methodName() != null ? step.methodName() : "-")
               .append(" | ").append(step.sourceFile() != null ? step.sourceFile() : "")

@@ -156,28 +156,49 @@ public class TraceFlowAction {
             String targetKey = edge.targetFilePath() + ":" + edge.targetClassName();
             if (visited.contains(targetKey)) continue;
 
-            FlowStepComponentType componentType = classifyComponent(edge);
-            steps.add(new FlowStep(
-                steps.size(), componentType,
-                edge.targetClassName(), edge.targetMethodName(), null,
-                edge.targetFilePath(), edge.targetStartLine(), edge.targetEndLine(), List.of()
-            ));
+            List<DbAccessInfo> matchingDbAccess = knowledge.structuralGraph().dbAccessPatterns().stream()
+                .filter(d -> edge.targetClassName().equals(d.className()))
+                .filter(d -> edge.targetStartLine() > 0
+                    ? (d.startLine() == edge.targetStartLine() && d.endLine() == edge.targetEndLine())
+                    : d.methodName().equals(edge.targetMethodName()))
+                .collect(Collectors.toList());
+
+            if (matchingDbAccess.isEmpty()) {
+                FlowStepComponentType componentType = classifyComponent(edge);
+                steps.add(new FlowStep(
+                    steps.size(), componentType,
+                    edge.targetClassName(), edge.targetMethodName(), null,
+                    edge.targetFilePath(), edge.targetStartLine(), edge.targetEndLine(), List.of()
+                ));
+            }
+
+            for (DbAccessInfo db : matchingDbAccess) {
+                List<String> enrichments = new ArrayList<>();
+                enrichments.add(db.sql() != null ? db.sql() : "");
+                enrichments.add(classifyComponent(edge).name());
+                steps.add(new FlowStep(
+                    steps.size(), FlowStepComponentType.DATABASE,
+                    db.className(), db.methodName(), null,
+                    db.filePath(), db.startLine(), db.endLine(), enrichments
+                ));
+            }
 
             traceFromSource(edge.targetFilePath(), edge.targetClassName(),
                 steps, unresolvedCalls, visited, depth + 1, null,
                 edge.targetStartLine(), edge.targetEndLine());
         }
 
-        List<DbAccessInfo> dbAccesses = knowledge.structuralGraph().dbAccessPatterns().stream()
-            .filter(d -> sourceClassName.equals(d.className()))
-            .collect(Collectors.toList());
-
-        for (DbAccessInfo db : dbAccesses) {
-            steps.add(new FlowStep(
-                steps.size(), FlowStepComponentType.DATABASE,
-                db.className(), db.methodName(), null,
-                db.filePath(), db.startLine(), db.endLine(), List.of(db.sql() != null ? db.sql() : "")
-            ));
+        if (depth == 0) {
+            List<DbAccessInfo> selfDbAccess = knowledge.structuralGraph().dbAccessPatterns().stream()
+                .filter(d -> sourceClassName.equals(d.className()))
+                .collect(Collectors.toList());
+            for (DbAccessInfo db : selfDbAccess) {
+                steps.add(new FlowStep(
+                    steps.size(), FlowStepComponentType.DATABASE,
+                    db.className(), db.methodName(), null,
+                    db.filePath(), db.startLine(), db.endLine(), List.of(db.sql() != null ? db.sql() : "")
+                ));
+            }
         }
 
         List<FloatingLinkInfo> httpCalls = knowledge.findAllFloatingLinks().stream()
