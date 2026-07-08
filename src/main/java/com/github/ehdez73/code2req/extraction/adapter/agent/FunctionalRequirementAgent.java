@@ -79,7 +79,7 @@ public class FunctionalRequirementAgent {
         WorldState ws = (WorldState) context.get("worldState");
         ExtractionConfig extractionConfig = (ExtractionConfig) context.get("extractionConfig");
         QuarantineConfig quarantineConfig = (QuarantineConfig) context.get("quarantineConfig");
-        TraceFlowAction traceAction = new TraceFlowAction(knowledge, extractionConfig);
+        TraceFlowAction traceAction = new TraceFlowAction(knowledge, extractionConfig, extractionConfig.resolvedFrameworkPrefixes());
         QuarantineFlowAction quarantineAction = new QuarantineFlowAction(quarantineConfig);
         TracedFlowResult traced = traceAction.traceAll(discoveryResult);
         QuarantineFlowAction.QuarantineFlowResult quarantineResult = quarantineAction.quarantineWithResult(traced);

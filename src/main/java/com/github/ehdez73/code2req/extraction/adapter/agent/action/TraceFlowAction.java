@@ -18,14 +18,15 @@ import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-
 
 /**
  * For the highest-priority unscheduled entry point, follows call graph edges
@@ -41,12 +42,20 @@ public class TraceFlowAction {
     private final Map<String, List<FlowStep>> subChainCache;
     private final Map<String, FlowStepComponentType> componentTypeLookup;
     private final int maxDepth;
+    private final List<String> frameworkPrefixes;
+    private final Map<String, FileImports> importsCache;
 
     public TraceFlowAction(CodebaseKnowledge knowledge, ExtractionConfig config) {
+        this(knowledge, config, List.of());
+    }
+
+    public TraceFlowAction(CodebaseKnowledge knowledge, ExtractionConfig config, List<String> frameworkPrefixes) {
         this.knowledge = knowledge;
         this.subChainCache = new HashMap<>();
         this.componentTypeLookup = buildComponentTypeLookup();
         this.maxDepth = config != null ? config.resolvedMaxInvestigationStepsPerFlow() : 5;
+        this.frameworkPrefixes = frameworkPrefixes != null ? frameworkPrefixes : List.of();
+        this.importsCache = new HashMap<>();
     }
 
     private Map<String, FlowStepComponentType> buildComponentTypeLookup() {
@@ -129,59 +138,21 @@ public class TraceFlowAction {
                                   List<FlowStep> steps, List<String> unresolvedCalls,
                                   Set<String> visited, int depth, String entryMethodName,
                                   int sourceStartLine, int sourceEndLine) {
-        if (depth >= maxDepth) return;
+        if (isMaxDepthReached(depth)) return;
 
-        String visitKey = sourceFilePath + ":" + sourceClassName;
-        if (visited.contains(visitKey)) return;
-        visited.add(visitKey);
+        if (!tryVisit(sourceFilePath, sourceClassName, visited)) return;
 
-        List<CallGraphEdge> outgoing = knowledge.structuralGraph().callGraphEdges().stream()
-            .filter(e -> sourceFilePath.equals(e.sourceFilePath()) || sourceClassName.equals(e.sourceClassName()))
-            .collect(Collectors.toList());
+        addEntryPointStep(depth, steps, sourceFilePath, sourceClassName, entryMethodName, sourceStartLine, sourceEndLine);
 
-        if (depth == 0) {
-            steps.add(new FlowStep(
-                steps.size(), classifySourceComponent(sourceFilePath),
-                sourceClassName, entryMethodName, null,
-                sourceFilePath, sourceStartLine, sourceEndLine, List.of()
-            ));
-        }
-
-        for (CallGraphEdge edge : outgoing) {
+        for (CallGraphEdge edge : getOutgoingEdges(sourceFilePath, sourceClassName)) {
             if (!edge.isResolved()) {
-                unresolvedCalls.add(edge.targetClassName() + "." + edge.targetMethodName());
+                addUnresolvedCall(unresolvedCalls, edge, sourceFilePath);
                 continue;
             }
 
-            String targetKey = edge.targetFilePath() + ":" + edge.targetClassName();
-            if (visited.contains(targetKey)) continue;
-
-            List<DbAccessInfo> matchingDbAccess = knowledge.structuralGraph().dbAccessPatterns().stream()
-                .filter(d -> edge.targetClassName().equals(d.className()))
-                .filter(d -> edge.targetStartLine() > 0
-                    ? (d.startLine() == edge.targetStartLine() && d.endLine() == edge.targetEndLine())
-                    : d.methodName().equals(edge.targetMethodName()))
-                .collect(Collectors.toList());
-
-            if (matchingDbAccess.isEmpty()) {
-                FlowStepComponentType componentType = classifyComponent(edge);
-                steps.add(new FlowStep(
-                    steps.size(), componentType,
-                    edge.targetClassName(), edge.targetMethodName(), null,
-                    edge.targetFilePath(), edge.targetStartLine(), edge.targetEndLine(), List.of()
-                ));
-            }
-
-            for (DbAccessInfo db : matchingDbAccess) {
-                List<String> enrichments = new ArrayList<>();
-                enrichments.add(db.sql() != null ? db.sql() : "");
-                enrichments.add(classifyComponent(edge).name());
-                steps.add(new FlowStep(
-                    steps.size(), FlowStepComponentType.DATABASE,
-                    db.className(), db.methodName(), null,
-                    db.filePath(), db.startLine(), db.endLine(), enrichments
-                ));
-            }
+            List<DbAccessInfo> matchingDbAccess = findDbAccessForEdge(edge);
+            addComponentStep(steps, edge, matchingDbAccess);
+            addDbAccessSteps(steps, edge, matchingDbAccess);
 
             traceFromSource(edge.targetFilePath(), edge.targetClassName(),
                 steps, unresolvedCalls, visited, depth + 1, null,
@@ -189,22 +160,99 @@ public class TraceFlowAction {
         }
 
         if (depth == 0) {
-            List<DbAccessInfo> selfDbAccess = knowledge.structuralGraph().dbAccessPatterns().stream()
-                .filter(d -> sourceClassName.equals(d.className()))
-                .collect(Collectors.toList());
-            for (DbAccessInfo db : selfDbAccess) {
-                steps.add(new FlowStep(
-                    steps.size(), FlowStepComponentType.DATABASE,
-                    db.className(), db.methodName(), null,
-                    db.filePath(), db.startLine(), db.endLine(), List.of(db.sql() != null ? db.sql() : "")
-                ));
-            }
+            addSelfDbAccessSteps(steps, sourceClassName);
         }
+        addFloatingLinkSteps(steps, sourceFilePath, sourceClassName);
+    }
 
+    private static String visitKey(String filePath, String className) {
+        return filePath + ":" + className;
+    }
+
+    private boolean isMaxDepthReached(int depth) {
+        return depth >= maxDepth;
+    }
+
+    private boolean tryVisit(String filePath, String className, Set<String> visited) {
+        return visited.add(visitKey(filePath, className));
+    }
+
+    private List<CallGraphEdge> getOutgoingEdges(String filePath, String className) {
+        return knowledge.structuralGraph().callGraphEdges().stream()
+            .filter(e -> filePath.equals(e.sourceFilePath()) || className.equals(e.sourceClassName()))
+            .toList();
+    }
+
+    private void addEntryPointStep(int depth, List<FlowStep> steps, String filePath,
+                                   String className, String methodName,
+                                   int startLine, int endLine) {
+        if (depth == 0) {
+            steps.add(new FlowStep(
+                    steps.size(), classifySourceComponent(filePath),
+                    className, methodName, null,
+                    filePath, startLine, endLine, List.of()
+            ));
+        }
+    }
+
+    private void addUnresolvedCall(List<String> unresolvedCalls, CallGraphEdge edge, String sourceFilePath) {
+        String call = edge.targetClassName() + "." + edge.targetMethodName();
+        if (!isFrameworkCall(call, sourceFilePath)) {
+            unresolvedCalls.add(call);
+        }
+    }
+
+    private List<DbAccessInfo> findDbAccessForEdge(CallGraphEdge edge) {
+        return knowledge.structuralGraph().dbAccessPatterns().stream()
+            .filter(d -> edge.targetClassName().equals(d.className()))
+            .filter(d -> edge.targetStartLine() > 0
+                ? (d.startLine() == edge.targetStartLine() && d.endLine() == edge.targetEndLine())
+                : d.methodName().equals(edge.targetMethodName()))
+            .toList();
+    }
+
+    private void addComponentStep(List<FlowStep> steps, CallGraphEdge edge,
+                                   List<DbAccessInfo> matchingDbAccess) {
+        if (!matchingDbAccess.isEmpty()) return;
+        steps.add(new FlowStep(
+            steps.size(), classifyComponent(edge),
+            edge.targetClassName(), edge.targetMethodName(), null,
+            edge.targetFilePath(), edge.targetStartLine(), edge.targetEndLine(), List.of()
+        ));
+    }
+
+    private void addDbAccessSteps(List<FlowStep> steps, CallGraphEdge edge,
+                                   List<DbAccessInfo> matchingDbAccess) {
+        for (DbAccessInfo db : matchingDbAccess) {
+            List<String> enrichments = new ArrayList<>();
+            enrichments.add(db.sql() != null ? db.sql() : "");
+            enrichments.add(classifyComponent(edge).name());
+            steps.add(new FlowStep(
+                steps.size(), FlowStepComponentType.DATABASE,
+                db.className(), db.methodName(), null,
+                db.filePath(), db.startLine(), db.endLine(), enrichments
+            ));
+        }
+    }
+
+    private void addSelfDbAccessSteps(List<FlowStep> steps, String sourceClassName) {
+        List<DbAccessInfo> selfDbAccess = knowledge.structuralGraph().dbAccessPatterns().stream()
+            .filter(d -> sourceClassName.equals(d.className()))
+            .toList();
+        for (DbAccessInfo db : selfDbAccess) {
+            steps.add(new FlowStep(
+                steps.size(), FlowStepComponentType.DATABASE,
+                db.className(), db.methodName(), null,
+                db.filePath(), db.startLine(), db.endLine(), List.of(db.sql() != null ? db.sql() : "")
+            ));
+        }
+    }
+
+    private void addFloatingLinkSteps(List<FlowStep> steps, String sourceFilePath,
+                                       String sourceClassName) {
         List<FloatingLinkInfo> httpCalls = knowledge.findAllFloatingLinks().stream()
             .filter(f -> sourceFilePath.equals(f.sourceFilePath()))
-            .collect(Collectors.toList());
-
+            .toList();
         for (FloatingLinkInfo http : httpCalls) {
             steps.add(new FlowStep(
                 steps.size(), FlowStepComponentType.EXTERNAL_CALL,
@@ -246,5 +294,69 @@ public class TraceFlowAction {
         if (targetFile.contains("Listener") || targetFile.contains("Consumer")) return FlowStepComponentType.EVENT_PUBLISHER;
         if (targetFile.contains("Scheduler") || targetFile.contains("Job")) return FlowStepComponentType.SCHEDULED_TASK;
         return FlowStepComponentType.SERVICE;
+    }
+
+    private boolean isFrameworkCall(String unresolvedCall, String sourceFilePath) {
+        if (frameworkPrefixes.stream().anyMatch(unresolvedCall::startsWith)) {
+            return true;
+        }
+        String className = extractClassName(unresolvedCall);
+        if (className == null) {
+            return false;
+        }
+        String rest = unresolvedCall.substring(className.length() + 1);
+        FileImports fileImports = readFileImports(sourceFilePath);
+        String fqn = fileImports.classNameToFqn().get(className);
+        if (fqn != null) {
+            String reconstructed = fqn + "." + rest;
+            return frameworkPrefixes.stream().anyMatch(reconstructed::startsWith);
+        }
+        for (String pkg : fileImports.wildcardPackages()) {
+            String reconstructed = pkg + "." + unresolvedCall;
+            if (frameworkPrefixes.stream().anyMatch(reconstructed::startsWith)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String extractClassName(String unresolvedCall) {
+        int dot = unresolvedCall.lastIndexOf('.');
+        if (dot < 0) return null;
+        String beforeDot = unresolvedCall.substring(0, dot);
+        int lastDot = beforeDot.lastIndexOf('.');
+        return lastDot >= 0 ? beforeDot.substring(lastDot + 1) : beforeDot;
+    }
+
+    record FileImports(Map<String, String> classNameToFqn, List<String> wildcardPackages) {
+        static final FileImports EMPTY = new FileImports(Map.of(), List.of());
+    }
+
+    private FileImports readFileImports(String filePath) {
+        if (filePath == null) return FileImports.EMPTY;
+        FileImports cached = importsCache.get(filePath);
+        if (cached != null) return cached;
+        try (var lines = Files.lines(Path.of(filePath))) {
+            Map<String, String> classNameToFqn = new HashMap<>();
+            List<String> wildcardPackages = new ArrayList<>();
+            lines.filter(line -> line.trim().startsWith("import "))
+                .map(line -> line.trim().substring(7).replace(";", "").trim())
+                .filter(imp -> !imp.startsWith("static"))
+                .filter(imp -> frameworkPrefixes.stream().anyMatch(imp::startsWith))
+                .forEach(imp -> {
+                    if (imp.endsWith(".*")) {
+                        wildcardPackages.add(imp.substring(0, imp.length() - 2));
+                    } else {
+                        String simpleName = imp.substring(imp.lastIndexOf('.') + 1);
+                        classNameToFqn.put(simpleName, imp);
+                    }
+                });
+            FileImports result = new FileImports(classNameToFqn, wildcardPackages);
+            importsCache.put(filePath, result);
+            return result;
+        } catch (IOException e) {
+            log.debug("Could not read {} for import analysis: {}", filePath, e.toString());
+            return FileImports.EMPTY;
+        }
     }
 }

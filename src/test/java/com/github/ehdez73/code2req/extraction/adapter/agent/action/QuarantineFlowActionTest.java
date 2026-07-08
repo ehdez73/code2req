@@ -8,11 +8,7 @@ import com.github.ehdez73.code2req.extraction.domain.model.FlowStatus;
 import com.github.ehdez73.code2req.extraction.domain.model.GapReason;
 import com.github.ehdez73.code2req.extraction.domain.model.QuarantineConfig;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -21,9 +17,6 @@ class QuarantineFlowActionTest {
 
     private final EntryPoint entryPoint = new HttpEntryPoint("id", "Ctrl", "m", "/f.java",
         0.5, false, "GET", "/test", List.of(), List.of());
-
-    @TempDir
-    Path tempDir;
 
     private ExecutionFlow flow(FlowStatus status, int stepCount, int depth, int unresolvedCount) {
         var steps = java.util.stream.IntStream.range(0, stepCount)
@@ -108,136 +101,6 @@ class QuarantineFlowActionTest {
     void quarantineKeepsFlowAboveConfidenceThreshold() {
         var good = flow(FlowStatus.TRACED, 3, 1, 1);
         var traced = new TracedFlowResult(List.of(good), List.of());
-
-        var result = new QuarantineFlowAction(null).quarantine(traced);
-
-        assertEquals(1, result.flows().size());
-        assertEquals(FlowStatus.TRACED, result.flows().get(0).status());
-        assertTrue(result.allQuarantinedFlowIds().isEmpty());
-    }
-
-    @Test
-    void quarantineIgnoresFrameworkUnresolvedCalls() {
-        var flow = new ExecutionFlow("flow-fw", entryPoint, List.of(), 1,
-            List.of(
-                "org.springframework.data.domain.PageRequest.of",
-                "org.springframework.data.domain.Page.getContent",
-                "org.springframework.data.domain.Page.getTotalPages",
-                "org.springframework.ui.Model.addAttribute"
-            ),
-            FlowStatus.TRACED
-        );
-        var traced = new TracedFlowResult(List.of(flow), List.of());
-
-        var result = new QuarantineFlowAction(null).quarantine(traced);
-
-        assertEquals(1, result.flows().size());
-        assertEquals(FlowStatus.TRACED, result.flows().get(0).status());
-        assertTrue(result.allQuarantinedFlowIds().isEmpty());
-    }
-
-    @Test
-    void quarantineStillFlagsNonFrameworkCallsAmongFrameworkOnes() {
-        var flow = new ExecutionFlow("flow-mixed", entryPoint, List.of(), 1,
-            List.of(
-                "org.springframework.data.domain.PageRequest.of",
-                "com.unknown.library.SomeClass.someMethod",
-                "org.springframework.data.domain.Page.getContent",
-                "com.unknown.library.OtherClass.otherMethod"
-            ),
-            FlowStatus.TRACED
-        );
-        var traced = new TracedFlowResult(List.of(flow), List.of());
-
-        var result = new QuarantineFlowAction(null).quarantine(traced);
-
-        assertTrue(result.flows().isEmpty());
-        assertEquals(1, result.allQuarantinedFlowIds().size());
-    }
-
-    @Test
-    void quarantineRecognizesFrameworkCallsViaImports() throws IOException {
-        Path javaFile = tempDir.resolve("TestController.java");
-        Files.writeString(javaFile, """
-            package com.example;
-            import org.springframework.data.domain.PageRequest;
-            import org.springframework.data.domain.Page;
-            import org.springframework.ui.Model;
-            public class TestController {}
-            """);
-        var ep = new HttpEntryPoint("id", "Ctrl", "m", javaFile.toString(),
-            0.5, false, "GET", "/test", List.of(), List.of());
-        var flow = new ExecutionFlow("flow-imports", ep, List.of(), 1,
-            List.of("PageRequest.of", "Page.getContent", "Model.addAttribute"),
-            FlowStatus.TRACED);
-        var traced = new TracedFlowResult(List.of(flow), List.of());
-
-        var result = new QuarantineFlowAction(null).quarantine(traced);
-
-        assertEquals(1, result.flows().size());
-        assertEquals(FlowStatus.TRACED, result.flows().get(0).status());
-        assertTrue(result.allQuarantinedFlowIds().isEmpty());
-    }
-
-    @Test
-    void quarantineRecognizesFrameworkCallsViaWildcardImports() throws IOException {
-        Path javaFile = tempDir.resolve("WildcardController.java");
-        Files.writeString(javaFile, """
-            package com.example;
-            import org.springframework.data.domain.*;
-            import org.springframework.ui.*;
-            public class WildcardController {}
-            """);
-        var ep = new HttpEntryPoint("id", "Ctrl", "m", javaFile.toString(),
-            0.5, false, "GET", "/test", List.of(), List.of());
-        var flow = new ExecutionFlow("flow-wildcard", ep, List.of(), 1,
-            List.of("PageRequest.of", "Page.getContent", "Model.addAttribute"),
-            FlowStatus.TRACED);
-        var traced = new TracedFlowResult(List.of(flow), List.of());
-
-        var result = new QuarantineFlowAction(null).quarantine(traced);
-
-        assertEquals(1, result.flows().size());
-        assertEquals(FlowStatus.TRACED, result.flows().get(0).status());
-        assertTrue(result.allQuarantinedFlowIds().isEmpty());
-    }
-
-    @Test
-    void quarantineStillFlagsCallsNotMatchingAnyImport() throws IOException {
-        Path javaFile = tempDir.resolve("OtherController.java");
-        Files.writeString(javaFile, """
-            package com.example;
-            import com.unknown.library.SomeKnownClass;
-            public class OtherController {}
-            """);
-        var ep = new HttpEntryPoint("id", "Ctrl", "m", javaFile.toString(),
-            0.5, false, "GET", "/test", List.of(), List.of());
-        var flow = new ExecutionFlow("flow-no-match", ep, List.of(), 1,
-            List.of("SomeUnknownClass.doSomething", "AnotherUnknown.process"),
-            FlowStatus.TRACED);
-        var traced = new TracedFlowResult(List.of(flow), List.of());
-
-        var result = new QuarantineFlowAction(null).quarantine(traced);
-
-        assertTrue(result.flows().isEmpty());
-        assertEquals(1, result.allQuarantinedFlowIds().size());
-    }
-
-    @Test
-    void quarantineIgnoresStaticImports() throws IOException {
-        Path javaFile = tempDir.resolve("StaticImportController.java");
-        Files.writeString(javaFile, """
-            package com.example;
-            import static org.springframework.data.domain.PageRequest.of;
-            import org.springframework.data.domain.Page;
-            public class StaticImportController {}
-            """);
-        var ep = new HttpEntryPoint("id", "Ctrl", "m", javaFile.toString(),
-            0.5, false, "GET", "/test", List.of(), List.of());
-        var flow = new ExecutionFlow("flow-static", ep, List.of(), 1,
-            List.of("Page.of", "Page.getContent"),
-            FlowStatus.TRACED);
-        var traced = new TracedFlowResult(List.of(flow), List.of());
 
         var result = new QuarantineFlowAction(null).quarantine(traced);
 

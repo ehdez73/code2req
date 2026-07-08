@@ -15,12 +15,19 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphE
 import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class TraceFlowActionTest {
+
+    @TempDir
+    Path tempDir;
 
     private TraceFlowAction action(StructuralGraph graph) {
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
@@ -251,5 +258,28 @@ class TraceFlowActionTest {
 
         assertEquals(1, result.flows().size());
         assertFalse(result.flows().get(0).unresolvedCalls().isEmpty());
+    }
+
+    @Test
+    void traceAllFiltersFrameworkCalls() throws IOException {
+        Path javaFile = tempDir.resolve("OrderController.java");
+        Files.writeString(javaFile, """
+            package com.example;
+            import org.springframework.jdbc.core.JdbcTemplate;
+            public class OrderController {}
+            """);
+        var frameworkPrefixes = List.of("org.springframework.");
+        var edges = List.of(
+            CallGraphEdge.unresolved("OrderController", "get", javaFile.toString(), "JdbcTemplate", "execute", 0));
+        var graph = new StructuralGraph(edges, List.of(), List.of(), List.of());
+        var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
+        var entryPoint = new HttpEntryPoint("GET /orders", "OrderController", "get", javaFile.toString(),
+            0.5, false, "GET", "/orders", List.of(), List.of());
+
+        var action = new TraceFlowAction(knowledge, null, frameworkPrefixes);
+        var result = action.traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
+
+        assertEquals(1, result.flows().size());
+        assertTrue(result.flows().get(0).unresolvedCalls().isEmpty());
     }
 }

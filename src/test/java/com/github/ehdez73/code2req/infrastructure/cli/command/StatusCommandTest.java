@@ -36,7 +36,7 @@ class StatusCommandTest {
         schema.createSchemaIfNotExists();
         taskStore = new TaskStore(jdbc);
         metricsStore = new MetricsStore(jdbc);
-        command = new StatusCommand(taskStore, metricsStore);
+        command = new StatusCommand(taskStore, metricsStore, tempDir.toString(), "extraction-cache.json");
     }
 
     @Test

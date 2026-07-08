@@ -31,13 +31,23 @@ package com.github.ehdez73.code2req.common.domain;
  * </pre>
  */
 public enum TaskStatus {
-    PENDING,
-    ENRICH_PENDING,
-    ENRICHING,
-    INDEXED,
-    SKIPPED,
-    ENRICHED,
-    FAILED,
-    ENRICH_FAILED,
-    AWAITING_HUMAN_REVIEW
+    PENDING("Awaiting indexing"),
+    INDEXED("Indexed, awaiting enrichment qualification"),
+    ENRICH_PENDING("Qualified, awaiting LLM enrichment"),
+    ENRICHING("Being enriched by LLM"),
+    ENRICHED("Enrichment completed successfully"),
+    SKIPPED("Skipped by planner (no qualifying findings)"),
+    FAILED("Indexing or enrichment failed"),
+    ENRICH_FAILED("LLM enrichment failed"),
+    AWAITING_HUMAN_REVIEW("Hop depth exceeded, manual review needed");
+
+    private final String description;
+
+    TaskStatus(String description) {
+        this.description = description;
+    }
+
+    public String getDescription() {
+        return description;
+    }
 }
