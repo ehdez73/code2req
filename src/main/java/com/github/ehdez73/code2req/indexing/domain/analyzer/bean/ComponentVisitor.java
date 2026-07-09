@@ -33,7 +33,8 @@ public class ComponentVisitor implements AstAnalysisVisitor {
     static class ComponentAstAdapter extends VoidVisitorAdapter<List<ComponentInfo>> {
 
         private static final Set<String> STEREOTYPES = Set.of(
-            "Component", "Service", "Repository", "Controller", "RestController"
+            "Component", "Service", "Repository", "Controller", "RestController",
+            "Entity", "MappedSuperclass"
         );
 
         private final String filePath;

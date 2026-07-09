@@ -5,6 +5,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisResultBuilde
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AstAnalysisVisitor;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.DeclarationInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.GlobalDeclarationRegistry;
+import com.github.ehdez73.code2req.indexing.domain.model.AllowedLibrariesConfig;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
@@ -19,20 +20,27 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Component
 public class CallGraphVisitor implements AstAnalysisVisitor {
 
     private static final Logger log = LoggerFactory.getLogger(CallGraphVisitor.class);
 
-    private static final Set<String> JDK_PREFIXES = Set.of(
-        "java.", "javax.", "jakarta.", "org.springframework.", "org.slf4j.",
-        "com.fasterxml.jackson.", "org.apache.commons.", "lombok."
-    );
+    private final List<String> allPrefixes;
+
+    public CallGraphVisitor(AllowedLibrariesConfig config) {
+        this.allPrefixes = Stream.concat(
+            config.resolvedJdkPrefixes().stream(),
+            config.resolvedFrameworkPrefixes().stream()
+        ).collect(Collectors.toList());
+    }
 
     private static final Set<String> JDK_SHORT_TYPES = Set.of(
         "String", "Integer", "Long", "Double", "Float", "Boolean", "Short", "Byte", "Character",
@@ -43,11 +51,12 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
         "Date", "Calendar", "UUID", "Path", "File", "Pattern", "Matcher",
         "StringBuilder", "StringBuffer", "Throwable", "Exception", "RuntimeException"
     );
+    public static final String ORG_SPRINGFRAMEWORK_DATA = "org.springframework.data.";
 
     @Override
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         List<CallGraphEdge> edges = new ArrayList<>();
-        cu.accept(new CallGraphAstAdapter(context.filePath(), context.declarationRegistry()), edges);
+        cu.accept(new CallGraphAstAdapter(context.filePath(), context.declarationRegistry(), allPrefixes), edges);
         if (!edges.isEmpty()) {
             log.info("  CallGraphVisitor: found {} call graph edge(s) in {}", edges.size(), context.filePath());
             edges.forEach(builder::addFinding);
@@ -58,14 +67,16 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
 
         private final String filePath;
         private final GlobalDeclarationRegistry registry;
+        private final List<String> allPrefixes;
         private final Map<String, String> fieldTypes = new HashMap<>();
         private final Map<String, String> parameterTypes = new HashMap<>();
         private String currentClassName = "";
         private String currentMethodName = "";
 
-        CallGraphAstAdapter(String filePath, GlobalDeclarationRegistry registry) {
+        CallGraphAstAdapter(String filePath, GlobalDeclarationRegistry registry, List<String> allPrefixes) {
             this.filePath = filePath;
             this.registry = registry;
+            this.allPrefixes = allPrefixes;
         }
 
         @Override
@@ -112,7 +123,7 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
             String targetType = resolveTargetType(scope);
 
             if (targetType != null) {
-                if (!isJdkType(targetType)) {
+                if (!isLibraryType(targetType)) {
                     resolveCall(targetType, calledMethod, argCount)
                         .ifPresent(collector::add);
                 }
@@ -164,7 +175,7 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
                 DeclarationInfo match = exactMatches.getFirst();
                 return Optional.of(CallGraphEdge.resolved(
                     currentClassName, currentMethodName, filePath,
-                    match.className(), match.methodName(), match.filePath(), argCount,
+                    targetType, methodName, match.filePath(), argCount,
                     match.startLine(), match.endLine()));
             }
 
@@ -185,6 +196,17 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
             }
 
             if (registry.hasClass(targetType)) {
+                for (var parent : registry.getSuperTypes(targetType)) {
+                    var result = resolveThroughInheritance(targetType, parent.simpleName(), methodName, argCount);
+                    if (result.isPresent()) return result;
+                }
+                if (hasSpringDataAncestor(targetType, new HashSet<>())) {
+                    String targetFile = registry.findByClassName(targetType).stream()
+                        .findFirst().map(DeclarationInfo::filePath).orElse("");
+                    return Optional.of(CallGraphEdge.resolved(
+                        currentClassName, currentMethodName, filePath,
+                        targetType, methodName, targetFile, argCount, 0, 0));
+                }
                 return Optional.of(CallGraphEdge.unresolved(
                     currentClassName, currentMethodName, filePath,
                     targetType, methodName, argCount));
@@ -195,8 +217,36 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
                 targetType, methodName, argCount));
         }
 
-        static boolean isJdkType(String typeName) {
-            if (JDK_PREFIXES.stream().anyMatch(typeName::startsWith)) {
+        private Optional<CallGraphEdge> resolveThroughInheritance(
+                String originalTarget, String currentType, String methodName, int argCount) {
+            var matches = registry.findMethod(currentType, methodName, argCount);
+            if (matches.size() == 1) {
+                DeclarationInfo match = matches.getFirst();
+                return Optional.of(CallGraphEdge.resolved(
+                    currentClassName, currentMethodName, filePath,
+                    originalTarget, methodName, match.filePath(), argCount,
+                    match.startLine(), match.endLine()));
+            }
+            for (var parent : registry.getSuperTypes(currentType)) {
+                var result = resolveThroughInheritance(originalTarget, parent.simpleName(), methodName, argCount);
+                if (result.isPresent()) return result;
+            }
+            return Optional.empty();
+        }
+
+        private boolean hasSpringDataAncestor(String className, Set<String> visited) {
+            if (!visited.add(className)) return false;
+            for (var parent : registry.getSuperTypes(className)) {
+                if (parent.fqn() != null && parent.fqn().startsWith(ORG_SPRINGFRAMEWORK_DATA))
+                    return true;
+                if (hasSpringDataAncestor(parent.simpleName(), visited))
+                    return true;
+            }
+            return false;
+        }
+
+        private boolean isLibraryType(String typeName) {
+            if (allPrefixes.stream().anyMatch(typeName::startsWith)) {
                 return true;
             }
             return JDK_SHORT_TYPES.contains(typeName);

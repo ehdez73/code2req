@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.github.ehdez73.code2req.extraction.ExtractionCache;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.QuarantineConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.AllowedLibrariesConfig;
 import com.github.ehdez73.code2req.extraction.adapter.agent.action.*;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.*;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
@@ -32,10 +33,13 @@ public class FunctionalRequirementAgent {
     private static final Logger log = LoggerFactory.getLogger(FunctionalRequirementAgent.class);
 
     private final ExecutionFindingStore executionFindingStore;
+    private final AllowedLibrariesConfig allowedLibrariesConfig;
     private final ObjectMapper objectMapper;
 
-    public FunctionalRequirementAgent(ExecutionFindingStore executionFindingStore) {
+    public FunctionalRequirementAgent(ExecutionFindingStore executionFindingStore,
+                                      AllowedLibrariesConfig allowedLibrariesConfig) {
         this.executionFindingStore = executionFindingStore;
+        this.allowedLibrariesConfig = allowedLibrariesConfig;
         this.objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
@@ -79,7 +83,7 @@ public class FunctionalRequirementAgent {
         WorldState ws = (WorldState) context.get("worldState");
         ExtractionConfig extractionConfig = (ExtractionConfig) context.get("extractionConfig");
         QuarantineConfig quarantineConfig = (QuarantineConfig) context.get("quarantineConfig");
-        TraceFlowAction traceAction = new TraceFlowAction(knowledge, extractionConfig, extractionConfig.resolvedFrameworkPrefixes());
+        TraceFlowAction traceAction = new TraceFlowAction(knowledge, extractionConfig, allowedLibrariesConfig.resolvedFrameworkPrefixes());
         QuarantineFlowAction quarantineAction = new QuarantineFlowAction(quarantineConfig);
         TracedFlowResult traced = traceAction.traceAll(discoveryResult);
         QuarantineFlowAction.QuarantineFlowResult quarantineResult = quarantineAction.quarantineWithResult(traced);

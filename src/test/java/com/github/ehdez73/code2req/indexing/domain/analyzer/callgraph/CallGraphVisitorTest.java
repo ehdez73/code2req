@@ -5,6 +5,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisResult;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisResultBuilder;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.DeclarationInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.GlobalDeclarationRegistry;
+import com.github.ehdez73.code2req.indexing.domain.model.AllowedLibrariesConfig;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class CallGraphVisitorTest {
 
-    private final CallGraphVisitor visitor = new CallGraphVisitor();
+    private final CallGraphVisitor visitor = new CallGraphVisitor(new AllowedLibrariesConfig(null, null));
     private GlobalDeclarationRegistry registry;
 
     @BeforeEach

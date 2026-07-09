@@ -7,5 +7,6 @@ public enum FlowStepComponentType {
     DATABASE,
     EXTERNAL_CALL,
     EVENT_PUBLISHER,
-    SCHEDULED_TASK
+    SCHEDULED_TASK,
+    ENTITY
 }

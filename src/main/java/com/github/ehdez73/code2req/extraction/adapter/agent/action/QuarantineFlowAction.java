@@ -22,24 +22,20 @@ import java.util.stream.Collectors;
 
 /**
  * Flags flows that cannot be fully resolved for human review. Triggers when
- * a flow exceeds the maximum investigation steps, falls below the ambiguity
- * confidence threshold, or exceeds the max hop depth. Produces AmbiguityGap
- * records with the reason type (STEPS_EXCEEDED, LOW_CONFIDENCE, HOP_DEPTH)
- * for inclusion in the spec's "Unresolved Dependencies" section.
+ * a flow falls below the ambiguity confidence threshold due to too many
+ * unresolved calls. Produces AmbiguityGap records with reason type
+ * LOW_CONFIDENCE for inclusion in the spec's "Unresolved Dependencies"
+ * section.
  */
 public class QuarantineFlowAction {
 
     private static final Logger log = LoggerFactory.getLogger(QuarantineFlowAction.class);
 
-    private final int maxSteps;
     private final double lowConfidenceThreshold;
-    private final int maxHopDepth;
     private final int maxUnresolvedCalls;
 
     public QuarantineFlowAction(QuarantineConfig config) {
-        this.maxSteps = config != null ? config.resolvedMaxSteps() : QuarantineConfig.DEFAULT_MAX_STEPS;
         this.lowConfidenceThreshold = config != null ? config.resolvedAmbiguityConfidenceThreshold() : QuarantineConfig.DEFAULT_AMBIGUITY_CONFIDENCE_THRESHOLD;
-        this.maxHopDepth = config != null ? config.resolvedMaxHopDepth() : QuarantineConfig.DEFAULT_MAX_HOP_DEPTH;
         this.maxUnresolvedCalls = config != null ? config.resolvedMaxUnresolvedCalls() : QuarantineConfig.DEFAULT_MAX_UNRESOLVED_CALLS;
     }
 
@@ -126,22 +122,6 @@ public class QuarantineFlowAction {
                 "Flow marked as quarantined during tracing",
                 "Review entry point configuration and call graph resolution",
                 0.2, GapReason.LOW_CONFIDENCE
-            );
-        }
-
-        if (flow.steps().size() > maxSteps) {
-            return new QuarantineReason(
-                "Flow exceeds maximum step limit (" + flow.steps().size() + " > " + maxSteps + ")",
-                "Split into sub-flows or increase investigation budget",
-                0.4, GapReason.STEPS_EXCEEDED
-            );
-        }
-
-        if (flow.depth() > maxHopDepth) {
-            return new QuarantineReason(
-                "Call chain depth exceeds maximum (" + flow.depth() + " > " + maxHopDepth + ")",
-                "Review deep call chains for potential abstraction layers",
-                0.3, GapReason.HOP_DEPTH
             );
         }
 

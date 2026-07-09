@@ -4,6 +4,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
 
+/**
+ * Configuration for the indexing phase (Phase 1) discovery depth and test filtering.
+ *
+ * @param maxDiscoveryDepth Maximum depth for code graph discovery during indexing
+ * @param testSuffixes      File suffixes to treat as test files and exclude from analysis
+ */
 @ConfigurationProperties(prefix = "code2req.indexing")
 public record IndexingConfig(
     Integer maxDiscoveryDepth,

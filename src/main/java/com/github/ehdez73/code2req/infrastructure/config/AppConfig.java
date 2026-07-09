@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.github.ehdez73.code2req.enrichment.domain.model.EnrichmentConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.QuarantineConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.AllowedLibrariesConfig;
 import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import com.github.ehdez73.code2req.common.domain.OutputConfig;
 import com.github.ehdez73.code2req.infrastructure.snapshot.RefreshableDataSource;
@@ -26,12 +27,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import javax.sql.DataSource;
 import java.io.IOException;
 import java.util.concurrent.Executor;
 
 @Configuration
-@EnableConfigurationProperties({EnrichmentConfig.class, IndexingConfig.class, ExtractionConfig.class, QuarantineConfig.class, OutputConfig.class})
+@EnableConfigurationProperties({EnrichmentConfig.class, IndexingConfig.class, ExtractionConfig.class, QuarantineConfig.class, OutputConfig.class, AllowedLibrariesConfig.class})
 public class AppConfig {
 
     Logger logger = org.slf4j.LoggerFactory.getLogger(AppConfig.class);

@@ -9,7 +9,10 @@ import java.util.stream.Collectors;
 
 public class GlobalDeclarationRegistry {
 
+    public record SuperTypeInfo(String simpleName, String fqn) {}
+
     private final Map<String, List<DeclarationInfo>> byClassName = new ConcurrentHashMap<>();
+    private final Map<String, List<SuperTypeInfo>> superTypes = new ConcurrentHashMap<>();
     private volatile boolean frozen;
 
     public void register(DeclarationInfo info) {
@@ -25,6 +28,15 @@ public class GlobalDeclarationRegistry {
 
     public boolean isFrozen() {
         return frozen;
+    }
+
+    public void registerSuperType(String className, String simpleName, String fqn) {
+        superTypes.computeIfAbsent(className, k -> new ArrayList<>())
+            .add(new SuperTypeInfo(simpleName, fqn));
+    }
+
+    public List<SuperTypeInfo> getSuperTypes(String className) {
+        return superTypes.getOrDefault(className, List.of());
     }
 
     public List<DeclarationInfo> findByClassName(String className) {

@@ -54,28 +54,6 @@ class QuarantineFlowActionTest {
     }
 
     @Test
-    void quarantineQuarantinesFlowExceedingMaxSteps() {
-        var bad = flow(FlowStatus.TRACED, 21, 1, 0);
-        var traced = new TracedFlowResult(List.of(bad), List.of());
-
-        var result = new QuarantineFlowAction(null).quarantine(traced);
-
-        assertTrue(result.flows().isEmpty());
-        assertEquals(1, result.allQuarantinedFlowIds().size());
-    }
-
-    @Test
-    void quarantineQuarantinesFlowExceedingMaxDepth() {
-        var bad = flow(FlowStatus.TRACED, 3, 6, 0);
-        var traced = new TracedFlowResult(List.of(bad), List.of());
-
-        var result = new QuarantineFlowAction(null).quarantine(traced);
-
-        assertTrue(result.flows().isEmpty());
-        assertEquals(1, result.allQuarantinedFlowIds().size());
-    }
-
-    @Test
     void quarantineQuarantinesFlowWithTooManyUnresolvedCalls() {
         var bad = flow(FlowStatus.TRACED, 3, 1, 4);
         var traced = new TracedFlowResult(List.of(bad), List.of());
@@ -125,7 +103,7 @@ class QuarantineFlowActionTest {
     @Test
     void quarantineMixedFlowsKeepsCleanAndQuarantinesBad() {
         var clean = flow(FlowStatus.TRACED, 3, 2, 0);
-        var bad = flow(FlowStatus.TRACED, 21, 1, 0);
+        var bad = flow(FlowStatus.QUARANTINED, 0, 0, 0);
         var traced = new TracedFlowResult(List.of(clean, bad), List.of());
 
         var result = new QuarantineFlowAction(null).quarantine(traced);

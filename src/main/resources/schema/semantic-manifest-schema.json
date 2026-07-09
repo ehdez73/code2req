@@ -150,7 +150,7 @@
                       "required": ["reason_type", "detail", "confidence"],
                       "additionalProperties": false,
                       "properties": {
-                        "reason_type": { "type": "string", "enum": ["STEPS_EXCEEDED", "LOW_CONFIDENCE", "HOP_DEPTH"] },
+                        "reason_type": { "type": "string", "enum": ["LOW_CONFIDENCE"] },
                         "detail": { "type": "string" },
                         "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
                       }

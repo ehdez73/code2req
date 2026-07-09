@@ -76,6 +76,7 @@ public class TraceFlowAction {
                 case "Controller", "RestController" -> FlowStepComponentType.REST_ENDPOINT;
                 case "Service" -> FlowStepComponentType.SERVICE;
                 case "Repository" -> FlowStepComponentType.REPOSITORY;
+                case "Entity", "MappedSuperclass" -> FlowStepComponentType.ENTITY;
                 default -> null;
             };
             if (type != null) {
