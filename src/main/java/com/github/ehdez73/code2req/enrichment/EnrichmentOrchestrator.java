@@ -235,8 +235,8 @@ public class EnrichmentOrchestrator {
                 if (dryRun) {
                     totalTokens += DRY_RUN_ESTIMATED_TOKENS;
                 } else {
-                    String content = result.businessAbstraction() != null
-                        ? result.businessAbstraction().toString() : "";
+                    String content = result.architecturalConnections() != null
+                        ? result.architecturalConnections().toString() : "";
                     totalTokens += budgetCalculator.estimateTokenCount(content);
                 }
 

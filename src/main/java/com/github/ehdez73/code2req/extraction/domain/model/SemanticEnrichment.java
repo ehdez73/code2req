@@ -32,6 +32,7 @@ public class SemanticEnrichment {
 
     public List<ExecutionFinding.HappyPath> getAllHappyPaths() {
         return enrichedByFilePath.values().stream()
+            .filter(ef -> ef.businessAbstraction() != null)
             .flatMap(ef -> ef.businessAbstraction().happyPaths().stream())
             .collect(Collectors.toList());
     }

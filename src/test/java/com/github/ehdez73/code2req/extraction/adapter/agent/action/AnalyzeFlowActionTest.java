@@ -142,8 +142,10 @@ class AnalyzeFlowActionTest {
         var prompt = ctx.getLlmInvocations().get(0).getPrompt();
         assertTrue(prompt.contains("Source Code (traced steps):"),
             "LLM prompt should contain source code section");
-        assertTrue(prompt.contains("TestController.java lines 9-11"),
-            "LLM prompt should reference source file and lines");
+        assertTrue(prompt.contains("TestController.java:"),
+            "LLM prompt should reference source file");
+        assertTrue(prompt.contains("// lines 9-11 (handle)"),
+            "LLM prompt should reference line numbers and method name");
     }
 
     @Test

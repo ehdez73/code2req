@@ -7,7 +7,7 @@ import java.util.List;
 public record ExecutionFinding(
     @JsonProperty(required = true) @JsonPropertyDescription("Identifies the task and source file being enriched. All fields are known values — copy them from the task context provided in the prompt.")
     Metadata metadata,
-    @JsonProperty(value = "business_abstraction", required = true) @JsonPropertyDescription("High-level business purpose and happy-path flows of the source file's primary class or logic.")
+    @JsonProperty(value = "business_abstraction", required = false) @JsonPropertyDescription("High-level business purpose and happy-path flows of the source file's primary class or logic.")
     BusinessAbstraction businessAbstraction,
     @JsonProperty(value = "business_rules_and_guardrails", required = true) @JsonPropertyDescription("Explicit validation rules, implicit business guardrails, and edge cases extracted from the code or its tests.")
     BusinessRulesAndGuardrails businessRulesAndGuardrails,

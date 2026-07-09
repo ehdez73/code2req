@@ -288,12 +288,6 @@ private String buildSystemPrompt() {
             "module_tag":   "<copy from task context>",
             "timestamp":    "<ISO-8601, e.g. 2025-06-01T12:00:00>"
           },
-          "business_abstraction": {
-            "purpose": "<1-2 sentence business responsibility of this file>",
-            "happy_paths": [
-              { "flow_name": "<short name>", "description": "<normal success flow>" }
-            ]
-          },
           "business_rules_and_guardrails": {
             "validations": [
               {
@@ -341,8 +335,6 @@ private String buildSystemPrompt() {
         FIELD RULES
         ───────────
         metadata          — copy all five fields verbatim from the task context block.
-        purpose           — one or two sentences, business language, no code terms.
-        happy_paths       — one entry per distinct success flow; omit error flows here.
         validations       — every guard clause, null check, or business rejection rule. Populate
                             `entry_point` by cross-referencing each validation against the
                             `architectural_connections.inbound.http_endpoints[]`,

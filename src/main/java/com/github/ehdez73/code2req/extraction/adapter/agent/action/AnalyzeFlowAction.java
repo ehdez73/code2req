@@ -33,7 +33,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -79,27 +80,57 @@ public class AnalyzeFlowAction {
 
     private FunctionalFlow analyzeFlow(ExecutionFlow flow, OperationContext context) {
         ComplexityLevel complexity = assessComplexity(flow);
-
         EntryPoint ep = flow.entryPoint();
         String flowKey = deterministicFlowKey(ep);
 
-        if (resume) {
-            List<Map<String, Object>> existing = executionFindingStore.findByTaskIdAndType(flowKey, FindingType.FLOW_ANALYSIS);
-            if (!existing.isEmpty()) {
-                try {
-                    String json = (String) existing.get(0).get("finding_json");
-                    FlowAnalysisResponse cached = objectMapper.readValue(json, FlowAnalysisResponse.class);
-                    log.info("Reusing cached flow analysis for {} ({})", flowKey, ep.filePath());
-                    return buildFunctionalFlow(flow, complexity, cached);
-                } catch (Exception e) {
-                    log.warn("Failed to deserialize cached FLOW_ANALYSIS for {}: {}", flowKey, e.getMessage());
-                }
-            }
+        Optional<FlowAnalysisResponse> cached = loadCachedAnalysis(flowKey);
+        if (cached.isPresent()) {
+            log.info("Reusing cached flow analysis for {} ({})", flowKey, ep.filePath());
+            return buildFunctionalFlow(flow, complexity, cached.get());
         }
 
+        var epData = collectEntryPointData(ep);
         Optional<ExecutionFinding> enrichment = knowledge.semanticEnrichment()
             .findByFilePath(ep.filePath());
 
+        String enrichmentContext = enrichment
+            .map(ef -> formatEnrichmentContext(ef, epData.epId()))
+            .orElse("No Phase 2 enrichment available.");
+
+        String stepEnrichmentContext = buildStepEnrichmentContext(flow, ep);
+        String stepsContext = buildStepsContext(flow.steps());
+        String sourceCodeStr = buildSourceCodeContext(flow.steps());
+
+        String prompt = buildPrompt(epData, complexity, stepsContext,
+            enrichmentContext, stepEnrichmentContext, sourceCodeStr);
+
+        FlowAnalysisResponse response = callLlmAndPersist(prompt, flowKey, context);
+
+        return buildFunctionalFlow(flow, complexity, response);
+    }
+
+    private record EntryPointData(
+        String entryMethodOrType,
+        String entryPathOrClass,
+        String filePath,
+        String payloadType,
+        String epId
+    ) {}
+
+    private Optional<FlowAnalysisResponse> loadCachedAnalysis(String flowKey) {
+        if (!resume) return Optional.empty();
+        List<Map<String, Object>> existing = executionFindingStore.findByTaskIdAndType(flowKey, FindingType.FLOW_ANALYSIS);
+        if (existing.isEmpty()) return Optional.empty();
+        try {
+            String json = (String) existing.get(0).get("finding_json");
+            return Optional.of(objectMapper.readValue(json, FlowAnalysisResponse.class));
+        } catch (Exception e) {
+            log.warn("Failed to deserialize cached FLOW_ANALYSIS for {}: {}", flowKey, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private EntryPointData collectEntryPointData(EntryPoint ep) {
         String entryMethodOrType = switch (ep) {
             case HttpEntryPoint h -> h.httpMethod();
             default -> ep.type().name();
@@ -116,28 +147,26 @@ public class AnalyzeFlowAction {
             case HttpEntryPoint h -> !h.requestBodies().isEmpty() ? h.requestBodies().get(0) : "—";
             case ScheduledEntryPoint s -> "—";
         };
-        String epId = entryPointId(ep);
-        String enrichmentContext = enrichment
-            .map(ef -> formatEnrichmentContext(ef, epId))
-            .orElse("No Phase 2 enrichment available.");
+        return new EntryPointData(entryMethodOrType, entryPathOrClass, ep.filePath(), payloadType, entryPointId(ep));
+    }
 
-        StringBuilder stepEnrichments = new StringBuilder();
+    private String buildStepEnrichmentContext(ExecutionFlow flow, EntryPoint ep) {
+        StringBuilder sb = new StringBuilder();
         flow.steps().stream()
             .map(FlowStep::sourceFile)
-            .filter(f -> f != null && !f.equals(flow.entryPoint().filePath()))
+            .filter(f -> f != null && !f.equals(ep.filePath()))
             .distinct().sorted()
             .forEach(f -> knowledge.semanticEnrichment().findByFilePath(f)
                 .ifPresent(ef -> {
                     String fileName = f.contains("/") ? f.substring(f.lastIndexOf('/') + 1) : f;
-                    stepEnrichments.append("  ").append(fileName).append(":\n");
-                    stepEnrichments.append(formatEnrichmentContext(ef, null).indent(4));
+                    sb.append("  ").append(fileName).append(":\n");
+                    sb.append(formatEnrichmentContext(ef, null).indent(4));
                 }));
+        return sb.isEmpty() ? "No Phase 2 enrichment available for intermediate steps." : sb.toString();
+    }
 
-        String stepEnrichmentContext = stepEnrichments.isEmpty()
-            ? "No Phase 2 enrichment available for intermediate steps."
-            : stepEnrichments.toString();
-
-        String stepsContext = flow.steps().stream()
+    private static String buildStepsContext(List<FlowStep> steps) {
+        return steps.stream()
             .map(s -> {
                 String base = "  - " + s.componentType() + ": " + s.className() + "."
                     + (s.methodName() != null ? s.methodName() : "(external call)")
@@ -149,33 +178,63 @@ public class AnalyzeFlowAction {
             })
             .reduce((a, b) -> a + "\n" + b)
             .orElse("  (no steps traced)");
+    }
 
-        Set<String> seenSourceKeys = new HashSet<>();
-        StringBuilder sourceCodeContext = new StringBuilder();
-        for (FlowStep step : flow.steps()) {
+    private String buildSourceCodeContext(List<FlowStep> steps) {
+        Map<String, List<FlowStep>> snippetsByFile = new LinkedHashMap<>();
+        for (FlowStep step : steps) {
             if (step.sourceFile() != null && step.startLine() > 0 && step.endLine() > 0) {
-                String key = step.sourceFile() + ":" + step.startLine() + "-" + step.endLine();
-                if (seenSourceKeys.add(key)) {
-                    String code = readFileContent(step.sourceFile(), step.startLine(), step.endLine());
-                    if (!code.isEmpty()) {
-                        String fileName = step.sourceFile().contains("/")
-                            ? step.sourceFile().substring(step.sourceFile().lastIndexOf('/') + 1)
-                            : step.sourceFile();
-                        sourceCodeContext.append("  ").append(fileName)
-                            .append(" lines ").append(step.startLine()).append("-").append(step.endLine())
-                            .append(":\n");
-                        sourceCodeContext.append("  ```java\n");
-                        sourceCodeContext.append(code.indent(2));
-                        sourceCodeContext.append("  ```\n");
-                    }
-                }
+                snippetsByFile.computeIfAbsent(step.sourceFile(), k -> new ArrayList<>()).add(step);
             }
         }
-        String sourceCodeStr = sourceCodeContext.isEmpty()
-            ? "No source code context available."
-            : sourceCodeContext.toString();
+        StringBuilder sb = new StringBuilder();
+        for (var entry : snippetsByFile.entrySet()) {
+            String fileName = entry.getKey().contains("/")
+                ? entry.getKey().substring(entry.getKey().lastIndexOf('/') + 1)
+                : entry.getKey();
+            sb.append("  ").append(fileName).append(":\n");
+            sb.append("  ```java\n");
+            Set<String> seenLineRanges = new LinkedHashSet<>();
+            for (FlowStep step : entry.getValue()) {
+                String rangeKey = step.startLine() + "-" + step.endLine();
+                if (!seenLineRanges.add(rangeKey)) continue;
+                String code = readFileContent(step.sourceFile(), step.startLine(), step.endLine());
+                if (!code.isEmpty()) {
+                    sb.append("  // lines ").append(step.startLine()).append("-")
+                        .append(step.endLine());
+                    if (step.methodName() != null) {
+                        sb.append(" (").append(step.methodName()).append(")");
+                    }
+                    sb.append("\n");
+                    sb.append(code.indent(4));
+                }
+            }
+            sb.append("  ```\n");
+        }
+        return sb.isEmpty() ? "No source code context available." : sb.toString();
+    }
 
-        String prompt = """
+    private FlowAnalysisResponse callLlmAndPersist(String prompt, String flowKey,
+                                                     OperationContext context) {
+        FlowAnalysisResponse response = context.ai()
+            .withDefaultLlm()
+            .createObject(prompt, FlowAnalysisResponse.class);
+
+        try {
+            String json = objectMapper.writeValueAsString(response);
+            executionFindingStore.save(flowKey, FindingType.FLOW_ANALYSIS, json, true);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize FLOW_ANALYSIS for {}: {}", flowKey, e.getMessage());
+        }
+
+        return response;
+    }
+
+    private String buildPrompt(EntryPointData epData, ComplexityLevel complexity,
+                               String stepsContext, String enrichmentContext,
+                               String stepEnrichmentContext, String sourceCodeStr) {
+        String filePath = epData.filePath();
+        return """
     You are a senior software business analyst and reverse-engineering specialist.
     You read traced execution flows and source code and extract precise,
     verifiable functional and non-functional requirements — the kind that could be
@@ -293,29 +352,16 @@ public class AnalyzeFlowAction {
     Source Code (traced steps):
     %s
     """.formatted(
-                entryMethodOrType,
-                entryPathOrClass,
-                flow.entryPoint().filePath(),
-                payloadType,
+                epData.entryMethodOrType(),
+                epData.entryPathOrClass(),
+                filePath,
+                epData.payloadType(),
                 complexity,
                 stepsContext,
                 enrichmentContext,
                 stepEnrichmentContext,
                 sourceCodeStr
         );
-
-        FlowAnalysisResponse response = context.ai()
-            .withDefaultLlm()
-            .createObject(prompt, FlowAnalysisResponse.class);
-
-        try {
-            String json = objectMapper.writeValueAsString(response);
-            executionFindingStore.save(flowKey, FindingType.FLOW_ANALYSIS, json, true);
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize FLOW_ANALYSIS for {}: {}", flowKey, e.getMessage());
-        }
-
-        return buildFunctionalFlow(flow, complexity, response);
     }
 
     private FunctionalFlow buildFunctionalFlow(ExecutionFlow flow, ComplexityLevel complexity, FlowAnalysisResponse response) {
@@ -472,6 +518,15 @@ public class AnalyzeFlowAction {
                 sb.append("Event publications:\n");
                 for (ExecutionFinding.EventPublication pub : outbound.eventPublications()) {
                     sb.append("  - ").append(pub.broker()).append(": ").append(pub.topicOrQueue()).append("\n");
+                }
+            }
+        }
+        if (ef.testInsights() != null && !ef.testInsights().isEmpty()) {
+            sb.append("Test insights:\n");
+            for (ExecutionFinding.TestInsight ti : ef.testInsights()) {
+                sb.append("  - ").append(ti.testFilePath()).append(": ").append(ti.scenarioVerified()).append("\n");
+                if (ti.hiddenRuleUncovered() != null && !ti.hiddenRuleUncovered().isBlank()) {
+                    sb.append("    Hidden rule: ").append(ti.hiddenRuleUncovered()).append("\n");
                 }
             }
         }
