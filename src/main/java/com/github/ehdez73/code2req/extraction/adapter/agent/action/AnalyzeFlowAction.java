@@ -19,6 +19,7 @@ import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.EdgeCase;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
+import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStatus;
 import com.github.ehdez73.code2req.extraction.domain.model.ExternalCall;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * For a traced execution flow, extracts business semantics: user story
@@ -189,16 +191,31 @@ public class AnalyzeFlowAction {
         }
         StringBuilder sb = new StringBuilder();
         for (var entry : snippetsByFile.entrySet()) {
-            String fileName = entry.getKey().contains("/")
-                ? entry.getKey().substring(entry.getKey().lastIndexOf('/') + 1)
-                : entry.getKey();
-            sb.append("  ").append(fileName).append(":\n");
+            String filePath = entry.getKey();
+            String fileName = filePath.contains("/")
+                ? filePath.substring(filePath.lastIndexOf('/') + 1)
+                : filePath;
+            List<FlowStep> fileSteps = entry.getValue();
+            FlowStepComponentType componentType = fileSteps.get(0).componentType();
+            sb.append("  ").append(fileName).append(": ").append(componentType.name()).append("\n");
             sb.append("  ```java\n");
+
+            List<String> fileLines = readAllLines(filePath);
+            if (fileLines.isEmpty()) {
+                sb.append("  ```\n");
+                continue;
+            }
+
+            String classHeader = findClassHeader(fileLines, fileSteps);
+            if (!classHeader.isEmpty()) {
+                sb.append(classHeader.indent(4));
+            }
+
             Set<String> seenLineRanges = new LinkedHashSet<>();
-            for (FlowStep step : entry.getValue()) {
+            for (FlowStep step : fileSteps) {
                 String rangeKey = step.startLine() + "-" + step.endLine();
                 if (!seenLineRanges.add(rangeKey)) continue;
-                String code = readFileContent(step.sourceFile(), step.startLine(), step.endLine());
+                String code = extractLines(fileLines, step.startLine(), step.endLine());
                 if (!code.isEmpty()) {
                     sb.append("  // lines ").append(step.startLine()).append("-")
                         .append(step.endLine());
@@ -209,9 +226,70 @@ public class AnalyzeFlowAction {
                     sb.append(code.indent(4));
                 }
             }
+
+            if (!classHeader.isEmpty()) {
+                sb.append("}\n".indent(4));
+            }
             sb.append("  ```\n");
         }
         return sb.isEmpty() ? "No source code context available." : sb.toString();
+    }
+
+    private static String findClassHeader(List<String> lines, List<FlowStep> stepsForFile) {
+        String className = stepsForFile.get(0).className();
+        int firstMethodLine = stepsForFile.stream()
+            .mapToInt(FlowStep::startLine)
+            .min().orElse(1);
+
+        int classLineIdx = -1;
+        for (int i = firstMethodLine - 2; i >= 0; i--) {
+            String line = lines.get(i).trim();
+            if (line.matches(".*\\b(class|interface|enum|@interface)\\s+" + Pattern.quote(className) + "\\b.*")) {
+                classLineIdx = i;
+                break;
+            }
+        }
+
+        if (classLineIdx < 0) return "";
+
+        int classStartIdx = classLineIdx;
+        while (classStartIdx > 0) {
+            String above = lines.get(classStartIdx - 1).trim();
+            if (above.startsWith("@") || above.isEmpty() || above.startsWith("//")
+                || above.startsWith("/*") || above.startsWith("*")) {
+                classStartIdx--;
+            } else {
+                break;
+            }
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = classStartIdx; i <= classLineIdx; i++) {
+            String line = lines.get(i);
+            if (i == classLineIdx && !line.trim().endsWith("{")) {
+                sb.append(line).append(" {\n");
+            } else {
+                sb.append(line).append("\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String extractLines(List<String> lines, int startLine, int endLine) {
+        int from = Math.max(0, startLine - 1);
+        int to = Math.min(lines.size(), endLine);
+        if (from >= to) return "";
+        return String.join("\n", lines.subList(from, to));
+    }
+
+    private static List<String> readAllLines(String filePath) {
+        if (filePath == null || filePath.isBlank()) return List.of();
+        try {
+            return Files.readAllLines(Path.of(filePath));
+        } catch (IOException e) {
+            log.warn("Could not read file {}: {}", filePath, e.getMessage());
+            return List.of();
+        }
     }
 
     private FlowAnalysisResponse callLlmAndPersist(String prompt, String flowKey,
@@ -531,20 +609,6 @@ public class AnalyzeFlowAction {
             }
         }
         return sb.isEmpty() ? "No enrichment context available." : sb.toString();
-    }
-
-    private String readFileContent(String filePath, int startLine, int endLine) {
-        if (filePath == null || filePath.isBlank()) return "";
-        try {
-            var lines = Files.readAllLines(Path.of(filePath));
-            int from = Math.max(0, startLine - 1);
-            int to = Math.min(lines.size(), endLine);
-            if (from >= to) return "";
-            return String.join("\n", lines.subList(from, to));
-        } catch (IOException e) {
-            log.warn("Could not read file {}: {}", filePath, e.getMessage());
-            return "";
-        }
     }
 
     private String generateMermaid(ExecutionFlow flow) {

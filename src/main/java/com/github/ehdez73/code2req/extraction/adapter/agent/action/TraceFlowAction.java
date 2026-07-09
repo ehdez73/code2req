@@ -105,7 +105,7 @@ public class TraceFlowAction {
     }
 
     private ExecutionFlow traceFlow(EntryPoint entryPoint) {
-        String cacheKey = entryPoint.filePath() + ":" + entryPoint.className();
+        String cacheKey = entryPoint.filePath() + ":" + entryPoint.className() + ":" + entryPoint.methodName();
 
         if (subChainCache.containsKey(cacheKey)) {
             log.debug("Reusing cached trace for {}", cacheKey);
@@ -141,11 +141,11 @@ public class TraceFlowAction {
                                   int sourceStartLine, int sourceEndLine) {
         if (isMaxDepthReached(depth)) return;
 
-        if (!tryVisit(sourceFilePath, sourceClassName, visited)) return;
+        if (!tryVisit(sourceFilePath, sourceClassName, entryMethodName, visited)) return;
 
         addEntryPointStep(depth, steps, sourceFilePath, sourceClassName, entryMethodName, sourceStartLine, sourceEndLine);
 
-        for (CallGraphEdge edge : getOutgoingEdges(sourceFilePath, sourceClassName)) {
+        for (CallGraphEdge edge : getOutgoingEdges(sourceFilePath, sourceClassName, entryMethodName)) {
             if (!edge.isResolved()) {
                 addUnresolvedCall(unresolvedCalls, edge, sourceFilePath);
                 continue;
@@ -166,21 +166,22 @@ public class TraceFlowAction {
         addFloatingLinkSteps(steps, sourceFilePath, sourceClassName);
     }
 
-    private static String visitKey(String filePath, String className) {
-        return filePath + ":" + className;
+    private static String visitKey(String filePath, String className, String methodName) {
+        return filePath + ":" + className + ":" + (methodName != null ? methodName : "");
     }
 
     private boolean isMaxDepthReached(int depth) {
         return depth >= maxDepth;
     }
 
-    private boolean tryVisit(String filePath, String className, Set<String> visited) {
-        return visited.add(visitKey(filePath, className));
+    private boolean tryVisit(String filePath, String className, String methodName, Set<String> visited) {
+        return visited.add(visitKey(filePath, className, methodName));
     }
 
-    private List<CallGraphEdge> getOutgoingEdges(String filePath, String className) {
+    private List<CallGraphEdge> getOutgoingEdges(String filePath, String className, String methodName) {
         return knowledge.structuralGraph().callGraphEdges().stream()
-            .filter(e -> filePath.equals(e.sourceFilePath()) || className.equals(e.sourceClassName()))
+            .filter(e -> (filePath.equals(e.sourceFilePath()) || className.equals(e.sourceClassName()))
+                      && (methodName == null || methodName.equals(e.sourceMethodName())))
             .toList();
     }
 
