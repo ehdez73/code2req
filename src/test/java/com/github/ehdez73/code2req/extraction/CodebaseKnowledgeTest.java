@@ -24,9 +24,6 @@ class CodebaseKnowledgeTest {
     private static ExecutionFinding finding(String filePath, String flowName) {
         return new ExecutionFinding(
             new ExecutionFinding.Metadata("t1", "test", filePath, "java", "mod", "now"),
-            new ExecutionFinding.BusinessAbstraction(
-                "Purpose",
-                List.of(new ExecutionFinding.HappyPath(flowName, "Description"))),
             new ExecutionFinding.BusinessRulesAndGuardrails(List.of(), List.of()),
             List.of(),
             new ExecutionFinding.ArchitecturalConnections(
@@ -96,26 +93,6 @@ class CodebaseKnowledgeTest {
 
         var callees = knowledge.getCalleesOf("/src/A.java");
         assertEquals(2, callees.size());
-    }
-
-    @Test
-    void getAllHappyPathsDelegatesToSemanticEnrichment() {
-        var enrichment = new SemanticEnrichment(Map.of(
-            "/src/A.java", finding("/src/A.java", "Flow A"),
-            "/src/B.java", finding("/src/B.java", "Flow B")));
-        var knowledge = new CodebaseKnowledge(new StructuralGraph(), enrichment, new LinkRegistry());
-
-        var paths = knowledge.getAllHappyPaths();
-        assertEquals(2, paths.size());
-    }
-
-    @Test
-    void getFlowNamesDelegatesToSemanticEnrichment() {
-        var enrichment = new SemanticEnrichment(Map.of(
-            "/src/A.java", finding("/src/A.java", "Flow X")));
-        var knowledge = new CodebaseKnowledge(new StructuralGraph(), enrichment, new LinkRegistry());
-
-        assertEquals(List.of("Flow X"), knowledge.getFlowNames());
     }
 
     @Test
@@ -207,9 +184,6 @@ class CodebaseKnowledgeTest {
     private static ExecutionFinding findingWithTestInsight(String filePath, String flowName, String testFilePath) {
         return new ExecutionFinding(
             new ExecutionFinding.Metadata("t1", "test", filePath, "java", "mod", "now"),
-            new ExecutionFinding.BusinessAbstraction(
-                "Purpose",
-                List.of(new ExecutionFinding.HappyPath(flowName, "Description"))),
             new ExecutionFinding.BusinessRulesAndGuardrails(List.of(), List.of()),
             List.of(new ExecutionFinding.TestInsight(testFilePath, "verifies flow", "hidden rule")),
             new ExecutionFinding.ArchitecturalConnections(

@@ -65,7 +65,7 @@ class LlmEnrichmentServiceTest {
         taskStore.save(task);
 
         var decision = PlannerDecision.qualified("test-task-1", "/src/test.java", "test",
-            List.of(QualificationReason.SPRING_DATA_INTERFACE));
+            List.of(QualificationReason.STORED_PROCEDURE_CALL));
 
         CompletableFuture<ExecutionFinding> future = executor.enrich(
             task, decision, "class Test {}", null, null, true);
@@ -74,8 +74,6 @@ class LlmEnrichmentServiceTest {
         assertNotNull(result);
         assertEquals("test-task-1", result.metadata().taskId());
         assertEquals("/src/test.java", result.metadata().filePath());
-        assertNotNull(result.businessAbstraction());
-        assertNotNull(result.businessAbstraction().purpose());
         assertNotNull(result.businessRulesAndGuardrails());
         assertNotNull(result.architecturalConnections());
     }
@@ -87,7 +85,7 @@ class LlmEnrichmentServiceTest {
         taskStore.save(task);
 
         var decision = PlannerDecision.qualified("test-task-2", "/src/service/OrderService.java", "test",
-            List.of(QualificationReason.NATIVE_SQL_QUERY));
+            List.of(QualificationReason.STORED_PROCEDURE_CALL));
 
         executor.enrich(task, decision, "class OrderService {}", null, null, true).get();
 
@@ -101,7 +99,7 @@ class LlmEnrichmentServiceTest {
         taskStore.save(task);
 
         var decision = PlannerDecision.qualified("test-task-3", "/src/Test.java", "test",
-            List.of(QualificationReason.SCHEDULED_TASK_PRESENT));
+            List.of(QualificationReason.STORED_PROCEDURE_CALL));
 
         executor.enrich(task, decision, "class Test {}", null, null, true).get();
 
@@ -143,7 +141,7 @@ class LlmEnrichmentServiceTest {
         taskStore.save(task);
 
         var decision = PlannerDecision.qualified("test-task-5", "/src/Nullable.java", "test",
-            List.of(QualificationReason.SPRING_DATA_INTERFACE));
+            List.of(QualificationReason.STORED_PROCEDURE_CALL));
 
         CompletableFuture<ExecutionFinding> future = executor.enrich(
             task, decision, null, null, null, true);

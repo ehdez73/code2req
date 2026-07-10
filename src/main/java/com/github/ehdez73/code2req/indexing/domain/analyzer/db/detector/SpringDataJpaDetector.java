@@ -22,22 +22,17 @@ import com.github.javaparser.ast.type.ClassOrInterfaceType;
 @Component
 public class SpringDataJpaDetector implements DbAccessDetector {
 
-    private static final List<String> SPRING_DATA_REPOS = List.of(
-        "JpaRepository", "CrudRepository", "PagingAndSortingRepository",
-        "MongoRepository", "ReactiveCrudRepository", "ReactiveMongoRepository",
-        "R2dbcRepository", "Neo4jRepository");
-
     @Override
     public void detectClass(List<DbAccessInfo> result, ClassOrInterfaceDeclaration clazz,
                             String className, String filePath) {
         if (!clazz.isInterface()) return;
 
         boolean isSpringDataRepo = clazz.getExtendedTypes().stream()
-            .anyMatch(ext -> SPRING_DATA_REPOS.contains(ext.getNameAsString()));
+            .anyMatch(ext -> isSpringDataRepositoryType(ext, clazz));
         if (!isSpringDataRepo) return;
 
         String entityType = clazz.getExtendedTypes().stream()
-            .filter(ext -> SPRING_DATA_REPOS.contains(ext.getNameAsString()))
+            .filter(ext -> isSpringDataRepositoryType(ext, clazz))
             .map(this::extractEntityType)
             .filter(t -> !t.isEmpty())
             .findFirst().orElse("");
@@ -82,6 +77,21 @@ public class SpringDataJpaDetector implements DbAccessDetector {
             .filter(ta -> !ta.isEmpty())
             .map(ta -> ta.get(0).toString())
             .orElse("");
+    }
+
+    private static boolean isSpringDataRepositoryType(ClassOrInterfaceType ext, ClassOrInterfaceDeclaration clazz) {
+        String name = ext.getNameAsString();
+
+        boolean hasImport = clazz.findAncestor(CompilationUnit.class)
+            .map(cu -> cu.getImports().stream()
+                .anyMatch(imp -> imp.getNameAsString().endsWith("." + name)
+                    && imp.getNameAsString().startsWith("org.springframework.data")))
+            .orElse(false);
+        if (hasImport) return true;
+
+        return ext.getScope()
+            .map(scope -> scope.toString().startsWith("org.springframework.data"))
+            .orElse(false);
     }
 
     private static String extractQueryValue(AnnotationExpr ann) {

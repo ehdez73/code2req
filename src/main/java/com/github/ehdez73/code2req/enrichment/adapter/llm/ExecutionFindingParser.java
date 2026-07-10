@@ -149,9 +149,6 @@ public class ExecutionFindingParser {
             meta.put("timestamp", "");
         }
 
-        ObjectNode ba = ensureObject(root, "business_abstraction");
-        ensureArray(ba, "happy_paths");
-
         ObjectNode br = ensureObject(root, "business_rules_and_guardrails");
         ensureArray(br, "validations");
         ensureArray(br, "edge_cases");

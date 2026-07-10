@@ -4,7 +4,6 @@
   "type": "object",
   "required": [
     "metadata",
-    "business_abstraction",
     "business_rules_and_guardrails",
     "test_insights",
     "architectural_connections",
@@ -21,24 +20,6 @@
         "tech_profile": { "type": "string" },
         "module_tag":   { "type": "string" },
         "timestamp":    { "type": "string" }
-      }
-    },
-    "business_abstraction": {
-      "type": "object",
-      "required": ["purpose", "happy_paths"],
-      "properties": {
-        "purpose": { "type": "string" },
-        "happy_paths": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["flow_name", "description"],
-            "properties": {
-              "flow_name":   { "type": "string" },
-              "description": { "type": "string" }
-            }
-          }
-        }
       }
     },
     "business_rules_and_guardrails": {

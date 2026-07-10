@@ -16,10 +16,8 @@ import com.github.ehdez73.code2req.enrichment.EnrichmentOrchestrator;
 import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import com.github.ehdez73.code2req.enrichment.domain.planner.QualificationRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.CustomConstraintValidatorRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.JpqlHqlQueryRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.NativeSqlQueryRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.ScheduledTaskPresentRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.SpringDataInterfaceRule;
+
+
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedFloatingLinkRule;
@@ -76,15 +74,12 @@ class EnrichCommandTest {
 
         var tfm = new TestFileMatcher(indexingConfig);
         List<QualificationRule> rules = List.of(
-            new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
             new CustomConstraintValidatorRule(),
-            new ScheduledTaskPresentRule(),
+
             new UnresolvedSignaturesRule(jdbc, 5),
             new UnresolvedFloatingLinkRule(floatingLinkStore),
-            new TestAssertionsPresentRule(tfm),
-            new NativeSqlQueryRule(),
-            new JpqlHqlQueryRule()
+            new TestAssertionsPresentRule(tfm)
         );
 
         var planner = new EnrichmentPlanner(taskStore, jdbc, rules, findingStore);
@@ -117,7 +112,7 @@ class EnrichCommandTest {
     void enrichDryRunWithQualifiedTasksCompletesWithoutApiCalls() {
         insertIndexedTask("t1", "/src/ScheduledService.java");
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-            "t1", "SCHEDULED_TASK", "{}", 1);
+            "t1", "DATABASE_PROCEDURE_CALL", "{}", 1);
 
         String result = command.enrich("project-manifest.yaml", true, false, null);
         assertTrue(result.contains("Completed: 1"));
@@ -139,16 +134,13 @@ class EnrichCommandTest {
     void enrichWithMultipleQualifiedTasks() {
         insertIndexedTask("t1", "/src/ServiceA.java");
         insertIndexedTask("t2", "/src/ServiceB.java");
-        insertIndexedTask("t3", "/src/ServiceC.java");
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-            "t1", "SPRING_DATA_INTERFACE", "{}", 1);
+            "t1", "DATABASE_PROCEDURE_CALL", "{}", 1);
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-            "t2", "NATIVE_SQL_QUERY", "{}", 1);
-        jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-            "t3", "SCHEDULED_TASK", "{}", 1);
+            "t2", "DATABASE_PROCEDURE_CALL", "{}", 1);
 
         String result = command.enrich("project-manifest.yaml", true, false, null);
-        assertTrue(result.contains("Completed: 3"));
+        assertTrue(result.contains("Completed: 2"));
         assertTrue(result.contains("Enrich Complete"));
     }
 

@@ -30,20 +30,6 @@ public class SemanticEnrichment {
         return List.copyOf(enrichedByFilePath.values());
     }
 
-    public List<ExecutionFinding.HappyPath> getAllHappyPaths() {
-        return enrichedByFilePath.values().stream()
-            .filter(ef -> ef.businessAbstraction() != null)
-            .flatMap(ef -> ef.businessAbstraction().happyPaths().stream())
-            .collect(Collectors.toList());
-    }
-
-    public List<String> getFlowNames() {
-        return getAllHappyPaths().stream()
-            .map(ExecutionFinding.HappyPath::flowName)
-            .distinct()
-            .collect(Collectors.toList());
-    }
-
     public int size() { return enrichedByFilePath.size(); }
 
     public List<ExecutionFinding.TestInsight> getAllTestInsights() {

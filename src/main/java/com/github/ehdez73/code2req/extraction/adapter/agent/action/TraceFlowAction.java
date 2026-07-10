@@ -1,5 +1,6 @@
 package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
+import com.github.ehdez73.code2req.common.util.LibraryTypeResolver;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.EntryPointDiscoveryResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
@@ -43,7 +44,6 @@ public class TraceFlowAction {
     private final Map<String, FlowStepComponentType> componentTypeLookup;
     private final int maxDepth;
     private final List<String> frameworkPrefixes;
-    private final Map<String, FileImports> importsCache;
 
     public TraceFlowAction(CodebaseKnowledge knowledge, ExtractionConfig config) {
         this(knowledge, config, List.of());
@@ -55,7 +55,6 @@ public class TraceFlowAction {
         this.componentTypeLookup = buildComponentTypeLookup();
         this.maxDepth = config != null ? config.resolvedMaxInvestigationStepsPerFlow() : 5;
         this.frameworkPrefixes = frameworkPrefixes != null ? frameworkPrefixes : List.of();
-        this.importsCache = new HashMap<>();
     }
 
     private Map<String, FlowStepComponentType> buildComponentTypeLookup() {
@@ -227,7 +226,7 @@ public class TraceFlowAction {
                                    List<DbAccessInfo> matchingDbAccess) {
         for (DbAccessInfo db : matchingDbAccess) {
             List<String> enrichments = new ArrayList<>();
-            enrichments.add(db.sql() != null ? db.sql() : "");
+            if (db.sql() != null) enrichments.add(db.sql());
             enrichments.add(classifyComponent(edge).name());
             steps.add(new FlowStep(
                 steps.size(), FlowStepComponentType.DATABASE,
@@ -245,7 +244,7 @@ public class TraceFlowAction {
             steps.add(new FlowStep(
                 steps.size(), FlowStepComponentType.DATABASE,
                 db.className(), db.methodName(), null,
-                db.filePath(), db.startLine(), db.endLine(), List.of(db.sql() != null ? db.sql() : "")
+                db.filePath(), db.startLine(), db.endLine(), db.sql() != null ? List.of(db.sql()) : List.of()
             ));
         }
     }
@@ -299,66 +298,6 @@ public class TraceFlowAction {
     }
 
     private boolean isFrameworkCall(String unresolvedCall, String sourceFilePath) {
-        if (frameworkPrefixes.stream().anyMatch(unresolvedCall::startsWith)) {
-            return true;
-        }
-        String className = extractClassName(unresolvedCall);
-        if (className == null) {
-            return false;
-        }
-        String rest = unresolvedCall.substring(className.length() + 1);
-        FileImports fileImports = readFileImports(sourceFilePath);
-        String fqn = fileImports.classNameToFqn().get(className);
-        if (fqn != null) {
-            String reconstructed = fqn + "." + rest;
-            return frameworkPrefixes.stream().anyMatch(reconstructed::startsWith);
-        }
-        for (String pkg : fileImports.wildcardPackages()) {
-            String reconstructed = pkg + "." + unresolvedCall;
-            if (frameworkPrefixes.stream().anyMatch(reconstructed::startsWith)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static String extractClassName(String unresolvedCall) {
-        int dot = unresolvedCall.lastIndexOf('.');
-        if (dot < 0) return null;
-        String beforeDot = unresolvedCall.substring(0, dot);
-        int lastDot = beforeDot.lastIndexOf('.');
-        return lastDot >= 0 ? beforeDot.substring(lastDot + 1) : beforeDot;
-    }
-
-    record FileImports(Map<String, String> classNameToFqn, List<String> wildcardPackages) {
-        static final FileImports EMPTY = new FileImports(Map.of(), List.of());
-    }
-
-    private FileImports readFileImports(String filePath) {
-        if (filePath == null) return FileImports.EMPTY;
-        FileImports cached = importsCache.get(filePath);
-        if (cached != null) return cached;
-        try (var lines = Files.lines(Path.of(filePath))) {
-            Map<String, String> classNameToFqn = new HashMap<>();
-            List<String> wildcardPackages = new ArrayList<>();
-            lines.filter(line -> line.trim().startsWith("import "))
-                .map(line -> line.trim().substring(7).replace(";", "").trim())
-                .filter(imp -> !imp.startsWith("static"))
-                .filter(imp -> frameworkPrefixes.stream().anyMatch(imp::startsWith))
-                .forEach(imp -> {
-                    if (imp.endsWith(".*")) {
-                        wildcardPackages.add(imp.substring(0, imp.length() - 2));
-                    } else {
-                        String simpleName = imp.substring(imp.lastIndexOf('.') + 1);
-                        classNameToFqn.put(simpleName, imp);
-                    }
-                });
-            FileImports result = new FileImports(classNameToFqn, wildcardPackages);
-            importsCache.put(filePath, result);
-            return result;
-        } catch (IOException e) {
-            log.debug("Could not read {} for import analysis: {}", filePath, e.toString());
-            return FileImports.EMPTY;
-        }
+        return LibraryTypeResolver.isAllowedLibrary(unresolvedCall, sourceFilePath, frameworkPrefixes);
     }
 }

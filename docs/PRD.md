@@ -2,7 +2,7 @@
 
 ## AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)
 
-> **Version 5.4** — Phase 2 LLM Executor (F017) uses **OpenRouter** as the AI provider via Spring AI's OpenAI-compatible client. Configurable model via `OPENROUTER_MODEL` env var (default: `deepseek/deepseek-v4-flash:free`). `.env` file loaded automatically via `spring.config.import=optional:file:.env`.
+> **Version 5.6** — Phase 2 enrichment is now optional. `INDEXED` tasks (Phase 1 only) proceed directly to Phase 3 — the LLM derives business rules, edge cases, and non-functional requirements from source code snippets. Phase 2 enrichment provides richer context (test insights, discovered dependencies) when available, but is no longer a mandatory gate. Removed 4 redundant qualification rules (Spring Data interfaces, @Scheduled tasks, native SQL/JPQL-HQL queries) — the Phase 3 LLM already receives their source code snippets and can derive the same semantics without a separate enrichment call.
 
 ---
 
@@ -27,10 +27,14 @@ Crucially, the tool rejects direct test framework generation. Instead, it export
 
 ## 2. Core Architecture & Product Paradigms
 
-The CLI rejects the unpredictable, conversational agent-loop pattern. It adopts a phased engine that transitions from deterministic compilation (Phase 1) through stateless per-file LLM enrichment (Phase 2) to an agentic, goal-oriented synthesis phase (Phase 3) powered by Embabel.
+The CLI rejects the unpredictable, conversational agent-loop pattern. It adopts a phased engine that transitions from deterministic compilation (Phase 1) through optional per-file LLM enrichment (Phase 2) to an agentic, goal-oriented synthesis phase (Phase 3) powered by Embabel. When Phase 2 is skipped, Phase 3 derives business semantics directly from source code snippets.
 
 \`\`\`
-[Phase 1: Deterministic Indexing] ──> [Phase 2: Semantic Enrichment] ──> [Phase 3: Agentic Functional Requirement Extraction (Embabel)]
+[Phase 1: Deterministic Indexing] ──> [Phase 2: Semantic Enrichment] ───┐
+                                      │                                  │
+                                      └── (optional, skip via INDEXED) ──┤
+                                                                          ▼
+                                                    [Phase 3: Agentic Functional Requirement Extraction (Embabel)]
 \`\`\`
 
 ### 2.1 Phase 1: Deterministic Multi-Language Indexing
@@ -43,7 +47,7 @@ To enable inter-file structural tracing without LLM dependencies, Phase 1 operat
 2. **Pass 2 — Resolution Analysis:** Each file is re-analysed with the full visitor suite. Resolution visitors (`CallGraphVisitor`, `DbAccessVisitor`, `OutboundHttpVisitor`) resolve method calls, database access patterns, and outbound HTTP calls against the registry built in Pass 1.
 3. **Post-Pass Link Resolution:** Once all files are processed, deterministic resolvers match event producers to consumers (`TopicLinkResolver`) and register outbound HTTP calls (`FloatingLinkResolver`).
 
-This design ensures that Controller → Service → Repository / Database / External System traces are resolved without LLM calls. The LLM is reserved exclusively for semantic enrichment in Phase 2.
+This design ensures that Controller → Service → Repository / Database / External System traces are resolved without LLM calls. The LLM is reserved for semantic enrichment — either via Phase 2 (per-file) or derived directly from source code snippets in Phase 3 (per-flow) when enrichment is skipped.
 
 #### 2.1.1 Pure-Java AST Structural Parsing
 
@@ -347,25 +351,23 @@ The following state machine governs task lifecycle across all phases. Each trans
 
 ```
                          scan
-      PENDING ──────────────────────► INDEXED
-         ▲                              │
-         │                            plan
-         │                              │
-         │                         ┌────┴────┐
-         │                         ▼         ▼
-         │                    ENRICH_     SKIPPED
-         │                    PENDING
-         │                         │
-         │                       enrich
-         │                         │
-         │                    ┌────┴────┐
-         │                    ▼         ▼
-         │                ENRICHED   ENRICH_FAILED
-         │                    │
-         │                  extract
-         │                    │
-         │                    ▼
-         │             (spec output)
+      PENDING ──────────────────────► INDEXED ─────────────┐
+         ▲                              │                   │
+         │                            plan                  │
+         │                              │                   │
+         │                         ┌────┴────┐              │
+         │                         ▼         ▼              │
+         │                    ENRICH_     SKIPPED            │
+         │                    PENDING                       │
+         │                         │                        │
+         │                       enrich                     │
+         │                         │                     extract
+         │                    ┌────┴────┐                   │
+         │                    ▼         ▼                   │
+         │                ENRICHED   ENRICH_FAILED           │
+         │                    │                        ┌────┴────┐
+         │                    ▼                        ▼         ▼
+         │             (spec output) ◄──── (Phase 3 from source) ──┘
          │
          ├──── scan --resume ──► INDEXED ──┐
          │      (from FAILED)               │
@@ -376,7 +378,7 @@ The following state machine governs task lifecycle across all phases. Each trans
          └──── clean ───────────────────────┘
 ```
 
-The planner evaluates INDEXED tasks and transitions qualified ones to `ENRICH_PENDING` and non-qualified ones to `SKIPPED`. The `SKIPPED` state distinguishes tasks that have been evaluated but did not meet enrichment criteria from tasks that have not yet been evaluated (INDEXED). This prevents redundant planner evaluation and provides clear visibility into why a task was skipped.
+The planner evaluates INDEXED tasks and transitions qualified ones to `ENRICH_PENDING` and non-qualified ones to `SKIPPED`. The `SKIPPED` state distinguishes tasks that have been evaluated but did not meet enrichment criteria from tasks that have not yet been evaluated (INDEXED). This prevents redundant planner evaluation and provides clear visibility into why a task was skipped. INDEXED tasks can proceed directly to Phase 3 without enrichment — the LLM derives business rules from source code snippets.
 
 ---
 
@@ -385,24 +387,19 @@ The planner evaluates INDEXED tasks and transitions qualified ones to `ENRICH_PE
 The structural trace produced by Phase 1 resolves all deterministic call paths (Controller &#8594; Service &#8594; Repository, database access, event flows, outbound HTTP calls). Phase 2 enriches this structural trace with **business semantics** for patterns that cannot be inferred from AST analysis alone.
 
 * **The Planner:** Uses the resolved call graph and SQLite topic/floating links from Phase 1 to identify files requiring semantic enrichment. A file qualifies for Phase 2 if any of these conditions are met:
-  * It has more than `llm-unresolved-threshold` (default: 5) unresolved signatures.
-  * It is a Spring Data interface (no AST body to analyse).
+  * It has more than `llm-unresolved-threshold` (default: 5) unresolved signatures — reflection/SPI calls outside the call graph.
   * It contains a stored procedure call with a body flagged for LLM interpretation.
   * It is a custom `ConstraintValidator` with a complex `isValid` body.
   * Test file assertions require semantic extraction (see §3.4).
   * It has unresolved floating links — outbound HTTP calls where `FloatingLinkResolver` could not match a target endpoint (`floating_links.resolved_status = 'PENDING'`). The LLM infers the external service's business purpose from method name, parameter structure, and call-site context.
-  * It has a scheduled task (`@Scheduled` annotation) — the cron/fixed-delay expression conveys *when* but not *what* business operation the method performs.
-  * It contains a native SQL query (`@Query(nativeQuery=true)`, `@NamedNativeQuery`, `EntityManager.createNativeQuery()`, `Session.createNativeQuery()/createSQLQuery()`, or raw JDBC `Connection.prepareStatement()`/`Statement.executeQuery()`) — native SQL strings encode database-specific business logic that cannot be inferred from AST structure alone.
-  * It contains a JPQL/HQL query (`@Query(...)`, `@NamedQuery`, `EntityManager.createQuery()`, `Session.createQuery()`) — custom query strings encode business rules and filtering logic beyond what Spring Data derived method names convey.
   
-  Qualification rules are individually togglable via the `llm-qualification-rules` array in the manifest. All rules are enabled by default. The planner is a pure rule engine — zero LLM calls are made during the qualification phase.
+  The planner is a pure rule engine — zero LLM calls are made during the qualification phase.
 
 * **The Centralized Lightweight State Store:** An embedded SQLite database managed via high-performance, low-overhead native **Spring JDBC (JdbcTemplate)** instead of an ORM framework. It tracks enriched findings alongside the Phase 1 structural data.
 
 * **The Executors:** Short-lived, isolated software workers configured as native Spring beans. Each Executor receives a `ThreadPoolTaskExecutor` bean (injected via `@Qualifier("orchestratorTaskExecutor")`) and wraps each unit of work in a `CompletableFuture` submitted via `taskExecutor.execute(work)`. This provides fine-grained control over retry, timeout, and error handling per enrichment call. Each Executor receives **the pre-resolved structural context** from Phase 1 (its own call graph edges, database accesses, and link registrations) plus the raw source file. The LLM prompt explicitly instructs the model to NOT resolve structural dependencies (those are already complete) and to focus only on:
   * Business purpose description (1&#8211;2 sentences per method).
   * Implicit validation rules not captured by annotations.
-  * Inferred SQL for Spring Data derived query methods.
   * Business logic interpretation of stored procedures.
   * Edge cases extracted from test file assertions.
 
@@ -410,7 +407,7 @@ The structural trace produced by Phase 1 resolves all deterministic call paths (
 
 * **The Orchestrator:** Processes the enrichment DAG, submits tasks asynchronously to the Spring pool, and tracks progress via `CompletableFuture<ExecutionFinding>` responses. The enriched `ExecutionFinding` JSON (§4) is merged with the Phase 1 structural data in the SQLite store.
 
-* **Phase Synchronization Barrier:** Phase 3 (synthesis) is blocked until ALL Phase 2 enrichment tasks complete, using `CompletableFuture.allOf(...)`. Phase 2 is skipped entirely if `--llm-threshold` is set to 0 or no files qualify.
+* **Optional Enrichment:** Phase 2 is no longer a mandatory gate. Phase 3 accepts tasks in `INDEXED` state (Phase 1 only, no Phase 2 enrichment) and proceeds using source code snippets directly. When Phase 2 enrichment is available, it provides richer context (test insights, discovered dependencies). Enrichment is skipped when `--llm-threshold` is set to 0 or no files qualify.
 * **FAILED Task Recovery:** Tasks that exhaust retries and transition to FAILED can be recovered by resetting the task status to INDEXED via `task-set-status --task <id> --status INDEXED --delete-findings true` and re-running; the planner skips tasks that already have a SEMANTIC_ENRICHMENT finding, so only truly failed tasks are re-processed. Or use `enrich --resume` for full crash recovery.
   **Authentication:** LLM requests are authenticated via `OPENROUTER_API_KEY` environment variable (loaded from `.env` via `spring.config.import=optional:file:.env`).
 
@@ -418,24 +415,24 @@ The structural trace produced by Phase 1 resolves all deterministic call paths (
 
 ### 2.3 Phase 3: Entry-Point-Driven Agentic Functional Requirement Extraction (Embabel)
 
-Phase 3 takes the enriched codebase (Phase 1 structural data + Phase 2 semantic enrichment) and employs an **Embabel GOAP agent** to extract holistic functional requirements by **tracing execution flows from entry points**. The agent discovers entry points (HTTP endpoints, @Scheduled, @KafkaListener, etc.), traces the execution flow through the call graph (Controller -> Service -> Repository), and for each flow extracts user stories, Gherkin acceptance criteria, business rules, and edge cases.
+Phase 3 takes the codebase (Phase 1 structural data + optional Phase 2 semantic enrichment) and employs an **Embabel GOAP agent** to extract holistic functional requirements by **tracing execution flows from entry points**. The agent discovers entry points (HTTP endpoints, @Scheduled, @KafkaListener, etc.), traces the execution flow through the call graph (Controller -> Service -> Repository), and for each flow extracts user stories, Gherkin acceptance criteria, business rules, and edge cases. When Phase 2 enrichment is unavailable, the Phase 3 LLM derives business rules, edge cases, and non-functional requirements directly from source code snippets.
 
 The agent requires `embabel-agent-starter` (core GOAP engine) on the classpath.
 
 **The Embabel Agent:**
 
-1. **Goal:** Extract complete, coherent functional requirements (user stories, Gherkin scenarios, business rules, edge cases) from the combined structural + enriched corpus. The agent terminates when all entry points have been traced and analyzed, or unresolvable gaps are flagged for human review.
+1. **Goal:** Extract complete, coherent functional requirements (user stories, Gherkin scenarios, business rules, edge cases) from structural data plus optional enrichment. The agent terminates when all entry points have been traced and analyzed, or unresolvable gaps are flagged for human review.
 
 2. **Initial Knowledge (`CodebaseKnowledge` domain model):** Before the agent runs, a pure-Java orchestrator aggregates two sources into an in-memory domain model:
-   - **Phase 1 structural data:** call graph edges, topic links, floating links, endpoint registries, database access patterns.
-   - **Phase 2 enriched data:** per-file `ExecutionFinding` records (business purpose, validations, edge cases, test insights).
+   - **Phase 1 structural data (always present):** call graph edges, topic links, floating links, endpoint registries, database access patterns.
+   - **Phase 2 enriched data (optional):** per-file `ExecutionFinding` records (business purpose, validations, edge cases, test insights). When absent, Phase 3 falls back to deriving semantics from source code snippets.
    
    This aggregate is placed on the Embabel blackboard as the agent's initial working memory — the agent never queries SQLite directly. Actions read from and write to the blackboard, setting world-state conditions that drive GOAP planning.
 
 3. **Actions (pluggable, GOAP-scheduled via world-state conditions):**
    - `DiscoverEntryPoints` — Scan `CodebaseKnowledge` for all entry points (HTTP endpoints, @Scheduled, @KafkaListener, @RabbitListener, @JmsListener, @EventListener). Score each by priority and filter trivial endpoints (actuator, health, metrics).
    - `TraceFlow` — For the highest-priority unscheduled entry point, follow call graph edges through the codebase. Build a `FlowStep` list tracing from entry point through services to repositories. Adaptive depth — agent decides when to stop based on complexity.
-   - `AnalyzeFlow` — For a traced flow, extract business semantics: user story, Gherkin scenarios, business rules, edge cases. Uses Phase 2 enrichment as context, raw source for gaps. Each result is cached in SQLite (`execution_findings.finding_type = FLOW_ANALYSIS`) and reused on `extract --resume`.
+   - `AnalyzeFlow` — For a traced flow, extract business semantics: user story, Gherkin scenarios, business rules, edge cases. Uses Phase 2 enrichment as context when available, otherwise derives directly from source code snippets. Each result is cached in SQLite (`execution_findings.finding_type = FLOW_ANALYSIS`) and reused on `extract --resume`.
    - `GroupFlows` — After analyzing multiple flows, cluster related flows into features using semantic similarity (e.g., GET/POST /orders -> "Order Management").
     - `CrossReferenceFlows` — Resolve inter-flow dependencies (Order flow -> Payment flow). Match floating HTTP calls and topic publications to known endpoints.
     - `QuarantineFlow` — When a flow cannot be fully resolved (exceeds investigation budget, low confidence), flag it for human review.
@@ -445,7 +442,7 @@ The agent requires `embabel-agent-starter` (core GOAP engine) on the classpath.
 4. **Dynamic Re-Planning (GOAP):** After each action, the Embabel planner reassesses goal completion. If ambiguity remains, it replans the next action sequence. The planner uses a non-LLM GOAP algorithm; LLM calls are reserved for individual actions that require semantic analysis.
 
 5. **Flow Priority Scoring:** Each entry point receives a priority score (0.0-1.0) that determines tracing order:
-   - Phase 2 enrichment exists (+0.3) — cheaper to analyze
+   - Phase 2 enrichment exists (+0.3) — provides richer context; without it the LLM derives from source code (slightly cheaper)
    - Complex downstream calls (+0.3) — more likely to contain business logic
    - User-facing endpoint (+0.2) — more important than internal tasks
    - Test file exists (+0.2) — provides additional context
@@ -523,9 +520,7 @@ The system must bridge decoupling gaps created by event-driven and time-driven p
 
 **Phase 1 (Deterministic):** When a visitor identifies a message dispatcher block (e.g., `KafkaTemplate.send("order-topic", ...)`), it registers the publication in the analysis result. After all files are processed, the `TopicLinkResolver` performs a deterministic SQL JOIN across all scanned targets: it matches `broker` + `topic_or_queue` values between producers and consumers. For each matching pair, a `topic_link` row is created with status `RESOLVED`. This covers Kafka, RabbitMQ, and ActiveMQ/JMS flows within the same manifest execution.
 
-Methods annotated with `@Scheduled` are traced as time-based inbound triggers; their schedule metadata is captured and linked to the business operations they initiate via the call graph resolved in Pass 2.
-
-**Phase 2 (Planner):** Files with `@Scheduled` findings qualify for LLM enrichment. The LLM receives the cron/fixed-delay/fixed-rate expression plus the method body and infers the business operation — e.g., `0 0 2 * * ?` invoked on `purgeExpiredSessions()` → "Runs daily at 2 AM to purge expired user sessions; prevents session table bloat."
+Methods annotated with `@Scheduled` are traced as time-based inbound triggers; their schedule metadata is captured and linked to the business operations they initiate via the call graph resolved in Pass 2. The method body and annotation are visible in Phase 3 source code snippets, so the LLM infers the business operation without a separate Phase 2 call.
 
 ### 3.4 Test Suite Mining (Assertion Extraction)
 
@@ -537,11 +532,11 @@ If an Executor uncovers an unindexed runtime dependency during LLM file analysis
 
 * **Branch Isolation:** The Orchestrator pauses execution **only for that specific branch**, registers the new file tasks into the SQLite store as `PENDING`, updates task priorities, and triggers them asynchronously. Other branches of the DAG continue running completely uninterrupted.
 * **Phase 2 Threshold Guard:** The Phase 1 linker does not perform dynamic re-planning. If a deterministic resolution fails (unresolved signature), it is logged and counted. Only when the unresolved count per file exceeds `llm-unresolved-threshold` (default: 5) does the file qualify for Phase 2 enrichment.
-* **Phase Synchronization Barrier:** To prevent Phase 3 (Map-Reduce consolidation) from building partial or corrupted system maps, a strict execution barrier is enforced via Spring-managed completion frameworks. The engine is completely blocked from initiating Phase 3 if *any* task in the state store is flagged as `PENDING`, `ENRICH_PENDING`, or `ENRICHING`. Using `CompletableFuture.allOf(...)`, synthesis only triggers when all futures across all branches have completed successfully and resolved.
+* **Phase Synchronization Barrier:** Phase 3 accepts tasks in `SKIPPED`, `ENRICHED`, or `INDEXED` state. Tasks in `PENDING`, `ENRICH_PENDING`, or `ENRICHING` still block Phase 3 — they must first be indexed or enriched. This ensures no unprocessed files enter flow tracing.
 
   The `run` command also enforces fail-stop guards between each phase:
   - **After scan:** if any tasks are `FAILED`, execution halts with a suggestion to run `scan --resume`.
-  - **After plan:** if 0 tasks qualified for enrichment (`ENRICH_PENDING == 0`), execution halts — nothing to enrich.
+  - **After plan:** if 0 tasks qualified for enrichment (`ENRICH_PENDING == 0`) and no INDEXED tasks exist, execution halts — nothing to process.
   - **After enrich:** if any tasks remain `ENRICH_FAILED`, execution halts with a suggestion to run `enrich --resume`.
 
 ### 3.6 Automated Constraint Extraction & Context Budgeting
@@ -585,7 +580,7 @@ Phase 3 employs Embabel's **Goal-Oriented Action Planning (GOAP)** to dynamicall
   - `DiscoverEntryPoints` — Scan for all entry points (HTTP endpoints, @Scheduled, @KafkaListener, @RabbitListener, @JmsListener, @EventListener). Score by priority, filter trivial.
   - `TraceFlow` — For the highest-priority unscheduled entry point, trace call graph edges and build an execution flow with adaptive depth and sub-chain caching.
   - `AnalyzeFlow` — Extract business semantics from traced flow: user story, Gherkin scenarios, business rules, edge cases.
-  - `GroupFlows` — Cluster related flows into features using semantic similarity from Phase 2 enrichment.
+   - `GroupFlows` — Cluster related flows into features using semantic similarity from Phase 2 enrichment (or flow metadata when enrichment is unavailable).
   - `CrossReferenceFlows` — Resolve inter-flow dependencies (HTTP calls, topic events between flows).
   - `QuarantineFlow` — Flag flows that cannot be completed after exhausting investigation budget; set to `AWAITING_HUMAN_REVIEW`.
 - **Conditions:** Each action declares preconditions and postconditions as world-state condition identifiers (e.g., `entry_points_discovered = true` enables `TraceFlow`; `flows_grouped = true` enables spec generation via `GenerateCommand`). Conditions are managed on the Embabel blackboard and drive the GOAP planner's action chaining automatically.
@@ -595,7 +590,7 @@ Phase 3 employs Embabel's **Goal-Oriented Action Planning (GOAP)** to dynamicall
 - **Sub-Chain Caching:** Shared service chains are reused across related entry points, avoiding redundant tracing.
 - **Orphaned Method Detection:** Methods unreachable from any entry point are flagged as dead code or missing entry points.
 - **Progressive Disclosure:** Output granularity adapts per flow — simple flows get minimal output, complex flows get full treatment with Mermaid diagrams.
-- **Semantic Clustering:** Related flows are grouped into features using semantic similarity from Phase 2 enrichment.
+- **Semantic Clustering:** Related flows are grouped into features using semantic similarity from Phase 2 enrichment (or flow metadata when enrichment is unavailable).
 
 **Decoupled Asset Generation:** After the agent finishes, the system outputs two matching assets: a clean, readable Markdown specification document organized by functional features, and a machine-readable `semantic_manifest.json` file with flows, acceptance criteria, business rules, cross-flow relationships, and orphaned methods.
 
@@ -612,7 +607,6 @@ Every Executor must produce an output payload conforming strictly to the followi
   "type": "object",
   "required": [
     "metadata",
-    "business_abstraction",
     "business_rules_and_guardrails",
     "test_insights",
     "architectural_connections",
@@ -629,24 +623,6 @@ Every Executor must produce an output payload conforming strictly to the followi
         "tech_profile": { "type": "string" },
         "module_tag":   { "type": "string" },
         "timestamp":    { "type": "string", "format": "date-time" }
-      }
-    },
-    "business_abstraction": {
-      "type": "object",
-      "required": ["purpose", "happy_paths"],
-      "properties": {
-        "purpose": { "type": "string" },
-        "happy_paths": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["flow_name", "description"],
-            "properties": {
-              "flow_name":   { "type": "string" },
-              "description": { "type": "string" }
-            }
-          }
-        }
       }
     },
     "business_rules_and_guardrails": {
@@ -946,9 +922,9 @@ The application must expose the following commands via Spring Shell:
 | `scan` | `[--manifest path] [--resume]` | Run Phase 1 (indexing) only — produces `code-graph-index.json` and populates SQLite. `--resume` skips already-completed files. |
 | `plan` | `[--manifest path]` | Evaluate INDEXED tasks, transition qualified ones to ENRICH_PENDING and non-qualified ones to SKIPPED, and show the enrichment plan |
 | `enrich` | `[--manifest path] [--dry-run] [--resume] [--llm-threshold N]` | Run Phase 2 LLM-powered per-file semantic enrichment via Spring AI + OpenRouter. `--resume` recovers orphaned tasks; `--llm-threshold` sets the minimum unresolved signatures to qualify (default: 5). |
-| `extract` | `[--manifest path] [--dry-run] [--force] [--resume]` | Run Phase 3 Embabel GOAP agent for functional requirement extraction over enriched data; caches results for spec generation. `--force` re-executes even if no new enrichments. `--resume` reuses cached per-flow LLM results; skips analysis for already-completed flows. |
+| `extract` | `[--manifest path] [--dry-run] [--force] [--resume]` | Run Phase 3 Embabel GOAP agent for functional requirement extraction over structural data (plus optional Phase 2 enrichment); caches results for spec generation. `--force` re-executes even if no new enrichments. `--resume` reuses cached per-flow LLM results; skips analysis for already-completed flows. |
 | `generate` | | Generate `spec.md` and `semantic_manifest.json` from cached extraction results |
-| `run` | `[--manifest path] [--resume] [--dry-run] [--force] [--llm-threshold N]` | Execute full pipeline: scan → plan → enrich → extract → generate. Chains each phase's output as input to the next. `--resume` propagates to all phases: recovers orphaned tasks in scan/enrich and reuses cached flow analyses in extract. |
+| `run` | `[--manifest path] [--resume] [--dry-run] [--force] [--llm-threshold N]` | Execute full pipeline: scan → plan → enrich → extract → generate. Enrichment is optional — INDEXED tasks proceed directly to Phase 3. `--resume` propagates to all phases: recovers orphaned tasks in scan/enrich and reuses cached flow analyses in extract. |
 | `status` | | Show current SQLite task state summary and counters |
 | `resume` | `[--manifest path]` | Warm-start recovery: reconcile orphaned `ENRICHING`, `ENRICH_PENDING`, `FAILED`, and `PENDING` tasks, skip completed files. Delegates to `scan --resume`. |
 | `validate` | `[--manifest path]` | Validate manifest schema and code-graph-index.json structure |

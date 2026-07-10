@@ -37,10 +37,6 @@ class ExecutionFindingValidatorTest {
                     "tech_profile": "java-spring",
                     "module_tag": "test",
                     "timestamp": "2026-01-01T00:00:00"
-                },
-                "business_abstraction": {
-                    "purpose": "Test purpose",
-                    "happy_paths": []
                 }
             }
             """;
@@ -68,10 +64,6 @@ class ExecutionFindingValidatorTest {
                 "tech_profile", "java-spring",
                 "module_tag", "test",
                 "timestamp", LocalDateTime.now().toString()
-            ),
-            "business_abstraction", Map.of(
-                "purpose", "Test purpose",
-                "happy_paths", List.of(Map.of("flow_name", "Standard", "description", "Standard flow"))
             ),
             "business_rules_and_guardrails", Map.of(
                 "validations", List.of(Map.of("field_or_context", "input", "rule", "Not null", "error_behavior", "Error")),

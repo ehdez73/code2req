@@ -83,7 +83,6 @@ class ExtractionOrchestratorTest {
         assertNotNull(knowledge.semanticEnrichment());
         assertNotNull(knowledge.linkRegistry());
         assertTrue(knowledge.getFlowCandidates().isEmpty());
-        assertTrue(knowledge.getFlowNames().isEmpty());
     }
 
     @Test
@@ -152,9 +151,6 @@ class ExtractionOrchestratorTest {
         var executionFinding = new ExecutionFinding(
             new ExecutionFinding.Metadata("task5", "test", "/src/PaymentService.java",
                 "java-spring", "payments", "2026-01-01T00:00:00Z"),
-            new ExecutionFinding.BusinessAbstraction(
-                "Processes payments",
-                List.of(new ExecutionFinding.HappyPath("Standard payment", "Customer pays with valid card"))),
             new ExecutionFinding.BusinessRulesAndGuardrails(
                 List.of(new ExecutionFinding.Validation("amount", "Must be positive", "Throws error", null)),
                 List.of(new ExecutionFinding.EdgeCase("Null amount", "Rejected", null))),
@@ -175,7 +171,6 @@ class ExtractionOrchestratorTest {
 
         assertEquals(1, knowledge.semanticEnrichment().size());
         assertTrue(knowledge.semanticEnrichment().findByFilePath("/src/PaymentService.java").isPresent());
-        assertEquals(List.of("Standard payment"), knowledge.getFlowNames());
     }
 
     @Test
@@ -234,10 +229,6 @@ class ExtractionOrchestratorTest {
             "/src/A.java", new ExecutionFinding(
                 new ExecutionFinding.Metadata("t1", "test", "/src/A.java",
                     "java", "mod", "now"),
-                new ExecutionFinding.BusinessAbstraction(
-                    "Does A", List.of(
-                        new ExecutionFinding.HappyPath("Flow Alpha", "Alpha flow"),
-                        new ExecutionFinding.HappyPath("Flow Beta", "Beta flow"))),
                 new ExecutionFinding.BusinessRulesAndGuardrails(List.of(), List.of()),
                 List.of(),
                 new ExecutionFinding.ArchitecturalConnections(
@@ -254,10 +245,9 @@ class ExtractionOrchestratorTest {
 
         ExtractionResult result = ExtractionOrchestrator.analyzeKnowledge(knowledge);
 
-        assertEquals(2, result.flowsExtracted());
+        assertEquals(0, result.flowsExtracted());
         assertEquals(2, result.ambiguityGaps());
-        assertTrue(result.flowNames().contains("Flow Alpha"));
-        assertTrue(result.flowNames().contains("Flow Beta"));
+        assertTrue(result.flowNames().isEmpty());
     }
 
     @Test
@@ -286,13 +276,27 @@ class ExtractionOrchestratorTest {
         ExtractionResult result = orchestrator.execute();
 
         assertTrue(result.isBlocked());
-        assertEquals("All tasks must be SKIPPED or ENRICHED before Phase 3. Run 'enrich --resume' first.",
+        assertEquals("All tasks must be SKIPPED, ENRICHED, or INDEXED before Phase 3. Run 'enrich --resume' first.",
             result.blockedReason());
     }
 
     @Test
     void executeWithAllTerminalTasksProceeds() {
         insertTask("task-enriched", "/src/EnrichedFile.java", TaskStatus.ENRICHED);
+        insertTask("task-skipped", "/src/SkippedFile.java", TaskStatus.SKIPPED);
+        floatingLinkStore.saveAll(List.of(
+            new FloatingLinkInfo("GET", "http://external/api", false, "RestTemplate",
+                "src/Client.java", "callExternal", null, 0.0, "PENDING")));
+        when(agentPlatform.agents()).thenReturn(List.of());
+
+        ExtractionResult result = orchestrator.execute();
+
+        assertFalse(result.isBlocked());
+    }
+
+    @Test
+    void executeWithIndexedTasksProceedsWithoutPhase2() {
+        insertTask("task-indexed", "/src/IndexedFile.java", TaskStatus.INDEXED);
         insertTask("task-skipped", "/src/SkippedFile.java", TaskStatus.SKIPPED);
         floatingLinkStore.saveAll(List.of(
             new FloatingLinkInfo("GET", "http://external/api", false, "RestTemplate",

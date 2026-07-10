@@ -269,8 +269,6 @@ class StructuralGraphTest {
         var enrichment = new SemanticEnrichment(Map.of("/src/C.java",
             new ExecutionFinding(
                 new ExecutionFinding.Metadata("t1", "test", "/src/C.java", "java", "mod", "now"),
-                new ExecutionFinding.BusinessAbstraction("Purpose",
-                    List.of(new ExecutionFinding.HappyPath("Flow", "Desc"))),
                 new ExecutionFinding.BusinessRulesAndGuardrails(List.of(), List.of()),
                 List.of(),
                 new ExecutionFinding.ArchitecturalConnections(

@@ -20,10 +20,8 @@ import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import com.github.ehdez73.code2req.enrichment.domain.planner.QualificationRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.CustomConstraintValidatorRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.JpqlHqlQueryRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.NativeSqlQueryRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.ScheduledTaskPresentRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.SpringDataInterfaceRule;
+
+
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedFloatingLinkRule;
@@ -92,15 +90,12 @@ class EnrichmentOrchestratorTest {
 
         var tfm = new TestFileMatcher(indexingConfig);
         defaultRules = List.of(
-            new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
             new CustomConstraintValidatorRule(),
-            new ScheduledTaskPresentRule(),
+
             new UnresolvedSignaturesRule(jdbc, 5),
             new UnresolvedFloatingLinkRule(floatingLinkStore),
-            new TestAssertionsPresentRule(tfm),
-            new NativeSqlQueryRule(),
-            new JpqlHqlQueryRule()
+            new TestAssertionsPresentRule(tfm)
         );
     }
 
@@ -153,7 +148,7 @@ class EnrichmentOrchestratorTest {
         void submitsAllQualifiedTasks() {
             insertTask("t1", "/src/Foo.java");
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t1", "SCHEDULED_TASK", "{}", 1);
+                "t1", "DATABASE_PROCEDURE_CALL", "{}", 1);
 
             var orchestrator = createOrchestrator();
             CompletionStatus status = orchestrator.execute("project-manifest.yaml", true);
@@ -169,9 +164,9 @@ class EnrichmentOrchestratorTest {
             insertTask("t1", "/src/Foo.java");
             insertTask("t2", "/src/Bar.java");
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t1", "SCHEDULED_TASK", "{}", 1);
+                "t1", "DATABASE_PROCEDURE_CALL", "{}", 1);
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t2", "SPRING_DATA_INTERFACE", "{}", 1);
+                "t2", "DATABASE_PROCEDURE_CALL", "{}", 1);
 
             var orchestrator = createOrchestrator();
             CompletionStatus status = orchestrator.execute("project-manifest.yaml", true);
@@ -192,7 +187,7 @@ class EnrichmentOrchestratorTest {
 
             insertTask("root", rootFile.toAbsolutePath().normalize().toString());
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "root", "SCHEDULED_TASK", "{}", 1);
+                "root", "DATABASE_PROCEDURE_CALL", "{}", 1);
 
             String rootPath = rootFile.toAbsolutePath().normalize().toString();
             var depPaths = Map.of(
@@ -235,7 +230,7 @@ class EnrichmentOrchestratorTest {
 
             insertTask("root", rootFile.toAbsolutePath().normalize().toString());
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "root", "SCHEDULED_TASK", "{}", 1);
+                "root", "DATABASE_PROCEDURE_CALL", "{}", 1);
 
             var depPaths = Map.of(
                 rootFile.toAbsolutePath().normalize().toString(), List.of(
@@ -269,7 +264,7 @@ class EnrichmentOrchestratorTest {
         void preventsRedundantEvaluationViaVisitedRegistry() {
             insertTask("t1", "/src/Foo.java");
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t1", "SCHEDULED_TASK", "{}", 1);
+                "t1", "DATABASE_PROCEDURE_CALL", "{}", 1);
 
             var orchestrator = createOrchestrator();
             var dag = new EnrichmentDag(3);
@@ -283,7 +278,7 @@ class EnrichmentOrchestratorTest {
         void writesPhase2MetricsAfterCompletion() {
             insertTask("t1", "/src/Foo.java");
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t1", "SCHEDULED_TASK", "{}", 1);
+                "t1", "DATABASE_PROCEDURE_CALL", "{}", 1);
 
             var orchestrator = createOrchestrator();
             orchestrator.execute("project-manifest.yaml", true);
@@ -300,13 +295,13 @@ class EnrichmentOrchestratorTest {
         void handlesMultipleQualifiedTasks() {
             insertTask("t1", "/src/Foo.java");
             insertTask("t2", "/src/Bar.java");
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t1", "DATABASE_PROCEDURE_CALL", "{}", 1);
+            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+                "t2", "DATABASE_PROCEDURE_CALL", "{}", 1);
             insertTask("t3", "/src/Baz.java");
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t1", "SCHEDULED_TASK", "{}", 1);
-            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t2", "SPRING_DATA_INTERFACE", "{}", 1);
-            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t3", "NATIVE_SQL_QUERY", "{}", 1);
+                "t3", "DATABASE_PROCEDURE_CALL", "{}", 1);
 
             var orchestrator = createOrchestrator();
             CompletionStatus status = orchestrator.execute("project-manifest.yaml", true);

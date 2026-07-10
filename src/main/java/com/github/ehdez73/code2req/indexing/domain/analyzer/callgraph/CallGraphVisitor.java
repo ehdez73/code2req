@@ -5,6 +5,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisResultBuilde
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AstAnalysisVisitor;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.DeclarationInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.GlobalDeclarationRegistry;
+import com.github.ehdez73.code2req.common.util.LibraryTypeResolver;
 import com.github.ehdez73.code2req.indexing.domain.model.AllowedLibrariesConfig;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
@@ -56,10 +57,10 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
     @Override
     public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
         List<CallGraphEdge> edges = new ArrayList<>();
-        cu.accept(new CallGraphAstAdapter(context.filePath(), context.declarationRegistry(), allPrefixes), edges);
+        cu.accept(new CallGraphAstAdapter(context.filePath(), context.declarationRegistry(), allPrefixes, cu), edges);
         if (!edges.isEmpty()) {
             log.info("  CallGraphVisitor: found {} call graph edge(s) in {}", edges.size(), context.filePath());
-            edges.forEach(builder::addFinding);
+            edges.stream().distinct().forEach(builder::addFinding);
         }
     }
 
@@ -68,15 +69,17 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
         private final String filePath;
         private final GlobalDeclarationRegistry registry;
         private final List<String> allPrefixes;
+        private final CompilationUnit cu;
         private final Map<String, String> fieldTypes = new HashMap<>();
         private final Map<String, String> parameterTypes = new HashMap<>();
         private String currentClassName = "";
         private String currentMethodName = "";
 
-        CallGraphAstAdapter(String filePath, GlobalDeclarationRegistry registry, List<String> allPrefixes) {
+        CallGraphAstAdapter(String filePath, GlobalDeclarationRegistry registry, List<String> allPrefixes, CompilationUnit cu) {
             this.filePath = filePath;
             this.registry = registry;
             this.allPrefixes = allPrefixes;
+            this.cu = cu;
         }
 
         @Override
@@ -123,7 +126,8 @@ public class CallGraphVisitor implements AstAnalysisVisitor {
             String targetType = resolveTargetType(scope);
 
             if (targetType != null) {
-                if (!isLibraryType(targetType)) {
+                if (!isLibraryType(targetType)
+                    && !LibraryTypeResolver.isAllowedLibrary(targetType, cu, allPrefixes)) {
                     resolveCall(targetType, calledMethod, argCount)
                         .ifPresent(collector::add);
                 }

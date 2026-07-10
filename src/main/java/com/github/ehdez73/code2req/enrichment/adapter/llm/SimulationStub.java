@@ -33,13 +33,6 @@ public class SimulationStub {
                 "module_tag", targetName,
                 "timestamp", LocalDateTime.now().toString()
             ),
-            "business_abstraction", Map.of(
-                "purpose", "Handles business operations for " + fileName(filePath),
-                "happy_paths", List.of(
-                    Map.of("flow_name", "Standard flow", "description", "Processes the standard business case for " + fileName(filePath)),
-                    Map.of("flow_name", "Alternate flow", "description", "Handles alternate case with valid input parameters")
-                )
-            ),
             "business_rules_and_guardrails", Map.of(
                 "validations", List.of(
                     Map.of("field_or_context", "input", "rule", "Input must not be null", "error_behavior", "Throws IllegalArgumentException")

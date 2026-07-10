@@ -8,19 +8,21 @@ package com.github.ehdez73.code2req.common.domain;
  *        │
  *        ▼
  *     INDEXED ────────────────────► SKIPPED
- *        │
- *        ▼
- *     ENRICH_PENDING
- *        │
- *        ▼
- *     ENRICHING ────────────► AWAITING_HUMAN_REVIEW
- *        │
- *    ┌───┴───┐
- *    ▼       ▼
- * ENRICHED  FAILED
- *              │
- *              ▼
- *          ENRICH_FAILED
+ *     │   │
+ *     │   │ (Phase 3 terminal —
+ *     │   │  enrichment optional)
+ *     │   ▼
+ *     │ ENRICH_PENDING
+ *     │    │
+ *     │    ▼
+ *     │ ENRICHING ────────────► AWAITING_HUMAN_REVIEW
+ *     │    │
+ *     │┌───┴───┐
+ *     │▼       ▼
+ *     ENRICHED  FAILED
+ *                 │
+ *                 ▼
+ *             ENRICH_FAILED
  *
  * Recovery transitions (via --resume flags):
  *   FAILED ───────────────────► INDEXED

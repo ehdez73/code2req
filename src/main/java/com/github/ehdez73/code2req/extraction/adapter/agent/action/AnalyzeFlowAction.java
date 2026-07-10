@@ -326,6 +326,10 @@ public class AnalyzeFlowAction {
       than guessing.
     - If a section below is empty or says "none provided", do not fabricate content for it —
       simply produce fewer items (including zero) for the categories it would affect.
+    - If Phase 2 enrichment is unavailable for a step, derive business rules, edge cases, and
+      non-functional requirements directly from the Source Code section.
+    - The Traced Steps section is fully resolved — do not re-derive call graphs, component types,
+      or structural relationships. Focus on business semantics only.
 
     ## Extraction tasks
 
@@ -354,9 +358,10 @@ public class AnalyzeFlowAction {
        `sourceFile` the same way as for business rules.
 
     ## Output contract
-    Respond with a single JSON object and NOTHING else — no markdown code fences, no preamble, no
-    trailing commentary, no explanation of your reasoning. The response must be valid JSON matching
-    exactly this shape (no extra fields, no missing fields):
+    Output MUST start with `{` and end with `}`. No markdown code fences, no prose, no preamble, no
+    trailing commentary, no explanation of your reasoning. Any non-JSON output will break the
+    pipeline. The response must be valid JSON matching exactly this shape (no extra fields, no
+    missing fields):
 
     {
       "userStory": "string",

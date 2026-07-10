@@ -6,10 +6,7 @@ import com.github.ehdez73.code2req.enrichment.domain.model.QualificationReason;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.CustomConstraintValidatorRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.JpqlHqlQueryRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.NativeSqlQueryRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.ScheduledTaskPresentRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.SpringDataInterfaceRule;
+
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedFloatingLinkRule;
@@ -54,15 +51,11 @@ class EnrichmentPlannerTest {
         var testFileMatcher = new TestFileMatcher(
             new IndexingConfig(null, null));
         defaultRules = List.of(
-            new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
             new CustomConstraintValidatorRule(),
-            new ScheduledTaskPresentRule(),
             new UnresolvedSignaturesRule(jdbc, 5),
             new UnresolvedFloatingLinkRule(floatingLinkStore),
-            new TestAssertionsPresentRule(testFileMatcher),
-            new NativeSqlQueryRule(),
-            new JpqlHqlQueryRule()
+            new TestAssertionsPresentRule(testFileMatcher)
         );
     }
 
@@ -135,17 +128,6 @@ class EnrichmentPlannerTest {
         }
 
         @Test
-        void springDataInterface() {
-            insertTask("t1", "/src/FooRepo.java");
-            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t1", "SPRING_DATA_INTERFACE", "{}", 1);
-            var planner = createPlanner();
-            var decisions = planner.plan();
-            assertEquals(1, decisions.size());
-            assertTrue(decisions.get(0).reasons().contains(QualificationReason.SPRING_DATA_INTERFACE));
-        }
-
-        @Test
         void storedProcedureCall() {
             insertTask("t1", "/src/FooRepo.java");
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
@@ -188,39 +170,6 @@ class EnrichmentPlannerTest {
         }
 
         @Test
-        void scheduledTask() {
-            insertTask("t1", "/src/Scheduler.java");
-            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t1", "SCHEDULED_TASK", "{}", 1);
-            var planner = createPlanner();
-            var decisions = planner.plan();
-            assertEquals(1, decisions.size());
-            assertTrue(decisions.get(0).reasons().contains(QualificationReason.SCHEDULED_TASK_PRESENT));
-        }
-
-        @Test
-        void nativeSqlQuery() {
-            insertTask("t1", "/src/OrderRepo.java");
-            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t1", "NATIVE_SQL_QUERY", "{}", 1);
-            var planner = createPlanner();
-            var decisions = planner.plan();
-            assertEquals(1, decisions.size());
-            assertTrue(decisions.get(0).reasons().contains(QualificationReason.NATIVE_SQL_QUERY));
-        }
-
-        @Test
-        void jpqlHqlQuery() {
-            insertTask("t1", "/src/OrderRepo.java");
-            jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t1", "JPQL_HQL_QUERY", "{}", 1);
-            var planner = createPlanner();
-            var decisions = planner.plan();
-            assertEquals(1, decisions.size());
-            assertTrue(decisions.get(0).reasons().contains(QualificationReason.JPQL_HQL_QUERY));
-        }
-
-        @Test
         void multipleReasons() {
             insertTask("t1", "/src/Foo.java");
             insertFinding("t1", "CALL_GRAPH_EDGE", false);
@@ -229,13 +178,13 @@ class EnrichmentPlannerTest {
             insertFinding("t1", "CALL_GRAPH_EDGE", false);
             insertFinding("t1", "CALL_GRAPH_EDGE", false);
             insertFinding("t1", "CALL_GRAPH_EDGE", false);
-            insertFinding("t1", "SCHEDULED_TASK", true);
+            insertFinding("t1", "DATABASE_PROCEDURE_CALL", true);
             var planner = createPlanner();
             var decisions = planner.plan();
             assertEquals(1, decisions.size());
             var reasons = decisions.get(0).reasons();
             assertTrue(reasons.contains(QualificationReason.UNRESOLVED_SIGNATURES_EXCEEDED));
-            assertTrue(reasons.contains(QualificationReason.SCHEDULED_TASK_PRESENT));
+            assertTrue(reasons.contains(QualificationReason.STORED_PROCEDURE_CALL));
         }
 
         @Test
@@ -243,15 +192,13 @@ class EnrichmentPlannerTest {
             var tfm = new TestFileMatcher(
             new IndexingConfig(null, null));
             var rules = List.of(
-                new SpringDataInterfaceRule(),
+
                 new StoredProcedureCallRule(),
                 new CustomConstraintValidatorRule(),
-                new ScheduledTaskPresentRule(),
+
                 new UnresolvedSignaturesRule(jdbc, 2),
                 new UnresolvedFloatingLinkRule(floatingLinkStore),
-                new TestAssertionsPresentRule(tfm),
-                new NativeSqlQueryRule(),
-                new JpqlHqlQueryRule()
+                new TestAssertionsPresentRule(tfm)
             );
             insertTask("t1", "/src/Foo.java");
             insertFinding("t1", "CALL_GRAPH_EDGE", false);
@@ -286,7 +233,7 @@ class EnrichmentPlannerTest {
             taskStore.save(new Task("t1", "/src/Pending.java", TaskStatus.ENRICH_PENDING, "java", "h1", "test"));
             taskStore.save(new Task("t2", "/src/Indexed.java", TaskStatus.INDEXED, "java", "h2", "test"));
             jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
-                "t2", "SCHEDULED_TASK", "{}", 1);
+                "t2", "DATABASE_PROCEDURE_CALL", "{}", 1);
             var planner = createPlanner();
             var decisions = planner.plan();
             assertEquals(2, decisions.size());

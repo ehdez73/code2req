@@ -33,14 +33,6 @@ public record CodebaseKnowledge(
         return structuralGraph.getCalleesOf(sourceFile);
     }
 
-    public List<ExecutionFinding.HappyPath> getAllHappyPaths() {
-        return semanticEnrichment.getAllHappyPaths();
-    }
-
-    public List<String> getFlowNames() {
-        return semanticEnrichment.getFlowNames();
-    }
-
     public List<FloatingLinkInfo> findUnresolvedLinks() {
         return linkRegistry.findUnresolvedFloatingLinks();
     }

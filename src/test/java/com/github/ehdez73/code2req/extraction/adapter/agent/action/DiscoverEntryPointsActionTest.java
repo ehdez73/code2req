@@ -98,8 +98,6 @@ class DiscoverEntryPointsActionTest {
         var enrichment = new SemanticEnrichment(Map.of(
             "/src/AController.java", new ExecutionFinding(
                 new ExecutionFinding.Metadata("t1", "test", "", "java", "mod", "now"),
-                new ExecutionFinding.BusinessAbstraction("Purpose", List.of(
-                    new ExecutionFinding.HappyPath("Flow", "Desc"))),
                 new ExecutionFinding.BusinessRulesAndGuardrails(List.of(), List.of()),
                 List.of(),
                 new ExecutionFinding.ArchitecturalConnections(

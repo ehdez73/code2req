@@ -50,7 +50,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Component
 public class ExtractionOrchestrator {
@@ -130,7 +129,7 @@ public class ExtractionOrchestrator {
 
         boolean gateOk = resume || force;
         if (!requireAllTasksTerminal(gateOk)) {
-            return ExtractionResult.blocked("All tasks must be SKIPPED or ENRICHED before Phase 3. Run 'enrich --resume' first.");
+            return ExtractionResult.blocked("All tasks must be SKIPPED, ENRICHED, or INDEXED before Phase 3. Run 'enrich --resume' first.");
         }
 
         if (force) {
@@ -178,13 +177,10 @@ public class ExtractionOrchestrator {
 
             ExtractionCache cache = process.resultOfType(ExtractionCache.class);
 
-            List<String> flowNames = knowledge.getFlowNames();
-            if (flowNames.isEmpty()) {
-                flowNames = knowledge.getEntryPoints().stream()
-                    .map(EntryPoint::id)
-                    .distinct()
-                    .toList();
-            }
+            List<String> flowNames = knowledge.getEntryPoints().stream()
+                .map(EntryPoint::id)
+                .distinct()
+                .toList();
             int ambiguityGaps = cache != null ? cache.quarantineGaps().size() : 0;
             int flowCount = cache != null ? cache.crossRefResult().features().stream()
                 .mapToInt(f -> f.flows().size()).sum() : 0;
@@ -214,8 +210,7 @@ public class ExtractionOrchestrator {
         if (force) {
             return false;
         }
-        return knowledge.getFlowNames().isEmpty()
-            && knowledge.findUnresolvedLinks().isEmpty()
+        return knowledge.findUnresolvedLinks().isEmpty()
             && knowledge.findUnresolvedTopicLinks().isEmpty()
             && knowledge.getEntryPoints().isEmpty();
     }
@@ -224,13 +219,15 @@ public class ExtractionOrchestrator {
         if (force) return true;
         List<Task> allTasks = taskStore.findAll();
         List<Task> nonTerminal = allTasks.stream()
-            .filter(t -> t.status() != TaskStatus.SKIPPED && t.status() != TaskStatus.ENRICHED)
+            .filter(t -> t.status() != TaskStatus.SKIPPED
+                && t.status() != TaskStatus.ENRICHED
+                && t.status() != TaskStatus.INDEXED)
             .toList();
         if (!nonTerminal.isEmpty()) {
             String reportLine = nonTerminal.stream()
                 .map(t -> "  " + t.taskId() + " (" + t.filePath() + ") — " + t.status().name())
                 .collect(Collectors.joining("\n"));
-            log.warn("Phase 3 blocked: {} task(s) not in SKIPPED or ENRICHED:\n{}\n" +
+            log.warn("Phase 3 blocked: {} task(s) not in SKIPPED, ENRICHED, or INDEXED:\n{}\n" +
                 "Run 'enrich --resume' first.", nonTerminal.size(), reportLine);
             return false;
         }
@@ -326,15 +323,10 @@ public class ExtractionOrchestrator {
     }
 
     static ExtractionResult analyzeKnowledge(CodebaseKnowledge knowledge) {
-        List<String> enrichedFlowNames = knowledge.getFlowNames();
-        List<String> entryPointNames = knowledge.getEntryPoints().stream()
+        List<String> allFlowNames = knowledge.getEntryPoints().stream()
             .map(EntryPoint::id)
             .distinct()
             .collect(Collectors.toList());
-        List<String> allFlowNames = Stream.concat(
-            entryPointNames.stream(),
-            enrichedFlowNames.stream()
-        ).distinct().collect(Collectors.toList());
         int flowsExtracted = allFlowNames.size();
         int ambiguityGaps = knowledge.findUnresolvedLinks().size()
             + knowledge.findUnresolvedTopicLinks().size();

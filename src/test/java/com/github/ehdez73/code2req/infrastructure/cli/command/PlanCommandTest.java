@@ -9,10 +9,8 @@ import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import com.github.ehdez73.code2req.enrichment.domain.planner.QualificationRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.CustomConstraintValidatorRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.JpqlHqlQueryRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.NativeSqlQueryRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.ScheduledTaskPresentRule;
-import com.github.ehdez73.code2req.enrichment.domain.planner.rule.SpringDataInterfaceRule;
+
+
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedFloatingLinkRule;
@@ -56,15 +54,12 @@ class PlanCommandTest {
         var tfm = new TestFileMatcher(
             new IndexingConfig(null, null));
         List<QualificationRule> rules = List.of(
-            new SpringDataInterfaceRule(),
             new StoredProcedureCallRule(),
             new CustomConstraintValidatorRule(),
-            new ScheduledTaskPresentRule(),
+
             new UnresolvedSignaturesRule(jdbc, 5),
             new UnresolvedFloatingLinkRule(floatingLinkStore),
-            new TestAssertionsPresentRule(tfm),
-            new NativeSqlQueryRule(),
-            new JpqlHqlQueryRule()
+            new TestAssertionsPresentRule(tfm)
         );
 
         var planner = new EnrichmentPlanner(taskStore, jdbc, rules, findingStore);
@@ -92,20 +87,20 @@ class PlanCommandTest {
 
     @Test
     void planShowsQualifiedTasksWithReasons() {
-        insertTask("t1", "/src/SpringDataRepo.java");
-        insertFinding("t1", "SPRING_DATA_INTERFACE", true);
+        insertTask("t1", "/src/ProcedureRepo.java");
+        insertFinding("t1", "DATABASE_PROCEDURE_CALL", true);
 
         String result = command.plan("project-manifest.yaml");
         assertTrue(result.contains("Qualified: 1"));
-        assertTrue(result.contains("/src/SpringDataRepo.java"));
-        assertTrue(result.contains("SPRING_DATA_INTERFACE"));
+        assertTrue(result.contains("/src/ProcedureRepo.java"));
+        assertTrue(result.contains("STORED_PROCEDURE_CALL"));
         assertTrue(result.contains("Zero LLM calls made"));
     }
 
     @Test
     void planShowsMixedQualifiedAndNonQualified() {
-        insertTask("t1", "/src/ScheduledService.java");
-        insertFinding("t1", "SCHEDULED_TASK", true);
+        insertTask("t1", "/src/ProcedureRepo.java");
+        insertFinding("t1", "DATABASE_PROCEDURE_CALL", true);
 
         insertTask("t2", "/src/SimpleUtil.java");
         insertFinding("t2", "CALL_GRAPH_EDGE", true);
@@ -113,30 +108,25 @@ class PlanCommandTest {
         String result = command.plan("project-manifest.yaml");
         assertTrue(result.contains("Qualified: 1"));
         assertTrue(result.contains("Not qualified: 1"));
-        assertTrue(result.contains("/src/ScheduledService.java"));
+        assertTrue(result.contains("/src/ProcedureRepo.java"));
         assertTrue(result.contains("/src/SimpleUtil.java"));
-        assertTrue(result.contains("SCHEDULED_TASK_PRESENT"));
+        assertTrue(result.contains("STORED_PROCEDURE_CALL"));
     }
 
     @Test
     void planWithMultipleReasonsShowsAll() {
         insertTask("t1", "/src/ComplexService.java");
-        insertFinding("t1", "SPRING_DATA_INTERFACE", true);
-        insertFinding("t1", "SCHEDULED_TASK", true);
-        insertFinding("t1", "NATIVE_SQL_QUERY", true);
-
+        insertFinding("t1", "DATABASE_PROCEDURE_CALL", true);
         String result = command.plan("project-manifest.yaml");
         assertTrue(result.contains("Qualified: 1"));
         assertTrue(result.contains("/src/ComplexService.java"));
-        assertTrue(result.contains("SPRING_DATA_INTERFACE"));
-        assertTrue(result.contains("SCHEDULED_TASK_PRESENT"));
-        assertTrue(result.contains("NATIVE_SQL_QUERY"));
+        assertTrue(result.contains("STORED_PROCEDURE_CALL"));
     }
 
     @Test
     void planTransitionsQualifiedToEnrichPending() {
         insertTask("t1", "/src/Foo.java");
-        insertFinding("t1", "SPRING_DATA_INTERFACE", true);
+        insertFinding("t1", "DATABASE_PROCEDURE_CALL", true);
 
         command.plan("project-manifest.yaml");
 

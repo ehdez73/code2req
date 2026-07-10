@@ -7,8 +7,6 @@ import java.util.List;
 public record ExecutionFinding(
     @JsonProperty(required = true) @JsonPropertyDescription("Identifies the task and source file being enriched. All fields are known values — copy them from the task context provided in the prompt.")
     Metadata metadata,
-    @JsonProperty(value = "business_abstraction", required = false) @JsonPropertyDescription("High-level business purpose and happy-path flows of the source file's primary class or logic.")
-    BusinessAbstraction businessAbstraction,
     @JsonProperty(value = "business_rules_and_guardrails", required = true) @JsonPropertyDescription("Explicit validation rules, implicit business guardrails, and edge cases extracted from the code or its tests.")
     BusinessRulesAndGuardrails businessRulesAndGuardrails,
     @JsonProperty(value = "test_insights", required = true) @JsonPropertyDescription("Insights mined from the associated test file: what scenarios are verified and what hidden rules the tests reveal.")
@@ -25,20 +23,6 @@ public record ExecutionFinding(
         @JsonProperty(value = "tech_profile", required = true) String techProfile,
         @JsonProperty(value = "module_tag", required = true) String moduleTag,
         @JsonProperty(required = true) String timestamp
-    ) {}
-
-    public record BusinessAbstraction(
-        @JsonPropertyDescription("1-2 sentence summary of this file's business responsibility. What business goal does it accomplish?")
-        String purpose,
-        @JsonProperty("happy_paths") @JsonPropertyDescription("The expected normal execution flows (success scenarios) this code supports.")
-        List<HappyPath> happyPaths
-    ) {}
-
-    public record HappyPath(
-        @JsonProperty("flow_name") @JsonPropertyDescription("Short name for this happy-path flow (e.g. 'Standard flow', 'Bulk upload flow').")
-        String flowName,
-        @JsonPropertyDescription("Detailed description of the flow: trigger, steps, and expected outcome.")
-        String description
     ) {}
 
     public record BusinessRulesAndGuardrails(
