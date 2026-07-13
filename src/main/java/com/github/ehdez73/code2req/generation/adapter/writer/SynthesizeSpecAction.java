@@ -336,21 +336,25 @@ public class SynthesizeSpecAction {
         sb.append("| ID | Rule | Precondition | Postcondition | Error Behavior | Source |\n");
         sb.append("|---|---|---|---|---|---|\n");
         for (BusinessRule rule : flow.businessRules()) {
+            String ruleText = rule.description();
+            if (rule.externalCall() != null) {
+                ExternalCall ec = rule.externalCall();
+                StringBuilder ext = new StringBuilder("<br>**External call:** ");
+                ext.append(ec.httpMethod()).append(" ").append(ec.url());
+                if (ec.timeoutMs() != null) ext.append(" (").append(ec.timeoutMs()).append("ms timeout)");
+                if (ec.retryStrategy() != null && !ec.retryStrategy().isEmpty())
+                    ext.append(", retry: ").append(ec.retryStrategy());
+                if (ec.fallbackBehavior() != null && !ec.fallbackBehavior().isEmpty())
+                    ext.append(", fallback: ").append(ec.fallbackBehavior());
+                ruleText += ext.toString();
+            }
             sb.append("| ").append(rule.ruleId())
-              .append(" | ").append(rule.description())
+              .append(" | ").append(ruleText)
               .append(" | ").append(rule.precondition())
               .append(" | ").append(rule.postcondition())
               .append(" | ").append(rule.errorBehavior())
               .append(" | ").append(formatSourceRef(rule.sourceFile(), rule.startLine(), rule.endLine()))
               .append(" |\n");
-            if (rule.externalCall() != null) {
-                ExternalCall ec = rule.externalCall();
-                sb.append("  - **External call:** ").append(ec.httpMethod()).append(" ").append(ec.url());
-                if (ec.timeoutMs() != null) sb.append(" (").append(ec.timeoutMs()).append("ms timeout)");
-                if (ec.retryStrategy() != null && !ec.retryStrategy().isEmpty()) sb.append(", retry: ").append(ec.retryStrategy());
-                if (ec.fallbackBehavior() != null && !ec.fallbackBehavior().isEmpty()) sb.append(", fallback: ").append(ec.fallbackBehavior());
-                sb.append("\n");
-            }
         }
         sb.append("\n");
     }
