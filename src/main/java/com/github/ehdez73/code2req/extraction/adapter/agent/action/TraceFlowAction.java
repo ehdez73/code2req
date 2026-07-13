@@ -155,14 +155,14 @@ public class TraceFlowAction {
             addDbAccessSteps(steps, edge, matchingDbAccess);
 
             traceFromSource(edge.targetFilePath(), edge.targetClassName(),
-                steps, unresolvedCalls, visited, depth + 1, null,
+                steps, unresolvedCalls, visited, depth + 1, edge.targetMethodName(),
                 edge.targetStartLine(), edge.targetEndLine());
         }
 
         if (depth == 0) {
             addSelfDbAccessSteps(steps, sourceClassName);
         }
-        addFloatingLinkSteps(steps, sourceFilePath, sourceClassName);
+        addFloatingLinkSteps(steps, sourceFilePath, sourceClassName, entryMethodName);
     }
 
     private static String visitKey(String filePath, String className, String methodName) {
@@ -215,6 +215,8 @@ public class TraceFlowAction {
     private void addComponentStep(List<FlowStep> steps, CallGraphEdge edge,
                                    List<DbAccessInfo> matchingDbAccess) {
         if (!matchingDbAccess.isEmpty()) return;
+        if (classifyComponent(edge) == FlowStepComponentType.ENTITY
+            && isGetterOrSetter(edge.targetMethodName())) return;
         steps.add(new FlowStep(
             steps.size(), classifyComponent(edge),
             edge.targetClassName(), edge.targetMethodName(), null,
@@ -250,9 +252,10 @@ public class TraceFlowAction {
     }
 
     private void addFloatingLinkSteps(List<FlowStep> steps, String sourceFilePath,
-                                       String sourceClassName) {
+                                       String sourceClassName, String sourceMethodName) {
         List<FloatingLinkInfo> httpCalls = knowledge.findAllFloatingLinks().stream()
             .filter(f -> sourceFilePath.equals(f.sourceFilePath()))
+            .filter(f -> sourceMethodName == null || sourceMethodName.equals(f.sourceMethod()))
             .toList();
         for (FloatingLinkInfo http : httpCalls) {
             steps.add(new FlowStep(
@@ -295,6 +298,13 @@ public class TraceFlowAction {
         if (targetFile.contains("Listener") || targetFile.contains("Consumer")) return FlowStepComponentType.EVENT_PUBLISHER;
         if (targetFile.contains("Scheduler") || targetFile.contains("Job")) return FlowStepComponentType.SCHEDULED_TASK;
         return FlowStepComponentType.SERVICE;
+    }
+
+    private static boolean isGetterOrSetter(String methodName) {
+        if (methodName == null) return false;
+        return (methodName.startsWith("get") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3)))
+            || (methodName.startsWith("is") && methodName.length() > 2 && Character.isUpperCase(methodName.charAt(2)))
+            || (methodName.startsWith("set") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3)));
     }
 
     private boolean isFrameworkCall(String unresolvedCall, String sourceFilePath) {

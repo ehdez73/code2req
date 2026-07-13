@@ -218,7 +218,7 @@ class TraceFlowActionTest {
             CallGraphEdge.resolved("OrderController", "get", "/src/OrderController.java", "OrderService", "find", "/src/OrderService.java", 1));
         var graph = new StructuralGraph(edges, List.of(), List.of(), List.of());
         var floatingLinks = List.of(
-            new FloatingLinkInfo("POST", "/api/payment", false, "RestTemplate", "/src/OrderService.java", "process", null, 0.9, "PENDING"));
+            new FloatingLinkInfo("POST", "/api/payment", false, "RestTemplate", "/src/OrderService.java", "find", null, 0.9, "PENDING"));
         var entryPoint = new HttpEntryPoint("GET /orders", "OrderController", "get", "/src/OrderController.java",
             0.5, false, "GET", "/orders", List.of(), List.of());
 

@@ -38,9 +38,11 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * For a traced execution flow, extracts business semantics: user story
@@ -95,8 +97,14 @@ public class AnalyzeFlowAction {
         Optional<ExecutionFinding> enrichment = knowledge.semanticEnrichment()
             .findByFilePath(ep.filePath());
 
+        Set<String> tracedMethodsInFile = flow.steps().stream()
+            .filter(s -> ep.filePath().equals(s.sourceFile()))
+            .map(FlowStep::methodName)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+
         String enrichmentContext = enrichment
-            .map(ef -> formatEnrichmentContext(ef, epData.epId()))
+            .map(ef -> formatEnrichmentContext(ef, epData.epId(), tracedMethodsInFile))
             .orElse("No Phase 2 enrichment available.");
 
         String stepEnrichmentContext = buildStepEnrichmentContext(flow, ep);
@@ -155,15 +163,22 @@ public class AnalyzeFlowAction {
     private String buildStepEnrichmentContext(ExecutionFlow flow, EntryPoint ep) {
         StringBuilder sb = new StringBuilder();
         flow.steps().stream()
-            .map(FlowStep::sourceFile)
-            .filter(f -> f != null && !f.equals(ep.filePath()))
-            .distinct().sorted()
-            .forEach(f -> knowledge.semanticEnrichment().findByFilePath(f)
-                .ifPresent(ef -> {
-                    String fileName = f.contains("/") ? f.substring(f.lastIndexOf('/') + 1) : f;
-                    sb.append("  ").append(fileName).append(":\n");
-                    sb.append(formatEnrichmentContext(ef, null).indent(4));
-                }));
+            .filter(s -> s.sourceFile() != null && !s.sourceFile().equals(ep.filePath()))
+            .collect(Collectors.groupingBy(FlowStep::sourceFile))
+            .forEach((filePath, steps) -> {
+                String fileName = filePath.contains("/")
+                    ? filePath.substring(filePath.lastIndexOf('/') + 1)
+                    : filePath;
+                Set<String> methods = steps.stream()
+                    .map(FlowStep::methodName)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+                knowledge.semanticEnrichment().findByFilePath(filePath)
+                    .ifPresent(ef -> {
+                        sb.append("  ").append(fileName).append(":\n");
+                        sb.append(formatEnrichmentContext(ef, null, methods).indent(4));
+                    });
+            });
         return sb.isEmpty() ? "No Phase 2 enrichment available for intermediate steps." : sb.toString();
     }
 
@@ -566,7 +581,8 @@ public class AnalyzeFlowAction {
         };
     }
 
-    private String formatEnrichmentContext(ExecutionFinding ef, String entryPointId) {
+    private String formatEnrichmentContext(ExecutionFinding ef, String entryPointId,
+                                            Set<String> tracedMethodsInFile) {
         StringBuilder sb = new StringBuilder();
         if (ef.businessRulesAndGuardrails() != null) {
             if (ef.businessRulesAndGuardrails().validations() != null) {
@@ -589,6 +605,10 @@ public class AnalyzeFlowAction {
             if (outbound.httpCalls() != null && !outbound.httpCalls().isEmpty()) {
                 sb.append("Outbound HTTP calls:\n");
                 for (ExecutionFinding.HttpCall call : outbound.httpCalls()) {
+                    if (call.encapsulatedIn() != null && !tracedMethodsInFile.isEmpty()
+                        && tracedMethodsInFile.stream().noneMatch(m -> call.encapsulatedIn().contains(m))) {
+                        continue;
+                    }
                     sb.append("  - ").append(call.method()).append(" ").append(call.urlOrPath());
                     if (call.isExternal()) sb.append(" [external]");
                     if (call.externalContractHint() != null) {
