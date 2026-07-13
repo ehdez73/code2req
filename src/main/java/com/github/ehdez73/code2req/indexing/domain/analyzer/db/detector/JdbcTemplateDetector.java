@@ -40,13 +40,13 @@ public class JdbcTemplateDetector implements DbAccessDetector {
                     result.add(new DbAccessInfo(
                         DbAccessType.JDBC_TEMPLATE_QUERY.name(), sql,
                         DbAccessHelper.inferTableHint(sql), "",
-                        methodName, className, filePath, "", false, startLine, endLine));
+                        methodName, className, filePath, "", false, startLine, endLine, 0));
                 } else if (UPDATE_METHODS.contains(callName)) {
                     String sql = DbAccessHelper.extractFirstStringArg(mce);
                     result.add(new DbAccessInfo(
                         DbAccessType.JDBC_TEMPLATE_UPDATE.name(), sql,
                         DbAccessHelper.inferTableHint(sql), "",
-                        methodName, className, filePath, "", false, startLine, endLine));
+                        methodName, className, filePath, "", false, startLine, endLine, 0));
                 }
             })
         );

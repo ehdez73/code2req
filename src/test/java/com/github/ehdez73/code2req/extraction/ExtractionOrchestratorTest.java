@@ -126,7 +126,7 @@ class ExtractionOrchestratorTest {
         saveFinding("task3", FindingType.DB_ACCESS,
             new DbAccessInfo("SPRING_DATA", null, "orders", null,
                 "findByStatus", "OrderRepository", "/src/OrderRepository.java",
-                "Order", false));
+                "Order", false, 0, 0, 0));
 
         CodebaseKnowledge knowledge = orchestrator.buildCodebaseKnowledge();
 

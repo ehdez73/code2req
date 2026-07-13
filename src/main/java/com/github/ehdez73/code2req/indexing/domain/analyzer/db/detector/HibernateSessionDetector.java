@@ -46,7 +46,7 @@ public class HibernateSessionDetector implements DbAccessDetector {
                 }
                 result.add(new DbAccessInfo(
                     type, sql, "", "",
-                    methodName, className, filePath, "", false, startLine, endLine));
+                    methodName, className, filePath, "", false, startLine, endLine, 0));
             })
         );
     }

@@ -14,7 +14,8 @@ public record DbAccessInfo(
     String entityType,
     boolean isTransactionRoot,
     int startLine,
-    int endLine
+    int endLine,
+    int paramCount
 ) implements AnalysisFinding {
 
     @Override
@@ -27,6 +28,6 @@ public record DbAccessInfo(
                         String methodName, String className, String filePath,
                         String entityType, boolean isTransactionRoot) {
         this(type, sql, tableHint, procedureName, methodName, className, filePath,
-             entityType, isTransactionRoot, 0, 0);
+             entityType, isTransactionRoot, 0, 0, 0);
     }
 }

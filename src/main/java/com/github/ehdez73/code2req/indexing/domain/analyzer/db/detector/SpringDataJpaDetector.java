@@ -48,6 +48,8 @@ public class SpringDataJpaDetector implements DbAccessDetector {
             int startLine = method.getBegin().map(r -> r.line).orElse(0);
             int endLine = method.getEnd().map(r -> r.line).orElse(0);
 
+            int paramCount = method.getParameters().size();
+
             Optional<AnnotationExpr> queryAnn = method.getAnnotationByName("Query");
             if (queryAnn.isPresent()) {
                 String sql = extractQueryValue(queryAnn.get());
@@ -55,14 +57,14 @@ public class SpringDataJpaDetector implements DbAccessDetector {
                 result.add(new DbAccessInfo(
                     nativeQuery ? DbAccessType.NATIVE_SQL.name() : DbAccessType.JPQL_HQL.name(),
                     sql, "", "",
-                    methodName, className, filePath, entityType, false, startLine, endLine));
+                    methodName, className, filePath, entityType, false, startLine, endLine, paramCount));
                 continue;
             }
 
             if (isDerivedQueryMethod(methodName)) {
                 result.add(new DbAccessInfo(
                     DbAccessType.SPRING_DATA.name(), "", "", "",
-                    methodName, className, filePath, entityType, false, startLine, endLine));
+                    methodName, className, filePath, entityType, false, startLine, endLine, paramCount));
             }
         }
     }

@@ -202,7 +202,7 @@ class TraceFlowActionTest {
         var edges = List.of(
             CallGraphEdge.resolved("OrderController", "get", "/src/OrderController.java", "OrderService", "find", "/src/OrderService.java", 1));
         var dbAccess = List.of(
-            new DbAccessInfo("JPA", "SELECT * FROM orders", "orders", null, "find", "OrderService", "/src/OrderService.java", "Order", false));
+            new DbAccessInfo("JPA", "SELECT * FROM orders", "orders", null, "find", "OrderService", "/src/OrderService.java", "Order", false, 0, 0, 1));
         var graph = new StructuralGraph(edges, List.of(), dbAccess, List.of());
         var entryPoint = new HttpEntryPoint("GET /orders", "OrderController", "get", "/src/OrderController.java",
             0.5, false, "GET", "/orders", List.of(), List.of());

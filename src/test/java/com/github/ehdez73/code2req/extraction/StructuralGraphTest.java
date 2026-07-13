@@ -45,7 +45,7 @@ class StructuralGraphTest {
         var endpoints = List.of(
             new EndpointInfo("GET", "/api", "C", "", List.of(), List.of(), "/src/C.java", false, null, List.of()));
         var dbAccess = List.of(
-            new DbAccessInfo("JPA", null, "table", null, "find", "D", "/src/D.java", "E", false));
+            new DbAccessInfo("JPA", null, "table", null, "find", "D", "/src/D.java", "E", false, 0, 0, 0));
         var components = List.of(
             new ComponentInfo("@Service", "E", "com.acme", "/src/E.java"));
 
@@ -69,7 +69,7 @@ class StructuralGraphTest {
         var endpoints = List.of(
             new EndpointInfo("GET", "/api", "C", "", List.of(), List.of(), "/src/C.java", false, null, List.of()));
         var dbAccess = List.of(
-            new DbAccessInfo("JPA", null, "t", null, "f", "D", "/src/D.java", "E", false));
+            new DbAccessInfo("JPA", null, "t", null, "f", "D", "/src/D.java", "E", false, 0, 0, 0));
         var components = List.of(
             new ComponentInfo("@Service", "F", "p", "/src/F.java"));
         var scheduled = List.of(

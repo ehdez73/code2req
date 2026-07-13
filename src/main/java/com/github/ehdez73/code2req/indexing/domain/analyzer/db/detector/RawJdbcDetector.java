@@ -38,7 +38,7 @@ public class RawJdbcDetector implements DbAccessDetector {
                     result.add(new DbAccessInfo(
                         DbAccessType.NATIVE_SQL.name(), sql,
                         DbAccessHelper.inferTableHint(sql), "",
-                        methodName, className, filePath, "", false, startLine, endLine));
+                        methodName, className, filePath, "", false, startLine, endLine, 0));
                 }
 
                 if (STATEMENT_EXEC_METHODS.contains(callName)
@@ -49,7 +49,7 @@ public class RawJdbcDetector implements DbAccessDetector {
                         result.add(new DbAccessInfo(
                             DbAccessType.NATIVE_SQL.name(), sql,
                             DbAccessHelper.inferTableHint(sql), "",
-                            methodName, className, filePath, "", false, startLine, endLine));
+                            methodName, className, filePath, "", false, startLine, endLine, 0));
                     }
                 }
             })

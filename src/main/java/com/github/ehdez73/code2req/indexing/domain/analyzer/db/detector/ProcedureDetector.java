@@ -22,7 +22,7 @@ public class ProcedureDetector implements DbAccessDetector {
             String procedureName = DbAccessHelper.extractProcedureName(ann);
             result.add(new DbAccessInfo(
                 DbAccessType.PROCEDURE.name(), "", "", procedureName,
-                method.getNameAsString(), className, filePath, "", false, startLine, endLine));
+                method.getNameAsString(), className, filePath, "", false, startLine, endLine, 0));
         });
     }
 }

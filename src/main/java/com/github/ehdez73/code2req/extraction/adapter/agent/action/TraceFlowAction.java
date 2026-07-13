@@ -208,7 +208,7 @@ public class TraceFlowAction {
             .filter(d -> edge.targetClassName().equals(d.className()))
             .filter(d -> edge.targetStartLine() > 0
                 ? (d.startLine() == edge.targetStartLine() && d.endLine() == edge.targetEndLine())
-                : d.methodName().equals(edge.targetMethodName()))
+                : d.methodName().equals(edge.targetMethodName()) && d.paramCount() == edge.argCount())
             .toList();
     }
 
@@ -226,7 +226,10 @@ public class TraceFlowAction {
 
     private void addDbAccessSteps(List<FlowStep> steps, CallGraphEdge edge,
                                    List<DbAccessInfo> matchingDbAccess) {
+        var seen = new HashSet<String>();
         for (DbAccessInfo db : matchingDbAccess) {
+            String key = db.className() + ":" + db.methodName() + ":" + db.startLine() + ":" + db.endLine();
+            if (!seen.add(key)) continue;
             List<String> enrichments = new ArrayList<>();
             if (db.sql() != null) enrichments.add(db.sql());
             enrichments.add(classifyComponent(edge).name());
