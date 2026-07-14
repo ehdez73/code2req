@@ -1,0 +1,131 @@
+package com.github.ehdez73.code2req.infrastructure.persistence;
+
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+
+@Repository
+public class TaskStoreSchema {
+    private static final Logger log = LoggerFactory.getLogger(TaskStoreSchema.class);
+    private final JdbcTemplate jdbc;
+
+    public TaskStoreSchema(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    @PostConstruct
+    public void initialize() {
+        createSchemaIfNotExists();
+    }
+
+    public void createSchemaIfNotExists() {
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                task_id TEXT PRIMARY KEY,
+                file_path TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                content_type TEXT,
+                content_hash TEXT NOT NULL,
+                target_name TEXT NOT NULL DEFAULT '',
+                paired_test_path TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """);
+
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS execution_findings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT NOT NULL REFERENCES tasks(task_id),
+                finding_type TEXT NOT NULL,
+                finding_json TEXT NOT NULL,
+                resolved INTEGER NOT NULL DEFAULT 1,
+                schema_version TEXT NOT NULL DEFAULT '1.0',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """);
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS topic_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                broker TEXT NOT NULL,
+                topic_or_queue TEXT NOT NULL,
+                producer_task_id TEXT REFERENCES tasks(task_id),
+                consumer_task_id TEXT REFERENCES tasks(task_id),
+                resolved_status TEXT NOT NULL DEFAULT 'PENDING',
+                confidence REAL DEFAULT 1.0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """);
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS floating_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                method TEXT NOT NULL,
+                url_or_path TEXT NOT NULL,
+                is_expression INTEGER NOT NULL DEFAULT 0,
+                source_task_id TEXT NOT NULL REFERENCES tasks(task_id),
+                client_type TEXT NOT NULL DEFAULT 'UNKNOWN',
+                source_method TEXT,
+                target_endpoint TEXT,
+                confidence REAL,
+                resolved_status TEXT NOT NULL DEFAULT 'PENDING',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """);
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                phase INTEGER NOT NULL DEFAULT 1,
+                tasks_total INTEGER DEFAULT 0,
+                tasks_completed INTEGER DEFAULT 0,
+                edges_resolved INTEGER DEFAULT 0,
+                edges_unresolved INTEGER DEFAULT 0,
+                topic_links_resolved INTEGER DEFAULT 0,
+                floating_links_registered INTEGER DEFAULT 0,
+                tokens_consumed INTEGER DEFAULT 0,
+                api_cost_estimated REAL DEFAULT 0.0,
+                recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """);
+        migrateSchema();
+        log.info("Task store schema initialized with 5 tables");
+    }
+
+    private void migrateSchema() {
+        List<String> tasksColumns = jdbc.queryForList(
+            "SELECT name FROM pragma_table_info('tasks')", String.class);
+        if (!tasksColumns.contains("paired_test_path")) {
+            jdbc.execute("ALTER TABLE tasks ADD COLUMN paired_test_path TEXT");
+            log.info("Migration: added paired_test_path column to tasks table");
+        }
+        List<String> floatingColumns = jdbc.queryForList(
+            "SELECT name FROM pragma_table_info('floating_links')", String.class);
+        if (!floatingColumns.contains("client_type")) {
+            jdbc.execute("ALTER TABLE floating_links ADD COLUMN client_type TEXT NOT NULL DEFAULT 'UNKNOWN'");
+            log.info("Migration: added client_type column to floating_links table");
+        }
+        if (!floatingColumns.contains("source_method")) {
+            jdbc.execute("ALTER TABLE floating_links ADD COLUMN source_method TEXT");
+            log.info("Migration: added source_method column to floating_links table");
+        }
+    }
+
+    public void setSchemaVersion(int version) {
+        // reserved for future migrations
+    }
+
+    public void dropAllTables() {
+        jdbc.execute("DROP TABLE IF EXISTS execution_findings");
+        jdbc.execute("DROP TABLE IF EXISTS topic_links");
+        jdbc.execute("DROP TABLE IF EXISTS floating_links");
+        jdbc.execute("DROP TABLE IF EXISTS metrics");
+        jdbc.execute("DROP TABLE IF EXISTS tasks");
+    }
+
+    public void dropTable() {
+        dropAllTables();
+    }
+}

@@ -1,0 +1,121 @@
+package com.github.ehdez73.code2req.indexing.domain.analyzer.event.broker.activemq;
+
+import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisContext;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisResultBuilder;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.AstAnalysisVisitor;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.expr.AnnotationExpr;
+import com.github.javaparser.ast.expr.Expression;
+import com.github.javaparser.ast.expr.FieldAccessExpr;
+import com.github.javaparser.ast.expr.MemberValuePair;
+import com.github.javaparser.ast.expr.MethodCallExpr;
+import com.github.javaparser.ast.expr.NameExpr;
+import com.github.javaparser.ast.expr.NormalAnnotationExpr;
+import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Component
+public class ActiveMqVisitor implements AstAnalysisVisitor {
+
+    private static final Logger log = LoggerFactory.getLogger(ActiveMqVisitor.class);
+
+    @Override
+    public void analyze(CompilationUnit cu, AnalysisResultBuilder builder, AnalysisContext context) {
+        ActiveMqCollector collector = new ActiveMqCollector();
+        cu.accept(new ActiveMqAstAdapter(context.filePath()), collector);
+        if (!collector.listeners.isEmpty()) {
+            log.info("  ActiveMqVisitor: found {} listener(s) in {}", collector.listeners.size(), context.filePath());
+            collector.listeners.forEach(builder::addFinding);
+        }
+        if (!collector.publishers.isEmpty()) {
+            log.info("  ActiveMqVisitor: found {} publisher(s) in {}", collector.publishers.size(), context.filePath());
+            collector.publishers.forEach(builder::addFinding);
+        }
+    }
+
+    static class ActiveMqCollector {
+        final List<ActiveMqInfo> listeners = new ArrayList<>();
+        final List<ActiveMqPublisherInfo> publishers = new ArrayList<>();
+    }
+
+    static class ActiveMqAstAdapter extends VoidVisitorAdapter<ActiveMqCollector> {
+
+        private final String filePath;
+        private String className = "";
+
+        ActiveMqAstAdapter(String filePath) {
+            this.filePath = filePath;
+        }
+
+        @Override
+        public void visit(ClassOrInterfaceDeclaration n, ActiveMqCollector collector) {
+            className = n.getNameAsString();
+            super.visit(n, collector);
+        }
+
+        @Override
+        public void visit(MethodDeclaration n, ActiveMqCollector collector) {
+            for (AnnotationExpr ann : n.getAnnotations()) {
+                if ("JmsListener".equals(ann.getNameAsString())) {
+                    String destination = extractDestination(ann);
+                    String payloadType = n.getParameters().isEmpty() ? "" : n.getParameter(0).getTypeAsString();
+                    collector.listeners.add(new ActiveMqInfo(
+                        destination,
+                        n.getNameAsString(),
+                        className,
+                        filePath,
+                        payloadType
+                    ));
+                }
+            }
+
+            n.getBody().ifPresent(body ->
+                body.findAll(MethodCallExpr.class).forEach(mce -> {
+                    if ("convertAndSend".equals(mce.getNameAsString())) {
+                        String scope = mce.getScope().map(Object::toString).orElse("");
+                        if (scope.toLowerCase().contains("jmstemplate")) {
+                            String destination = mce.getArguments().isEmpty()
+                                ? "" : extractStringLiteral(mce.getArgument(0));
+                            collector.publishers.add(
+                                new ActiveMqPublisherInfo(
+                                    destination, n.getNameAsString(), className, filePath
+                                )
+                            );
+                        }
+                    }
+                })
+            );
+        }
+
+        static String extractDestination(AnnotationExpr ann) {
+            if (ann instanceof NormalAnnotationExpr nae) {
+                for (MemberValuePair pair : nae.getPairs()) {
+                    if ("destination".equals(pair.getNameAsString())) {
+                        return extractStringLiteral(pair.getValue());
+                    }
+                }
+            }
+            return "";
+        }
+
+        static String extractStringLiteral(Expression arg) {
+            if (arg.isStringLiteralExpr()) {
+                return arg.asStringLiteralExpr().getValue();
+            }
+            if (arg instanceof NameExpr) {
+                return arg.toString();
+            }
+            if (arg instanceof FieldAccessExpr) {
+                return arg.toString();
+            }
+            return arg.toString();
+        }
+    }
+}

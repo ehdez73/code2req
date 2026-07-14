@@ -1,0 +1,894 @@
+{
+  "meta": {
+    "version": "2.1.0",
+    "phase": "3",
+    "created_at": "2026-06-12T12:00:00Z",
+    "last_updated": "2026-07-01T12:00:00Z",
+    "last_agent": "opencode"
+  },
+  "project": {
+    "name": "code2req",
+    "vision": "Spec-Driven Development (SDD) — treating a highly structured, technology-agnostic business specification as the primary, authoritative artifact from which automated tests, clean implementation, and functional documentation are derived.",
+    "elevator_pitch": "An AI-driven CLI that reverse-engineers legacy enterprise codebases into structured business specifications organized by functional flows, with full traceability back to source code.",
+    "problem_statement": "Legacy enterprise codebases contain embedded business rules, domain validations, and ecosystem invariants that are obscured by technical debt and scattered across REST endpoints, async event handlers, and hidden procedural database layers — making systems hard to understand, test, and re-architect.",
+    "goals": [
+      "De-technify enterprise code — abstract dense, legacy implementations into clear business intentions, process parameters, and edge cases",
+      "Eradicate context rot & hallucinations — enforce stateless, short-lived execution with absolute context isolation per file",
+      "Provide end-to-end visibility — connect scattered functional points across frontend, REST, async events, and database layers",
+      "Provide a standard data contract for test generation — output predictable structured semantic graphs bridging static code and dynamic business tests"
+    ]
+  },
+  "discovery": {},
+  "stakeholders": [
+    {
+      "name": "Developer",
+      "role": "Primary user",
+      "concerns": [
+        "Quickly understand legacy codebases without manual reading",
+        "Extract business rules obscured by technical debt",
+        "Generate structured specifications from source code"
+      ]
+    },
+    {
+      "name": "Tech Lead",
+      "role": "Secondary user / evaluator",
+      "concerns": [
+        "System-wide traceability of business rules",
+        "No leakage of secrets or credentials",
+        "Confidence that extracted specifications are accurate"
+      ]
+    }
+  ],
+  "user_personas": [
+    {
+      "id": "P001",
+      "name": "Developer",
+      "role": "Full-Stack Engineer",
+      "goals": [
+        "Understand what business rules a legacy codebase implements",
+        "Generate structured specifications without manual effort",
+        "Identify all endpoints, event handlers, and database interactions"
+      ],
+      "pain_points": [
+        "Spending hours reading through dense legacy code",
+        "Missing hidden business rules in stored procedures or custom validators",
+        "Lack of documentation on system behavior and edge cases"
+      ],
+      "context": "Works with Java/Spring codebases daily. Needs to quickly onboard to unfamiliar legacy systems or document existing ones for compliance and refactoring."
+    },
+    {
+      "id": "P002",
+      "name": "Tech Lead",
+      "role": "Architect / Evaluator",
+      "goals": [
+        "Evaluate extracted specifications for completeness",
+        "Ensure sensitive data never leaves local machine",
+        "Assess system-wide architectural patterns"
+      ],
+      "pain_points": [
+        "No reliable way to get a bird's-eye view of a legacy system",
+        "Risk of hardcoded secrets leaking through AI pipelines",
+        "Difficulty tracing async event flows across services"
+      ],
+      "context": "Responsible for architectural decisions and compliance. Needs to trust the tool's output and verify nothing sensitive is exposed."
+    }
+  ],
+  "scope": {
+    "in_scope": [
+      "YAML manifest parsing for multi-repository scan configuration",
+      "Optional Maven dependency graph resolution with graceful fallback",
+      "Java source file AST parsing using JavaParser (component types, HTTP endpoints, event listeners, scheduled task/trigger detection, method calls, custom validators)",
+      "In-memory secret redaction (passwords, API keys, credentials) before any LLM processing",
+      "Exclude pattern filtering for generated code and vendor packages",
+      "Structured JSON index output (code-graph-index.json) with full structural metadata",
+      "SQLite task store ingestion via Spring JDBC with WAL mode and idempotent task IDs",
+      "Global declaration registry for inter-file method resolution (Pass 1)",
+      "Inter-file call graph resolution via CallGraphVisitor (Pass 2)",
+      "Database access pattern detection (JdbcTemplate, @Procedure, EntityManager, @Transactional)",
+      "Outbound HTTP client detection and floating link resolution (RestTemplate, WebClient, FeignClient, RestClient, @HttpExchange, java.net.http, HttpURLConnection, Apache HttpClient, OkHttp, FloatingLinkResolver)",
+      "Deterministic topic link resolution (producer-to-consumer matching across Kafka, RabbitMQ, ActiveMQ)",
+      "Extended SQLite tables (execution_findings, topic_links, floating_links, metrics)",
+      "CLI scan command — Phase 1 deterministic two-pass execution"
+    ],
+    "out_of_scope": [
+      "Phase 2 — Semantic Enrichment (LLM-powered per-file analysis via Spring AI @Async)",
+      "Phase 3 — Agentic Functional Requirement Extraction (Embabel GOAP): entry-point-driven flow tracing, user story + Gherkin extraction, semantic clustering, orphaned method detection",
+      "Test framework generation (Gherkin, JUnit, etc.) — downstream Skill consumes semantic_manifest.json",
+      "Frontend or UI code analysis (JavaScript, TypeScript, HTML)",
+      "Frontend or UI code analysis (JavaScript, TypeScript, HTML)",
+      "Code modification or mutation on disk (read-only operation)"
+    ]
+  },
+  "constraints": {
+    "timeline": "POC — no hard deadline",
+    "budget": null,
+    "technical": [
+      "Pure Java — no native OS bindings or JNI (no Tree-sitter)",
+      "JavaParser for AST analysis — mandatory, not optional",
+      "Spring Boot 3.4.x with Java 21",
+      "SQLite as embedded persistence — no external database",
+      "Spring JDBC (JdbcTemplate) — no ORM (no Hibernate/JPA)",
+      "No network required during Phase 1 indexing",
+      "Maven-based build and dependency management"
+    ],
+    "compliance": [
+      "Read-only operation — zero modifications to source files",
+      "Zero secret leakage — hardcoded credentials must be redacted before any outbound call"
+    ]
+  },
+  "success_metrics": [
+    {
+      "metric": "HTTP Inbound Endpoints Extraction",
+      "target": ">= 95%",
+      "measurement": "Verification matching entry paths found in the static code graph against expected endpoints in target codebase"
+    },
+    {
+      "metric": "Custom Constraints Extraction",
+      "target": ">= 95%",
+      "measurement": "Fields annotated with custom validators have corresponding isValid logic slices extracted"
+    },
+    {
+      "metric": "Scheduled Triggers Extraction",
+      "target": ">= 90%",
+      "measurement": "Methods annotated with @Scheduled have their cron/fixed-delay/fixed-rate expressions captured and linked to the business operations they initiate"
+    },
+    {
+      "metric": "Plan Execution Completeness",
+      "target": ">= 98%",
+      "measurement": "Processing tasks that reach SUCCESS state (excluding AWAITING_HUMAN_REVIEW)"
+    },
+    {
+      "metric": "Database Connection Failures",
+      "target": "0 incidents",
+      "measurement": "Zero exceptions due to file locks when executing under pool-size of 10 with WAL mode"
+    },
+    {
+      "metric": "Idempotent Spend Guard",
+      "target": "0 tokens consumed on re-scan of unchanged workspace",
+      "measurement": "Re-running against unmodified workspace completes using 100% cached records in <= 60 seconds"
+    },
+    {
+      "metric": "Warm Start Recovery Duration",
+      "target": "<= 30 seconds",
+      "measurement": "Time to resolve pending/orphaned states and re-align the processing DAG after crash"
+    },
+    {
+      "metric": "Inter-File Call Resolution Rate",
+      "target": ">= 75%",
+      "measurement": "Ratio of resolved MethodCallExpr nodes to total non-JDK MethodCallExpr nodes in the codebase"
+    },
+    {
+      "metric": "Database Access Point Detection",
+      "target": ">= 90%",
+      "measurement": "Verification that all @Procedure annotations and JdbcTemplate calls are captured"
+    },
+    {
+      "metric": "Outbound HTTP Client Detection",
+      "target": ">= 90%",
+      "measurement": "Verification that all RestTemplate/WebClient/FeignClient usages are registered as floating_links"
+    },
+    {
+      "metric": "Topic Link Resolution",
+      "target": ">= 95%",
+      "measurement": "Cross-reference of matching topic/queue/destination pairs between producers and consumers"
+    },
+    {
+      "metric": "Phase 2 LLM Spend per Scan",
+      "target": "<= 20% of files",
+      "measurement": "Only files exceeding llm-unresolved-threshold or flagged by semantic criteria qualify for LLM enrichment"
+    },
+    {
+      "metric": "Functional Flow Extraction Rate",
+      "target": ">= 85%",
+      "measurement": "Ratio of fully-extracted functional flows to total candidate flows inferred by the Embabel agent"
+    }
+  ],
+  "non_functional_requirements": [
+    {
+      "id": "NFR001",
+      "category": "performance",
+      "description": "Phase 1 indexing must complete without network calls or LLM interactions",
+      "acceptance_criteria": "Zero outbound HTTP calls during scan command execution",
+      "source": "kick-off-meeting"
+    },
+    {
+      "id": "NFR002",
+      "category": "security",
+      "description": "Hardcoded secrets must be redacted in-memory before any LLM processing",
+      "acceptance_criteria": "Passwords, API keys, and credentials replaced with [REDACTED:type] placeholders; original file on disk untouched",
+      "source": "kick-off-meeting"
+    },
+    {
+      "id": "NFR003",
+      "category": "reliability",
+      "description": "Graceful degradation when optional dependency resolution fails",
+      "acceptance_criteria": "Tool proceeds with standalone heuristic mode when Maven is absent or project does not compile; clear warning logged",
+      "source": "kick-off-meeting"
+    },
+    {
+      "id": "NFR004",
+      "category": "performance",
+      "description": "Idempotent task identification to prevent redundant processing",
+      "acceptance_criteria": "Task IDs computed from SHA-256 of file path, content hash, test content hash, model ID, and prompt version",
+      "source": "kick-off-meeting"
+    },
+    {
+      "id": "NFR005",
+      "category": "performance",
+      "description": "WAL mode enabled in SQLite for concurrent read/write",
+      "acceptance_criteria": "PRAGMA journal_mode=WAL and busy_timeout=5000 set on connection initialization",
+      "source": "kick-off-meeting"
+    }
+  ],
+  "risks": [
+    {
+      "id": "R001",
+      "description": "JavaParser fails on complex or vendor-specific syntax constructs",
+      "impact": "medium",
+      "probability": "low",
+      "mitigation": "Annotation-driven fallback strategy — classify components by annotation presence even when type resolution fails",
+      "affected_stories": ["US006"]
+    },
+    {
+      "id": "R003",
+      "description": "SQLite locking under concurrent access during Phase 2 (design concern carried forward)",
+      "impact": "medium",
+      "probability": "low",
+      "mitigation": "WAL mode + busy_timeout + connection pool configured upfront in Phase 1 implementation",
+      "affected_stories": ["US014"]
+    },
+    {
+      "id": "R004",
+      "description": "Process crash during Phase 1 leaves SQLite task store in inconsistent state with orphaned RUNNING tasks",
+      "impact": "medium",
+      "probability": "medium",
+      "mitigation": "Startup orphan detection and reconciliation; resume command for explicit warm-start recovery",
+      "affected_stories": ["US017"]
+    },
+    {
+      "id": "R005",
+      "description": "Secret redaction misses non-standard credential patterns or produces false positives on benign values",
+      "impact": "high",
+      "probability": "low",
+      "mitigation": "Pattern-based detection with documented coverage scope; in-memory only operation limits blast radius",
+      "affected_stories": ["US011"]
+    },
+    {
+      "id": "R006",
+      "description": "JavaParser version incompatibility with Java language features used in target codebase (e.g., records, sealed classes, pattern matching)",
+      "impact": "medium",
+      "probability": "low",
+      "mitigation": "Pin compatible JavaParser version; graceful parse failure per file with logged error does not block full scan",
+      "affected_stories": ["US006"]
+    }
+  ],
+  "assumptions": [
+    "Target codebase is primarily Java/Spring-based",
+    "Maven is the build system (pom.xml) — Gradle support is future scope",
+    "User has JDK 21+ installed for running the tool",
+    "LLM provider credentials are configured separately (not part of Phase 1)",
+    "Source files are UTF-8 encoded"
+  ],
+  "team": {
+    "definition_of_done": [
+      "Code compiles and builds without errors",
+      "Unit tests pass",
+      "Feature matches the acceptance criteria defined in the user story",
+      "No regression in existing functionality",
+      "CLI scan command produces valid code-graph-index.json for the petclinic target"
+    ],
+    "definition_of_ready": [
+      "Story has clearly defined acceptance criteria",
+      "Dependencies on other stories are identified",
+      "T-shirt size estimate is assigned",
+      "Story is small enough to complete in a single work session"
+    ],
+    "members": [
+      {
+        "name": "Solo Developer",
+        "role": "other"
+      }
+    ],
+    "throughput_window": "4 weeks"
+  },
+  "epics": [
+    {
+      "id": "E001",
+      "name": "Deterministic Multi-Language Indexing",
+      "description": "Before any LLM interaction, the CLI scans the physical workspace using pure-Java AST parsers (JavaParser) to map signatures, endpoint routes, call frameworks, and event publishers. Produces a local intermediate JSON contract and populates the SQLite task store. Runs as a deterministic compiler-pass requiring zero network connectivity or LLM credentials.",
+      "priority": "must"
+    },
+    {
+      "id": "E002",
+      "name": "Language Extension Framework",
+      "description": "Define a common parser abstraction (SPI) so that adding support for new programming languages does not require modifying the core pipeline. Language parsers implement a shared contract and are discovered at runtime. The rest of the pipeline (redaction, output, orchestration) remains parser-agnostic.",
+      "priority": "should"
+    },
+    {
+      "id": "E003",
+      "name": "Semantic Enrichment (Spring AI + @Async)",
+      "description": "Phase 2 of the pipeline: per-file LLM-powered semantic enrichment using Spring AI ChatClient and Spring @Async executors. A Planner qualifies files, an Executor enriches each file with business semantics, and an Orchestrator manages the DAG with a synchronization barrier before Phase 3.",
+      "priority": "must"
+    },
+    {
+      "id": "E004",
+      "name": "Agentic Functional Requirement Extraction (Embabel GOAP)",
+      "description": "Phase 3 of the pipeline: an Embabel GOAP agent discovers entry points, traces execution flows through the call graph, and extracts functional requirements (user stories, Gherkin scenarios, business rules). Persists intermediate results to extraction-cache.json; a separate generate command produces the Markdown specification and semantic_manifest.json from the cache.",
+      "priority": "must"
+    },
+    {
+      "id": "E005",
+      "name": "Snapshot & Restore",
+      "description": "Point-in-time snapshots of local state (SQLite database + JSON index) for safe experimentation and rollback during iterative analysis. VACUUM INTO creates transactionally consistent copies without stopping the application.",
+      "priority": "should"
+    }
+  ],
+  "features": [
+    {
+      "id": "F001",
+      "epic_id": "E001",
+      "name": "Project Configuration & Manifest Parsing",
+      "description": "Parse project-manifest.yaml, resolve scan targets against the filesystem, validate configuration structure and required fields.",
+      "background": "A valid project-manifest.yaml file exists in the current working directory with at least one scan target defined.",
+      "business_rules": [
+        "All scan target paths must be accessible on the local filesystem — the CLI validates existence before processing",
+        "The manifest schema must conform to the expected YAML structure; unrecognized fields produce warnings but don't block execution",
+        "If a scan target directory lacks Java source files, the CLI logs a warning and skips it rather than failing"
+      ],
+      "user_stories": [
+        { "id": "US001", "title": "Developer defines scan targets in project manifest", "priority": "must", "type": "story", "gherkin_file": "features/E001-F001-project-configuration-and-manifest-parsing.feature" },
+        { "id": "US002", "title": "Developer validates manifest before scanning", "priority": "should", "type": "story", "gherkin_file": "features/E001-F001-project-configuration-and-manifest-parsing.feature" },
+        { "id": "US003", "title": "Developer recovers gracefully from manifest errors", "priority": "should", "type": "story", "gherkin_file": "features/E001-F001-project-configuration-and-manifest-parsing.feature" }
+      ]
+    },
+    {
+      "id": "F003",
+      "epic_id": "E001",
+      "name": "Java Source AST Analysis (JavaParser implementation)",
+      "description": "JavaParser-based scanning for Java/Spring codebases: component types, HTTP endpoints, event listeners, method calls, custom validators, scheduled tasks, and message broker event flows (Kafka, RabbitMQ, ActiveMQ/JMS). This is the reference implementation of the LanguageParser SPI.",
+      "background": "Scan target directories resolved and accessible.",
+      "business_rules": [
+        "JavaParser processes each file independently — a single parse failure does not stop the full scan",
+        "Component classification uses annotation presence as the primary heuristic, with structural fallback when type resolution fails",
+        "Only .java files under scan targets are processed; other types are silently ignored"
+      ],
+      "user_stories": [
+        { "id": "US006", "title": "Developer discovers application components", "priority": "must", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US007", "title": "Developer maps HTTP endpoints", "priority": "must", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US008", "title": "Developer traces event listeners", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US009", "title": "Developer extracts custom validation logic", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US010", "title": "Developer discovers scheduled tasks", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US026", "title": "Developer traces RabbitMQ event flows", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US027", "title": "Developer traces ActiveMQ (JMS) event flows", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" },
+        { "id": "US058", "title": "Developer discovers servlet endpoints in web.xml", "priority": "should", "type": "story", "gherkin_file": "features/E001-F003-java-source-ast-analysis.feature" }
+      ]
+    },
+    {
+      "id": "F004",
+      "epic_id": "E001",
+      "name": "Secret Redaction & Exclude Filtering",
+      "description": "In-memory redaction of passwords/keys/credentials before any LLM processing + exclude pattern filtering for generated/vendor code.",
+      "background": "Source files parsed and content prepared for output.",
+      "business_rules": [
+        "Redaction operates in-memory only — source files on disk are never touched",
+        "Redacted values use [REDACTED:type] placeholders (e.g. [REDACTED:password])",
+        "Exclude patterns follow .gitignore-style glob matching against file paths",
+        "Generated code and vendor packages are excluded by default"
+      ],
+      "user_stories": [
+        { "id": "US011", "title": "Developer prevents secret leakage", "priority": "must", "type": "story", "gherkin_file": "features/E001-F004-secret-redaction-and-exclude-filtering.feature" },
+        { "id": "US012", "title": "Developer filters out generated and vendor code", "priority": "should", "type": "story", "gherkin_file": "features/E001-F004-secret-redaction-and-exclude-filtering.feature" }
+      ]
+    },
+    {
+      "id": "F005",
+      "epic_id": "E001",
+      "name": "Index Output & SQLite Persistence",
+      "description": "Generate code-graph-index.json + SQLite task store with WAL mode and idempotent task IDs.",
+      "background": "AST analysis and redaction completed for all targets.",
+      "business_rules": [
+        "SQLite uses WAL journal mode + 5000ms busy timeout",
+        "Task IDs are deterministic SHA-256 hashes — never random",
+        "If the output directory is unwritable, CLI fails with a clear message rather than partial output"
+      ],
+      "user_stories": [
+        { "id": "US013", "title": "Developer produces structured analysis output", "priority": "must", "type": "story", "gherkin_file": "features/E001-F005-index-output-and-sqlite-persistence.feature" },
+        { "id": "US014", "title": "Developer persists scan state locally", "priority": "should", "type": "story", "gherkin_file": "features/E001-F005-index-output-and-sqlite-persistence.feature" },
+        { "id": "US017", "title": "Developer recovers from crash mid-scan", "priority": "should", "type": "story", "gherkin_file": "features/E001-F005-index-output-and-sqlite-persistence.feature" }
+      ]
+    },
+    {
+      "id": "F006",
+      "epic_id": "E001",
+      "name": "CLI Scan Orchestration",
+      "description": "Phase 1 scan command that orchestrates the full pipeline end-to-end.",
+      "background": "All configuration validated.",
+      "business_rules": [
+        "The scan command must never make network calls or LLM interactions (Phase 1 only)",
+        "Progress reported per stage (manifest → deps → AST → redact → persist) with timing and file counts",
+        "Stage failure reports which stage failed and exits non-zero"
+      ],
+      "user_stories": [
+        { "id": "US015", "title": "Developer runs a full Phase 1 scan", "priority": "must", "type": "story", "gherkin_file": "features/E001-F006-cli-scan-orchestration.feature" },
+        { "id": "US016", "title": "Tech Lead confirms offline operation", "priority": "should", "type": "story", "gherkin_file": "features/E001-F006-cli-scan-orchestration.feature" }
+      ]
+    },
+    {
+      "id": "F007",
+      "epic_id": "E002",
+      "name": "Parser Abstraction SPI",
+      "description": "Define a LanguageParser interface with a common output contract (components, endpoints, events, validators, tasks). Each language provides its own implementation. Contracts use optional fields so parsers can support a subset of capabilities.",
+      "background": "The core pipeline has been implemented and is ready to accept parser-agnostic input.",
+      "business_rules": [
+        "The SPI must define a single LanguageParser interface that all language parsers implement",
+        "The output contract must use optional fields — a parser can support only components without implementing endpoints or validators",
+        "The contract must be technology-agnostic (no Java/Spring-specific types in the interface)"
+      ],
+      "user_stories": [
+        { "id": "US018", "title": "Developer defines a common parser contract", "priority": "should", "type": "story", "gherkin_file": "features/E002-F007-parser-abstraction-spi.feature" },
+        { "id": "US019", "title": "Developer implements a new language parser", "priority": "should", "type": "story", "gherkin_file": "features/E002-F007-parser-abstraction-spi.feature" }
+      ]
+    },
+    {
+      "id": "F008",
+      "epic_id": "E002",
+      "name": "Parser Discovery & Routing",
+      "description": "A registry that maps file extensions to parsers. Discovers available parsers at startup and routes each source file to the correct parser based on its extension.",
+      "background": "The LanguageParser SPI is defined and at least one parser implementation exists.",
+      "business_rules": [
+        "Parser registration maps one or more file extensions to a single parser",
+        "If no parser is registered for a file extension, the file is logged as unsupported and skipped — it does not block the scan",
+        "If multiple parsers claim the same extension, the first registered wins with a warning logged"
+      ],
+      "user_stories": [
+        { "id": "US020", "title": "Developer registers a new parser for a language", "priority": "should", "type": "story", "gherkin_file": "features/E002-F008-parser-discovery-and-routing.feature" },
+        { "id": "US021", "title": "CLI routes files to the correct parser by extension", "priority": "should", "type": "story", "gherkin_file": "features/E002-F008-parser-discovery-and-routing.feature" }
+      ]
+    },
+    {
+      "id": "F009",
+      "epic_id": "E002",
+      "name": "Shared Pipeline Integration",
+      "description": "Wire the parser SPI into the existing pipeline (US013-US016) so that redaction, exclude filtering, output generation, and orchestration work with any parser's output without modification.",
+      "background": "Parser SPI, discovery, and at least one parser implementation exist.",
+      "business_rules": [
+        "Adding a new language parser must not require changes to the core pipeline (redaction, output, orchestration)",
+        "The shared output schema must accommodate language-specific metadata in optional fields"
+      ],
+      "user_stories": [
+        { "id": "US022", "title": "Developer adds a parser without changing the pipeline", "priority": "should", "type": "story", "gherkin_file": "features/E002-F009-shared-pipeline-integration.feature" }
+      ]
+    },
+    {
+      "id": "F010",
+      "epic_id": "E001",
+      "name": "Two-Pass Pipeline Orchestration & Call Graph Resolution",
+      "description": "Two-pass deterministic linker: Pass 1 collects method signatures into a GlobalDeclarationRegistry; Pass 2 resolves MethodCallExpr nodes against the registry to produce CallGraphEdge records. Overloaded methods recorded as AMBIGUOUS when arguments cannot discriminate.",
+      "background": "Phase 4a (ComponentVisitor, EndpointVisitor) completed. Pipeline refactored to two-pass orchestration.",
+      "business_rules": [
+        "Pass 1 extracts method signatures, field types, and component stereotypes — no resolution or analysis is performed",
+        "Pass 2 resolves each MethodCallExpr against the declaration registry built in Pass 1",
+        "Calls matching internal package boundaries are recorded with source file, target file, and method signatures",
+        "Overloaded methods are recorded as AMBIGUOUS when argument count cannot discriminate",
+        "Calls to JDK, Spring internals, and unresolvable third-party libraries are recorded as unresolved_signatures",
+        "Post-pass runs TopicLinkResolver and FloatingLinkResolver after all files are processed",
+        "Parse errors in one file do not block processing of other files"
+      ],
+      "user_stories": [
+        { "id": "US036", "title": "Developer upgrades pipeline to two-pass orchestration", "priority": "must", "type": "story", "gherkin_file": "features/E001-F010-two-pass-pipeline-and-call-graph.feature" },
+        { "id": "US030", "title": "Developer traces inter-file call chains", "priority": "must", "type": "story", "gherkin_file": "features/E001-F010-two-pass-pipeline-and-call-graph.feature" }
+      ]
+    },
+    {
+      "id": "F011",
+      "epic_id": "E001",
+      "name": "Database Access Detection",
+      "description": "Detect database access patterns via DbAccessVisitor: JdbcTemplate, @Procedure, EntityManager, @Transactional, NamedParameterJdbcTemplate, SimpleJdbcCall. Spring Data interfaces registered as virtual declarations.",
+      "background": "Two-pass pipeline operational. Pass 1 registry available.",
+      "business_rules": [
+        "Detect JdbcTemplate.update/query/queryForObject calls with SQL extraction",
+        "Detect @Procedure(name) on repository methods",
+        "Detect EntityManager.persist/merge/find/createQuery",
+        "Detect @Transactional on method or class level as transaction boundaries",
+        "Spring Data interfaces (CrudRepository, JpaRepository) registered as virtual database access points"
+      ],
+      "user_stories": [
+        { "id": "US031", "title": "Developer traces database access patterns", "priority": "should", "type": "story", "gherkin_file": "features/E001-F011-database-access-detection.feature" },
+        { "id": "US059", "title": "Developer detects @NamedQuery and @NamedNativeQuery in entities", "priority": "should", "type": "story", "gherkin_file": "features/E001-F011-database-access-detection.feature" },
+        { "id": "US060", "title": "Developer detects raw JDBC calls in service code", "priority": "should", "type": "story", "gherkin_file": "features/E001-F011-database-access-detection.feature" },
+        { "id": "US061", "title": "Developer detects NamedParameterJdbcTemplate and SimpleJdbcCall", "priority": "should", "type": "story", "gherkin_file": "features/E001-F011-database-access-detection.feature" }
+      ]
+    },
+    {
+      "id": "F012",
+      "epic_id": "E001",
+      "name": "Outbound HTTP Detection & Floating Link Resolution",
+      "description": "Detect outbound HTTP calls via OutboundHttpVisitor (RestTemplate, WebClient, FeignClient, RestClient, @HttpExchange, java.net.http.HttpClient, HttpURLConnection, Apache HttpClient, OkHttp). Post-pass FloatingLinkResolver matches HTTP calls to known endpoints deterministically.",
+
+      "acceptance_criteria": [
+        "Detect RestTemplate.getForObject/postForObject/exchange with URL extraction",
+        "Detect WebClient fluent builder chains (method/uri/retrieve)",
+        "Detect @FeignClient(name, url) on interfaces",
+        "Detect Spring 6.1 RestClient fluent chains (get/post/put/delete + uri)",
+        "Detect Spring 6 @HttpExchange/@PostExchange/@GetExchange on interfaces",
+        "Detect Java 11+ java.net.http.HttpClient.send()/sendAsync() with HttpRequest",
+        "Detect legacy HttpURLConnection via openConnection/setRequestMethod/connect",
+        "Detect Apache HttpClient via HttpGet/HttpPost/HttpPut/HttpDelete constructors",
+        "Detect OkHttp via OkHttpClient.newCall() with Request.Builder",
+        "URL literals captured as-is; SpEL/environment expressions captured as patterns with isExpression flag",
+        "FloatingLinkResolver matches URL patterns to known endpoints: literal match = RESOLVED 1.0, path variable match = RESOLVED 0.8"
+      ],
+      "user_stories": [
+        { "id": "US032", "title": "Developer traces outbound HTTP calls", "priority": "should", "type": "story", "gherkin_file": "features/E001-F012-outbound-http-detection.feature" }
+      ]
+    },
+    {
+      "id": "F013",
+      "epic_id": "E001",
+      "name": "Topic Link Resolution",
+      "description": "Deterministic post-pass resolver matching event producers to consumers across Kafka, RabbitMQ, and ActiveMQ/JMS. Matches on broker + topic_or_queue values.",
+      "background": "Kafka, RabbitMQ, and ActiveMQ visitors complete (Phase 4d, 4g, 4h). All event flows captured.",
+      "business_rules": [
+        "Matches broker + topic_or_queue between producers and consumers",
+        "Each matching pair creates a topic_link row with status RESOLVED",
+        "Covers Kafka, RabbitMQ, and ActiveMQ/JMS within the same manifest execution"
+      ],
+      "user_stories": [
+        { "id": "US033", "title": "Developer links event producers to consumers", "priority": "should", "type": "story", "gherkin_file": "features/E001-F013-event-link-resolution.feature" }
+      ]
+    },
+    {
+      "id": "F014",
+      "epic_id": "E001",
+      "name": "Extended SQLite Tables & Metrics",
+      "description": "Extended SQLite schema for structured trace persistence: execution_findings, topic_links, floating_links, and metrics tables alongside the existing tasks table.",
+      "background": "All resolution and link visitors complete.",
+      "business_rules": [
+        "execution_findings table stores per-task structured findings with schema_version",
+        "topic_links table stores deterministic producer-consumer matches",
+        "floating_links table stores outbound HTTP calls with resolution status",
+        "metrics table stores run-level counters (edges, links, tokens consumed)"
+      ],
+      "user_stories": [
+        { "id": "US034", "title": "Developer reviews structured trace output", "priority": "should", "type": "story", "gherkin_file": "features/E001-F014-structured-trace-sqlite-persistence.feature" },
+        { "id": "US035", "title": "Developer verifies floating link registration", "priority": "should", "type": "story", "gherkin_file": "features/E001-F014-structured-trace-sqlite-persistence.feature" }
+      ]
+    },
+    {
+      "id": "F015",
+      "epic_id": "E001",
+      "name": "JSP/Thymeleaf Form & View Detection",
+      "description": "Detect view-returning controller methods (US037), parse JSP and Thymeleaf templates for form actions and links (US038, US039), and match template forms to controller endpoints for end-to-end frontend-to-backend traceability (US040).",
+      "background": "Endpoint detection (US007) and file discovery complete.",
+      "business_rules": [
+        "View-returning controllers: ModelAndView, String, View, and void return types are tagged as servesView=true (except @RestController and @ResponseBody)",
+        "JSP templates: <form action/method> and <a href> extracted with regex; input name attributes collected as fieldNames",
+        "Thymeleaf templates: <form th:action/th:method> and <a th:href> extracted; Thymeleaf expressions flagged with isExpression=true",
+        "Template-to-endpoint matching: exact path matches confidence 1.0, path-param matches confidence 0.8, HTTP method must match"
+      ],
+      "user_stories": [
+        { "id": "US037", "title": "Developer detects view-returning controllers", "priority": "should", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" },
+        { "id": "US038", "title": "Developer parses JSP templates for forms and links", "priority": "should", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" },
+        { "id": "US039", "title": "Developer parses Thymeleaf templates for forms and links", "priority": "should", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" },
+        { "id": "US040", "title": "Developer links template forms to controller endpoints", "priority": "could", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" },
+        { "id": "US062", "title": "Developer detects view-returning void controllers", "priority": "should", "type": "story", "gherkin_file": "features/E001-F015-template-form-detection.feature" }
+      ]
+    },
+    {
+      "id": "F016",
+      "epic_id": "E003",
+      "name": "Phase 2 Planner — Task Qualification for LLM Enrichment",
+      "description": "Reads the SQLite task store after Phase 1 and determines which tasks qualify for LLM enrichment based on configurable rules: unresolved signatures threshold, Spring Data interfaces, stored procedures, custom validators, test file pairing.",
+      "background": "Phase 1 indexing completed with tasks and findings in SQLite.",
+      "business_rules": [
+        "A task qualifies if it exceeds llm-unresolved-threshold (default: 5) unresolved signatures",
+        "A task qualifies if it is a Spring Data interface (CrudRepository, JpaRepository)",
+        "A task qualifies if it contains a stored procedure call flagged for LLM interpretation",
+        "A task qualifies if it is a custom ConstraintValidator with an isValid body",
+        "A task qualifies if it has a paired test file with assertions",
+        "The planner makes zero LLM calls — pure query + rule engine"
+      ],
+      "user_stories": [
+        { "id": "US041", "title": "Planner qualifies tasks for LLM enrichment", "priority": "must", "type": "story", "gherkin_file": "features/E003-F016-planner.feature" },
+        { "id": "US042", "title": "Planner supports dry-run DAG view", "priority": "should", "type": "story", "gherkin_file": "features/E003-F016-planner.feature" }
+      ],
+        { "id": "US064", "title": "Planner qualifies DTOs/records with bean validation annotations", "priority": "should", "type": "story", "gherkin_file": "features/E003-F016-planner.feature" }
+      ]
+    },
+    {
+      "id": "F017",
+      "epic_id": "E003",
+      "name": "LLM Executor Framework — Per-file Semantic Enrichment",
+      "description": "Individual file enrichment workers. Each executor receives pre-resolved structural context from Phase 1 plus raw source file content, calls Spring AI ChatClient, validates output against §4 JSON Schema, and persists ExecutionFinding to SQLite.",
+      "background": "Planner has qualified tasks for enrichment. @Async pool configured.",
+      "business_rules": [
+        "Executor receives structural context (call graph edges, endpoints, database access, link registrations)",
+        "LLM prompt instructs model NOT to resolve structural dependencies — focus on business semantics only",
+        "Output must validate against §4 JSON Schema before task transitions to SUCCESS",
+        "Invalid output transitions task to FAILED with structural error classification",
+        "On HTTP 429, exponential backoff: 2s initial, 2.0 multiplier, 60s cap, 3 max retries",
+        "Discovered dependencies are registered in SQLite as PENDING for re-planning",
+        "Context budget: if combined tokens exceed 80% of model window, pre-summarize companion logic"
+      ],
+      "user_stories": [
+        { "id": "US043", "title": "Executor enriches a single file with LLM", "priority": "must", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" },
+        { "id": "US044", "title": "Executor supports dry-run simulation mode", "priority": "should", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" },
+        { "id": "US063", "title": "System retries LLM enrichment with error-feedback", "priority": "should", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" }
+      ]
+    },
+    {
+      "id": "F018",
+      "epic_id": "E003",
+      "name": "Orchestrator — Enrichment DAG Management",
+      "description": "Manages the enrichment DAG, submits tasks asynchronously via @Async, tracks progress via CompletableFuture, handles dynamic re-planning with branch isolation, and enforces the Phase 2→3 synchronization barrier.",
+      "background": "Planner decisions available. @Async pool configured.",
+      "business_rules": [
+        "Tasks are submitted via @Async(\"orchestratorTaskExecutor\") returning CompletableFuture<ExecutionFinding>",
+        "Phase 2→3 barrier uses CompletableFuture.allOf() — blocks Phase 3 until ALL tasks complete",
+        "Discovered dependencies trigger branch isolation: only the affected branch pauses",
+        "Max hop depth (default: 3) — exceeded tasks set to AWAITING_HUMAN_REVIEW",
+        "Visited registry: thread-safe set of hashes prevents redundant evaluation"
+      ],
+      "user_stories": [
+        { "id": "US045", "title": "Orchestrator manages enrichment DAG", "priority": "must", "type": "story", "gherkin_file": "features/E003-F018-orchestrator.feature" }
+      ]
+    },
+    {
+      "id": "F019",
+      "epic_id": "E003",
+      "name": "CLI Commands — plan and run",
+      "description": "The plan command displays the execution DAG without running. The run command orchestrates Phase 2 then Phase 3 (extract + generate) with configurable thresholds and dry-run mode. Status command extended with Phase 2+3 counters.",
+      "background": "All Phase 2 components implemented.",
+      "business_rules": [
+        "plan makes zero LLM calls and zero SQLite mutations — read-only DAG view",
+        "run --manifest path orchestrates Phase 2 then Phase 3 end-to-end",
+        "run --llm-threshold 0 skips Phase 2 entirely",
+        "run --dry-run uses deterministic stubs with zero API spend",
+        "status shows enriched task count, tokens consumed, cost, flow extraction rate, ambiguity gaps"
+      ],
+      "user_stories": [
+        { "id": "US046", "title": "Developer views execution DAG with plan command", "priority": "must", "type": "story", "gherkin_file": "features/E003-F019-cli-run-command.feature" },
+        { "id": "US047", "title": "Developer runs full Phase 2 + Phase 3 pipeline", "priority": "must", "type": "story", "gherkin_file": "features/E003-F019-cli-run-command.feature" }
+      ]
+    },
+    {
+      "id": "F020",
+      "epic_id": "E003",
+      "name": "Test Suite Mining — Assertion Extraction",
+      "description": "Match production files with paired test files by naming convention, extract test assertions (assertEquals, assertThrows, expect()), and translate them into functional edge cases and validation requirements within the ExecutionFinding JSON.",
+      "background": "Executor framework operational.",
+      "business_rules": [
+        "Files are paired by stripping Test suffix from test file name",
+        "Assertions are extracted and translated to functional edge cases",
+        "Both production and test file are sent to the same executor for concurrent processing",
+        "Extracted insights populate the test_insights array in ExecutionFinding JSON"
+      ],
+      "user_stories": [
+        { "id": "US048", "title": "Developer mines test files for assertion insights", "priority": "should", "type": "story", "gherkin_file": "features/E003-F020-test-suite-mining.feature" }
+      ]
+    },
+    {
+      "id": "F021",
+      "epic_id": "E004",
+      "name": "Embabel Agent Framework Setup",
+      "description": "Uncomment and configure the Embabel dependency in pom.xml. Embabel provides the GOAP (Goal-Oriented Action Planning) engine for Phase 3's agentic functional requirement extraction.",
+      "background": "Embabel repository accessible. Phase 2 completion not required for setup.",
+      "business_rules": [
+        "Embabel dependencies must be resolvable from configured Maven repositories",
+        "`embabel-agent-starter` provides the core GOAP engine; `embabel-agent-starter-dockermodels` enables Docker-based model support",
+        "`embabel.models.default-llm`, `embabel.models.llms.cheapest`, and `embabel.models.llms.best` must be configured in application.properties",
+        "Embabel framework must initialize at application startup without errors",
+        "If Embabel repo is unreachable, Phase 3 cannot proceed"
+      ],
+      "user_stories": [
+        { "id": "US049", "title": "Developer configures Embabel agent framework", "priority": "must", "type": "story", "gherkin_file": "features/E004-F021-embabel-setup.feature" }
+      ]
+    },
+    {
+      "id": "F022",
+      "epic_id": "E004",
+      "name": "CodebaseKnowledge Builder + Phase 3 Orchestrator",
+      "description": "Pure-Java services that aggregate Phase 1 and Phase 2 data into CodebaseKnowledge with query methods for entry points, call graph traversal, component discovery, and orphaned method detection. Phase3Orchestrator assembles the model, passes it to the Embabel agent, and handles output after completion.",
+      "background": "Phase 2 enriched data in SQLite. Embabel framework configured.",
+      "business_rules": [
+        "Phase3Orchestrator queries SQLite for ALL Phase 1 and Phase 2 data before agent invocation",
+        "CodebaseKnowledge contains StructuralGraph, SemanticEnrichment, and LinkRegistry sub-models",
+        "Query methods: getEntryPoints(), getCallersOf(), getCalleesOf(), getComponentsByType(), getAllKnownMethods(), findUnresolvedLinks()",
+        "getEntryPoints() returns all entry point types (HTTP, SCHEDULED, KAFKA, RABBITMQ, ACTIVEMQ, EVENT_LISTENER)",
+        "getAllKnownMethods() supports orphaned method detection",
+        "CodebaseKnowledge is passed to the Embabel agent as initial working memory — agent never queries SQLite directly",
+        "Output writing is pure Java, not agentic"
+      ],
+      "user_stories": [
+        { "id": "US050", "title": "System aggregates Phase 1+2 data into CodebaseKnowledge", "priority": "must", "type": "story", "gherkin_file": "features/E004-F022-codebase-knowledge.feature" }
+      ]
+    },
+    {
+      "id": "F023",
+      "epic_id": "E004",
+      "name": "Embabel Agent — Entry-Point-Driven Extraction",
+      "description": "The Embabel agent discovers entry points (HTTP, scheduled, Kafka, RabbitMQ, ActiveMQ, EventListener), traces execution flows through the call graph, extracts business semantics (user stories, Gherkin scenarios, business rules, edge cases), groups related flows into features using semantic clustering, resolves cross-flow dependencies, and produces Markdown + JSON output. Supports sub-chain caching, orphaned method detection, and progressive disclosure.",
+      "background": "CodebaseKnowledge available. Embabel framework configured.",
+      "business_rules": [
+        "Entry points are scored by priority (Phase 2 enrichment + complexity + user-facing + test file)",
+        "Trivial endpoints (actuator, health, metrics) are filtered out",
+        "Flow tracing uses sub-chain caching to avoid redundant service chain analysis",
+        "Adaptive depth: max-flow-depth (default: 5) caps call chain exploration",
+        "Progressive disclosure: MINIMAL/STANDARD/FULL output based on complexity score",
+        "Semantic clustering groups related flows into features using Phase 2 enrichment similarity",
+        "Orphaned methods unreachable from any entry point are flagged",
+        "Guardrails: max-flow-depth (5), max-tokens-per-run (500000), ambiguity-confidence-threshold (0.7)",
+        "UserInteractionService SPI with NoOpUserInteractionService default; Interactive deferred"
+      ],
+      "user_stories": [
+        { "id": "US051", "title": "Embabel agent extracts functional requirements", "priority": "must", "type": "story", "gherkin_file": "features/E004-F023-embabel-agent.feature" }
+      ]
+    },
+    {
+      "id": "F024",
+      "epic_id": "E004",
+      "name": "Quality Audit — Schema Validation (Simplified)",
+      "description": "Post-agent validation pass (pure Java) that validates semantic_manifest.json against the PRD §6.2 schema and ensures quarantined flows appear in spec Section 5. Runs inside the output writers, not as a separate step.",
+      "background": "Embabel agent completed. Output artifacts exist.",
+      "business_rules": [
+        "SemanticManifestWriter validates JSON output against PRD §6.2 schema before persisting",
+        "Schema validation failure sets Phase 3 marker to FAILED",
+        "Quarantined flows appear in spec Section 5 with review_required: true in manifest",
+        "Audit is pure Java — runs inside output writers, not as a separate step"
+      ],
+      "user_stories": [
+        { "id": "US052", "title": "Quality audit validates output", "priority": "should", "type": "story", "gherkin_file": "features/E004-F024-quality-audit.feature" }
+      ]
+    },
+    {
+      "id": "F025",
+      "epic_id": "E005",
+      "name": "Snapshot and Restore",
+      "description": "Create and restore point-in-time snapshots of local state for crash recovery and iterative experimentation.",
+      "background": "Pipeline has completed at least once and SQLite + JSON index exist.",
+      "business_rules": [
+        "Snapshot uses VACUUM INTO for transactionally consistent DB copies",
+        "Snapshot copies code-graph-index.json alongside the DB",
+        "Restore drains HikariCP pool, overwrites live files, reinitializes pool",
+        "Snapshots are independent of clean command",
+        "Directory and contents are gitignored via snapshots/ pattern"
+      ],
+      "user_stories": [
+        { "id": "US053", "title": "Developer creates and lists snapshots", "priority": "must", "type": "story", "gherkin_file": "features/E005-F025-snapshot-restore.feature" },
+        { "id": "US054", "title": "Developer restores state from a snapshot", "priority": "must", "type": "story", "gherkin_file": "features/E005-F025-snapshot-restore.feature" }
+      ]
+    },
+    {
+      "id": "F026",
+      "epic_id": "E004",
+      "name": "Review CLI Command — AWAITING_HUMAN_REVIEW lifecycle",
+      "description": "The review command lets developers inspect and resolve tasks and flows flagged as AWAITING_HUMAN_REVIEW, providing a single workflow for diagnosis, acceptance, and reset.",
+      "background": "Pipeline has completed with AWAITING_HUMAN_REVIEW tasks in SQLite.",
+      "business_rules": [
+        "review list groups quarantined tasks by reason type (HOP_DEPTH, STEPS_EXCEEDED, LOW_CONFIDENCE)",
+        "review show displays full quarantine context including reason JSON and source trace chain",
+        "review accept documents the gap and resets task to INDEXED; HUMAN_REVIEW_REASON finding preserved",
+        "review reset deletes HUMAN_REVIEW_REASON findings and resets to INDEXED for re-processing",
+        "Batch operations (accept-all, reset-all) available for bulk resolution"
+      ],
+      "user_stories": [
+        { "id": "US055", "title": "Developer reviews and resolves AWAITING_HUMAN_REVIEW tasks", "priority": "should", "type": "story", "gherkin_file": "features/E004-F026-review-command.feature" }
+      ]
+    },
+    {
+      "id": "F027",
+      "epic_id": "E004",
+      "name": "Domain Model + Output Writers",
+      "description": "Pure-Java domain classes for Phase 3 synthesis output (EntryPoint, ExecutionFlow, FlowStep, FunctionalFlow, GherkinScenario, BusinessRule, EdgeCase, ExternalCall, NonFunctionalRequirement, etc.) and writers that produce Markdown spec and semantic JSON manifest from the extraction cache.",
+      "background": "Extraction cache populated by extract command. FunctionalFlow, AmbiguityGap, and OrphanedMethod objects available.",
+      "business_rules": [
+        "All domain model classes use Java record types with business-key-based equality",
+        "MarkdownSpecWriter writes to spec-output/spec.md with TOC, features, Gherkin, Mermaid diagrams, Business Rules (with per-rule sourceFile and external call details), Edge Cases (with severity column), and Non-Functional Requirements section",
+        "SemanticManifestWriter writes to spec-output/semantic_manifest.json with manifest_version 3.0.0, including non_functional_requirements, external_call per business rule, and severity per edge case",
+        "SemanticManifestWriter validates JSON output against PLAN-Phase3 §4.2 schema before persisting",
+        "Schema validation failure sets Phase 3 marker to FAILED",
+        "Extraction cache path is configurable via code2req.output.spec-dir and code2req.output.extraction-cache-file application properties",
+        "Writers are pure Java (not agentic) — invoked by the generate command from extraction cache"
+      ],
+      "user_stories": [
+        { "id": "US056", "title": "Domain model and output writers", "priority": "must", "type": "story", "gherkin_file": "features/E004-F027-domain-model-output-writers.feature" }
+      ]
+    },
+    {
+      "id": "F028",
+      "epic_id": "E004",
+      "name": "Interactive Mode — Agent-User Clarification",
+      "description": "When the Embabel agent encounters ambiguity, it defers to the user via terminal prompts. A UserInteractionService SPI decouples the agent from I/O, enabling both headless (NoOp) and interactive (stdin/stdout) modes.",
+      "background": "Embabel agent actions (TraceFlow, AnalyzeFlow, CrossReferenceFlows) can encounter ambiguity.",
+      "business_rules": [
+        "UserInteractionService SPI defines ask/confirm/select methods — NoOpUserInteractionService is the default (headless)",
+        "InteractiveUserInteractionService uses stdin/stdout for terminal prompts",
+        "Agent calls UserInteractionService when confidence drops below ambiguity-confidence-threshold (0.7)",
+        "AmbiguityGap records are created for every ambiguity event for the audit trail",
+        "User responses are cached in a user_responses SQLite table",
+        "Interactive mode is opt-in via run --interactive flag"
+      ],
+      "user_stories": [
+        { "id": "US057", "title": "Interactive mode for agent-user clarification", "priority": "should", "type": "story", "gherkin_file": "features/E004-F028-interactive-mode.feature" }
+      ]
+    }
+  ],
+  "stories": [],
+  "change_requests": [],
+  "adrs": [
+    {
+      "id": "ADR-001",
+      "title": "JavaParser for AST Analysis",
+      "status": "Accepted",
+      "date": "2026-06-12",
+      "file": "docs/sdlc/adrs/ADR-001-javaparser-for-ast-analysis.md"
+    },
+    {
+      "id": "ADR-002",
+      "title": "Spring JDBC (JdbcTemplate) over ORM",
+      "status": "Accepted",
+      "date": "2026-06-12",
+      "file": "docs/sdlc/adrs/ADR-002-spring-jdbc-over-orm.md"
+    },
+    {
+      "id": "ADR-003",
+      "title": "SQLite with WAL Mode Embedded Database",
+      "status": "Accepted",
+      "date": "2026-06-12",
+      "file": "docs/sdlc/adrs/ADR-003-sqlite-with-wal-mode.md"
+    },
+    {
+      "id": "ADR-004",
+      "title": "Deterministic SHA-256 Task IDs",
+      "status": "Accepted",
+      "date": "2026-06-12",
+      "file": "docs/sdlc/adrs/ADR-004-deterministic-sha256-task-ids.md"
+    },
+    {
+      "id": "ADR-005",
+      "title": "In-Memory Secret Redaction Strategy",
+      "status": "Accepted",
+      "date": "2026-06-12",
+      "file": "docs/sdlc/adrs/ADR-005-in-memory-secret-redaction.md"
+    },
+    {
+      "id": "ADR-006",
+      "title": "Pipeline Orchestration — Extract/Generate Command Split",
+      "status": "Accepted",
+      "date": "2026-06-30",
+      "file": "docs/sdlc/adrs/ADR-006-pipeline-orchestration.md"
+    }
+  ],
+  "open_questions": [],
+  "artifacts": {
+    "gherkin_files": [
+      "features/E001-F001-project-configuration-and-manifest-parsing.feature",
+      "features/E001-F003-java-source-ast-analysis.feature",
+      "features/E001-F004-secret-redaction-and-exclude-filtering.feature",
+      "features/E001-F005-index-output-and-sqlite-persistence.feature",
+      "features/E001-F006-cli-scan-orchestration.feature",
+      "features/E002-F007-parser-abstraction-spi.feature",
+      "features/E002-F008-parser-discovery-and-routing.feature",
+      "features/E002-F009-shared-pipeline-integration.feature",
+      "features/E001-F010-two-pass-pipeline-and-call-graph.feature",
+      "features/E001-F011-database-access-detection.feature",
+      "features/E001-F012-outbound-http-detection.feature",
+      "features/E001-F013-event-link-resolution.feature",
+      "features/E001-F014-structured-trace-sqlite-persistence.feature",
+      "features/E001-F015-template-form-detection.feature",
+      "features/E003-F016-planner.feature",
+      "features/E003-F017-llm-executor.feature",
+      "features/E003-F018-orchestrator.feature",
+      "features/E003-F019-cli-run-command.feature",
+      "features/E003-F020-test-suite-mining.feature",
+      "features/E004-F021-embabel-setup.feature",
+      "features/E004-F022-codebase-knowledge.feature",
+      "features/E004-F023-embabel-agent.feature",
+      "features/E004-F024-quality-audit.feature",
+      "features/E005-F025-snapshot-restore.feature",
+      "features/E004-F026-review-command.feature",
+      "features/E004-F027-domain-model-output-writers.feature",
+      "features/E004-F028-interactive-mode.feature"
+    ]
+  }
+}

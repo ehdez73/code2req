@@ -1,0 +1,315 @@
+package com.github.ehdez73.code2req.indexing.adapter.output;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisFinding;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisResult;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.event.broker.activemq.ActiveMqInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.java.BeanMethodInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.event.listener.EventListenerInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.event.listener.MethodCallInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.event.broker.kafka.KafkaInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.event.broker.rabbitmq.RabbitMqInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.scheduledtask.ScheduledTaskInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.validator.ValidatorInfo;
+import com.github.ehdez73.code2req.common.domain.ProjectManifest;
+import com.github.ehdez73.code2req.indexing.adapter.output.JsonIndexWriter;
+import com.github.ehdez73.code2req.common.domain.OutputConfig;
+import com.github.ehdez73.code2req.common.domain.ScanTarget;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import static org.junit.jupiter.api.Assertions.*;
+
+class IndexWriterTest {
+
+    private JsonIndexWriter writer(String indexFile) {
+        return new JsonIndexWriter(new OutputConfig(tempDir.toString(), indexFile, null, null));
+    }
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    @TempDir
+    Path tempDir;
+
+    @Test
+    void writesEmptyIndex() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("src"));
+        ScanTarget target = new ScanTarget("test-app", targetDir.toString(), "backend", "java-spring", List.of(), List.of(), null);
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
+        List<AnalysisResult> results = List.of();
+
+        Path outputPath = writer("index.json").write(manifest, results);
+
+        assertTrue(Files.exists(outputPath));
+        assertEquals("index.json", outputPath.getFileName().toString());
+
+        JsonNode root = mapper.readTree(outputPath.toFile());
+        assertEquals("1.0", root.get("version").asText());
+        assertTrue(root.has("generated_at"));
+        assertTrue(root.has("targets"));
+        assertEquals(1, root.get("targets").size());
+        assertEquals("test-app", root.get("targets").get(0).get("name").asText());
+    }
+
+    @Test
+    void writesMixedFindings() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("proj"));
+        String filePath = targetDir.resolve("App.java").toString();
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java-spring", List.of(), List.of(), null);
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
+
+        List<AnalysisFinding> findings = List.of(
+            new ComponentInfo("RestController", "UserController", "com.app", filePath),
+            new EndpointInfo("GET", "/api/users", "UserController", "", List.of(), List.of(), filePath, false, "", List.of()),
+            new ScheduledTaskInfo("cleanup", "CleanupTask", "0 0 * * *", null, null, "cron", filePath),
+            new EventListenerInfo("UserCreatedEvent", "onUserCreated", "UserEventListener", filePath, List.of(
+                new MethodCallInfo("EmailService", "sendWelcomeEmail", 1)
+            )),
+            new ValidatorInfo("EmailValidator", filePath, "Constraint", "email", "return value != null && value.contains(\"@\");", false),
+            new KafkaInfo("orders", "handleOrder", "OrderListener", filePath, false, ""),
+            new BeanMethodInfo("dataSource", "javax.sql.DataSource", "AppConfig", filePath),
+            new RabbitMqInfo("order.queue", "handleOrder", "OrderMqListener", filePath, ""),
+            new ActiveMqInfo("order.queue", "handleJmsOrder", "OrderJmsListener", filePath, "")
+        );
+        AnalysisResult result = new AnalysisResult(filePath, findings);
+
+        Path outputPath = writer("out.json").write(manifest, List.of(result));
+        JsonNode root = mapper.readTree(outputPath.toFile());
+        JsonNode targetNode = root.get("targets").get(0);
+
+        assertEquals("app", targetNode.get("name").asText());
+
+        assertEquals(1, targetNode.get("components").size());
+        assertEquals("UserController", targetNode.get("components").get(0).get("className").asText());
+        assertEquals("RestController", targetNode.get("components").get(0).get("annotationType").asText());
+
+        assertEquals(1, targetNode.get("endpoints").size());
+        assertEquals("GET", targetNode.get("endpoints").get(0).get("httpMethod").asText());
+        assertEquals("/api/users", targetNode.get("endpoints").get(0).get("path").asText());
+
+        assertEquals(1, targetNode.get("scheduled_tasks").size());
+        assertEquals("cleanup", targetNode.get("scheduled_tasks").get(0).get("methodName").asText());
+
+        assertEquals(1, targetNode.get("event_listeners").size());
+        assertEquals("UserCreatedEvent", targetNode.get("event_listeners").get(0).get("payLoadType").asText());
+
+        assertTrue(targetNode.has("validators"));
+        assertEquals(1, targetNode.get("validators").size());
+        assertEquals(filePath, targetNode.get("validators").get(0).get("filePath").asText());
+        assertEquals("EmailValidator", targetNode.get("validators").get(0).get("className").asText());
+        assertEquals(1, targetNode.get("validators").get(0).get("constraints").size());
+        assertEquals("email", targetNode.get("validators").get(0).get("constraints").get(0).get("elementName").asText());
+        assertEquals("Constraint", targetNode.get("validators").get(0).get("constraints").get(0).get("annotationType").asText());
+
+        assertEquals(1, targetNode.get("kafka_listeners").size());
+        assertEquals("orders", targetNode.get("kafka_listeners").get(0).get("topics").asText());
+
+        assertEquals(1, targetNode.get("bean_methods").size());
+        assertEquals("dataSource", targetNode.get("bean_methods").get(0).get("beanName").asText());
+
+        assertEquals(1, targetNode.get("rabbitmq_listeners").size());
+        assertEquals("order.queue", targetNode.get("rabbitmq_listeners").get(0).get("queues").asText());
+
+        assertEquals(1, targetNode.get("activemq_listeners").size());
+        assertEquals("order.queue", targetNode.get("activemq_listeners").get(0).get("destination").asText());
+    }
+
+    @Test
+    void customOutputPath() throws IOException {
+        Path customDir = Files.createDirectory(tempDir.resolve("custom-out"));
+        Path targetDir = Files.createDirectory(tempDir.resolve("src"));
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
+
+        var iw = new JsonIndexWriter(new OutputConfig(customDir.toString(), "my-index.json", null, null));
+        Path outputPath = iw.write(manifest, List.of());
+
+        assertEquals("my-index.json", outputPath.getFileName().toString());
+        assertEquals(customDir, outputPath.getParent());
+        assertTrue(Files.exists(outputPath));
+    }
+
+    @Test
+    void multipleTargetsGrouped() throws IOException {
+        Path target1Dir = Files.createDirectory(tempDir.resolve("module-a"));
+        Path target2Dir = Files.createDirectory(tempDir.resolve("module-b"));
+        String file1 = target1Dir.resolve("A.java").toString();
+        String file2 = target2Dir.resolve("B.java").toString();
+
+        ScanTarget target1 = new ScanTarget("mod-a", target1Dir.toString(), "backend", "java", List.of(), List.of(), null);
+        ScanTarget target2 = new ScanTarget("mod-b", target2Dir.toString(), "backend", "java", List.of(), List.of(), null);
+        ProjectManifest manifest = new ProjectManifest(List.of(target1, target2));
+
+        AnalysisResult result1 = new AnalysisResult(file1, List.of(
+            new ComponentInfo("Service", "AService", "com.a", file1)
+        ));
+        AnalysisResult result2 = new AnalysisResult(file2, List.of(
+            new ComponentInfo("Service", "BService", "com.b", file2)
+        ));
+
+        Path outputPath = writer("multi.json").write(manifest, List.of(result1, result2));
+        JsonNode root = mapper.readTree(outputPath.toFile());
+        JsonNode targets = root.get("targets");
+
+        assertEquals(2, targets.size());
+        assertEquals("mod-a", targets.get(0).get("name").asText());
+        assertEquals("mod-b", targets.get(1).get("name").asText());
+
+        assertEquals(1, targets.get(0).get("components").size());
+        assertEquals("AService", targets.get(0).get("components").get(0).get("className").asText());
+        assertEquals(1, targets.get(1).get("components").size());
+        assertEquals("BService", targets.get(1).get("components").get(0).get("className").asText());
+    }
+
+    @Test
+    void resultsOutsideTargetAreExcluded() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("module-a"));
+        Path outsideDir = Files.createDirectory(tempDir.resolve("other"));
+        String insideFile = targetDir.resolve("A.java").toString();
+        String outsideFile = outsideDir.resolve("Other.java").toString();
+
+        ScanTarget target = new ScanTarget("mod-a", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
+
+        AnalysisResult insideResult = new AnalysisResult(insideFile, List.of(
+            new ComponentInfo("Service", "AService", "com.a", insideFile)
+        ));
+        AnalysisResult outsideResult = new AnalysisResult(outsideFile, List.of(
+            new ComponentInfo("Service", "OtherService", "com.other", outsideFile)
+        ));
+
+        Path outputPath = writer("filtered.json").write(manifest, List.of(insideResult, outsideResult));
+        JsonNode root = mapper.readTree(outputPath.toFile());
+        assertEquals(1, root.get("targets").get(0).get("components").size());
+        assertEquals("AService", root.get("targets").get(0).get("components").get(0).get("className").asText());
+    }
+
+    @Test
+    void writesTopicLinksAtRootLevel() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("src"));
+        String filePath = targetDir.resolve("App.java").toString();
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
+
+        AnalysisResult result = new AnalysisResult(filePath, List.of(
+            new ComponentInfo("Service", "MyService", "com.app", filePath)
+        ));
+
+        List<TopicLink> topicLinks = List.of(
+            TopicLink.resolved("KAFKA", "events", "Producer", "/app/Producer.java", "Consumer", "/app/Consumer.java"),
+            TopicLink.orphanProducer("RABBITMQ", "unmatched.q", "OrphanPub", "/app/OrphanPub.java")
+        );
+
+        Path outputPath = writer("linked.json").write(manifest, List.of(result), topicLinks);
+        JsonNode root = mapper.readTree(outputPath.toFile());
+
+        assertTrue(root.has("topic_links"), "Root should have topic_links array");
+        assertEquals(2, root.get("topic_links").size());
+        assertEquals("KAFKA", root.get("topic_links").get(0).get("brokerType").asText());
+        assertEquals("RESOLVED", root.get("topic_links").get(0).get("resolvedStatus").asText());
+        assertEquals("RABBITMQ", root.get("topic_links").get(1).get("brokerType").asText());
+        assertEquals("PENDING", root.get("topic_links").get(1).get("resolvedStatus").asText());
+    }
+
+    @Test
+    void topicLinksOmittedWhenEmpty() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("src"));
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
+
+        Path outputPath = writer("no-links.json").write(manifest, List.of(), List.of());
+        JsonNode root = mapper.readTree(outputPath.toFile());
+
+        assertFalse(root.has("topic_links"), "Root should not have topic_links when empty");
+    }
+
+    @Test
+    void unwritableDirectoryThrowsError() {
+        Path readOnlyDir = tempDir.resolve("readonly");
+        readOnlyDir.toFile().mkdir();
+        readOnlyDir.toFile().setWritable(false);
+
+        ScanTarget target = new ScanTarget("app", tempDir.resolve("src").toString(), "backend", "java", List.of(), List.of(), null);
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
+
+        var roWriter = new JsonIndexWriter(new OutputConfig(readOnlyDir.toString(), "index.json", null, null));
+        IOException exception = assertThrows(IOException.class, () -> roWriter.write(manifest, List.of()));
+        assertTrue(exception.getMessage().toLowerCase().contains("writ"));
+    }
+
+    @Test
+    void emptyFindingsKeysOmittedFromJson() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("proj"));
+        String filePath = targetDir.resolve("App.java").toString();
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
+
+        AnalysisResult result = new AnalysisResult(filePath, List.of(
+            new ComponentInfo("Service", "MyService", "com.app", filePath)
+        ));
+
+        Path outputPath = writer("sparse.json").write(manifest, List.of(result));
+        JsonNode root = mapper.readTree(outputPath.toFile());
+        JsonNode targetNode = root.get("targets").get(0);
+
+        assertTrue(targetNode.has("components"));
+        assertFalse(targetNode.has("endpoints"));
+        assertFalse(targetNode.has("scheduled_tasks"));
+        assertFalse(targetNode.has("event_listeners"));
+        assertFalse(targetNode.has("validators"));
+        assertFalse(targetNode.has("kafka_listeners"));
+        assertFalse(targetNode.has("bean_methods"));
+        assertFalse(targetNode.has("rabbitmq_listeners"));
+        assertFalse(targetNode.has("activemq_listeners"));
+    }
+
+    @Test
+    void writesCallGraphEdgesInTarget() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("src"));
+        String filePath = targetDir.resolve("OrderController.java").toString();
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
+
+        AnalysisResult result = new AnalysisResult(filePath, List.of(
+            CallGraphEdge.resolved("OrderController", "create", filePath,
+                "OrderService", "createOrder", "/app/OrderService.java", 1)
+        ));
+
+        Path outputPath = writer("cg.json").write(manifest, List.of(result));
+        JsonNode root = mapper.readTree(outputPath.toFile());
+        JsonNode targetNode = root.get("targets").get(0);
+
+        assertTrue(targetNode.has("call_graph_edges"));
+        assertEquals(1, targetNode.get("call_graph_edges").size());
+        assertEquals("OrderController", targetNode.get("call_graph_edges").get(0).get("sourceClassName").asText());
+        assertEquals("OrderService", targetNode.get("call_graph_edges").get(0).get("targetClassName").asText());
+        assertEquals("RESOLVED", targetNode.get("call_graph_edges").get(0).get("resolvedStatus").asText());
+    }
+
+    @Test
+    void callGraphEdgesOmittedWhenEmpty() throws IOException {
+        Path targetDir = Files.createDirectory(tempDir.resolve("src"));
+        String filePath = targetDir.resolve("App.java").toString();
+        ScanTarget target = new ScanTarget("app", targetDir.toString(), "backend", "java", List.of(), List.of(), null);
+        ProjectManifest manifest = new ProjectManifest(List.of(target));
+
+        AnalysisResult result = new AnalysisResult(filePath, List.of(
+            new ComponentInfo("Service", "MyService", "com.app", filePath)
+        ));
+
+        Path outputPath = writer("no-cg.json").write(manifest, List.of(result));
+        JsonNode root = mapper.readTree(outputPath.toFile());
+        JsonNode targetNode = root.get("targets").get(0);
+
+        assertFalse(targetNode.has("call_graph_edges"));
+    }
+}

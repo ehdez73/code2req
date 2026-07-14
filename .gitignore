@@ -3,6 +3,8 @@ target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+.env
+
 
 ### STS ###
 .apt_generated
@@ -19,6 +21,7 @@ target/
 *.iml
 *.ipr
 
+.DS_Store
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
@@ -33,11 +36,23 @@ build/
 .vscode/
 
 ### SDD Engine ###
-.code2req.db
-.code2req.db-wal
-.code2req.db-shm
 spec-output/
+project-manifest.yaml
+*.old
 
 ## Logs ##
 code2req.log
 spring-shell.log
+
+# SQLite Database Files
+*.db
+*.db-shm
+*.db-wal
+
+# backup files
+*.bak
+*.bk
+
+# Snapshots
+snapshots/
+.code2req-history
