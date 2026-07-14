@@ -626,12 +626,20 @@ public class AnalyzeFlowAction {
         }
         if (ef.testInsights() != null && !ef.testInsights().isEmpty()) {
             sb.append("Test insights:\n");
-            for (ExecutionFinding.TestInsight ti : ef.testInsights()) {
-                sb.append("  - ").append(ti.testFilePath()).append(": ").append(ti.scenarioVerified()).append("\n");
-                if (ti.hiddenRuleUncovered() != null && !ti.hiddenRuleUncovered().isBlank()) {
-                    sb.append("    Hidden rule: ").append(ti.hiddenRuleUncovered()).append("\n");
-                }
-            }
+            ef.testInsights().stream()
+                .collect(Collectors.groupingBy(
+                    ExecutionFinding.TestInsight::testFilePath,
+                    LinkedHashMap::new,
+                    Collectors.toList()))
+                .forEach((filePath, insights) -> {
+                    sb.append("  - ").append(filePath).append("\n");
+                    for (var ti : insights) {
+                        sb.append("    - ").append(ti.scenarioVerified()).append("\n");
+                        if (ti.hiddenRuleUncovered() != null && !ti.hiddenRuleUncovered().isBlank()) {
+                            sb.append("        Hidden rule: ").append(ti.hiddenRuleUncovered()).append("\n");
+                        }
+                    }
+                });
         }
         return sb.isEmpty() ? "No enrichment context available." : sb.toString();
     }

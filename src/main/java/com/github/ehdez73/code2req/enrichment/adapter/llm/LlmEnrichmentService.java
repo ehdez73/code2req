@@ -3,7 +3,6 @@ package com.github.ehdez73.code2req.enrichment.adapter.llm;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestAssertionExtractor;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.enrichment.domain.model.EnrichmentConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionMode;
@@ -44,7 +43,6 @@ public class LlmEnrichmentService {
     private final SimulationStub simulationStub;
     private final ExecutionFindingValidator validator;
     private final ExecutionFindingParser parser;
-    private final TestAssertionExtractor assertionExtractor;
     private final EnrichmentConfig enrichmentConfig;
     private final Executor taskExecutor;
     private final TransactionTemplate transactionTemplate;
@@ -56,7 +54,6 @@ public class LlmEnrichmentService {
                                 SimulationStub simulationStub,
                                 ExecutionFindingValidator validator,
                                 ExecutionFindingParser parser,
-                                TestAssertionExtractor assertionExtractor,
                                 EnrichmentConfig enrichmentConfig,
                                 @Qualifier("orchestratorTaskExecutor") Executor taskExecutor,
                                 TransactionTemplate transactionTemplate) {
@@ -66,7 +63,6 @@ public class LlmEnrichmentService {
         this.simulationStub = simulationStub;
         this.validator = validator;
         this.parser = parser;
-        this.assertionExtractor = assertionExtractor;
         this.enrichmentConfig = enrichmentConfig;
         this.taskExecutor = taskExecutor;
         this.transactionTemplate = transactionTemplate;
@@ -383,18 +379,7 @@ private String buildSystemPrompt() {
             sb.append("\nTEST FILE\n");
             sb.append(testContent).append("\n");
 
-            if (assertionExtractor != null) {
-                var assertions = assertionExtractor.extract(testContent);
-                if (!assertions.isEmpty()) {
-                    sb.append("\nEXTRACTED TEST ASSERTIONS\n");
-                    for (var a : assertions) {
-                        sb.append("  [").append(a.type()).append("] ");
-                        sb.append(a.detail()).append("\n");
-                        sb.append("    -> ").append(a.description()).append("\n");
-                    }
-                    sb.append("\n");
-                }
-            }
+
         }
 
         // ── OUTPUT REMINDER (keeps contract top-of-mind at the end too) ─────────

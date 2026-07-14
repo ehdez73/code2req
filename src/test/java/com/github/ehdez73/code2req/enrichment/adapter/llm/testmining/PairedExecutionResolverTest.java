@@ -7,7 +7,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -17,13 +16,12 @@ class PairedExecutionResolverTest {
     Path tempDir;
 
     private PairedExecutionResolver resolver;
-    private TestFileMatcher matcher;
 
     @BeforeEach
     void setUp() {
-        matcher = new TestFileMatcher(
-            new IndexingConfig(null, null));
-        resolver = new PairedExecutionResolver(matcher, new TestAssertionExtractor());
+        var matcher = new TestFileMatcher(
+            new IndexingConfig(null, null, null));
+        resolver = new PairedExecutionResolver(matcher);
     }
 
     @Test
@@ -46,7 +44,6 @@ class PairedExecutionResolverTest {
         assertTrue(result.isPresent());
         assertEquals("OrderServiceTest.java", Path.of(result.get().testFilePath()).getFileName().toString());
         assertFalse(result.get().testContent().isBlank());
-        assertEquals(2, result.get().assertions().size());
     }
 
     @Test

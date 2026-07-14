@@ -6,7 +6,6 @@ import com.github.ehdez73.code2req.enrichment.adapter.llm.ContextBudgetCalculato
 import com.github.ehdez73.code2req.enrichment.adapter.llm.LlmEnrichmentService;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.SimulationStub;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.PairedExecutionResolver;
-import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestAssertionExtractor;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestFileMatcher;
 import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.EnrichmentConfig;
@@ -69,7 +68,7 @@ class EnrichCommandTest {
         var taskIdHasher = new TaskIdHasher();
         var budgetCalculator = new ContextBudgetCalculator();
         var simulationStub = new SimulationStub();
-        var indexingConfig = new IndexingConfig(3, List.of("Test", "IT"));
+        var indexingConfig = new IndexingConfig(3, List.of("Test", "IT"), null);
         var enrichmentConfig = new EnrichmentConfig(5, 5, null, null, null, null);
 
         var tfm = new TestFileMatcher(indexingConfig);
@@ -86,10 +85,10 @@ class EnrichCommandTest {
         var txManager = new DataSourceTransactionManager(ds);
         var txTemplate = new TransactionTemplate(txManager);
         var executor = new LlmEnrichmentService(null, findingStore, taskStore,
-            budgetCalculator, simulationStub, null, null, new TestAssertionExtractor(),
+            budgetCalculator, simulationStub, null, null,
             enrichmentConfig, null, txTemplate);
         var per = new PairedExecutionResolver(
-            new TestFileMatcher(indexingConfig), new TestAssertionExtractor());
+            new TestFileMatcher(indexingConfig));
         var orchestrator = new EnrichmentOrchestrator(planner, executor, taskStore,
             metricsStore, indexingConfig, taskIdHasher, budgetCalculator,
             new ManifestLoader(), new FilePathResolver(), per);

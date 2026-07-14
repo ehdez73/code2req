@@ -1,6 +1,8 @@
 package com.github.ehdez73.code2req.enrichment.adapter.llm.testmining;
 
+import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.TestImportIndex;
 import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
@@ -12,14 +14,24 @@ import java.util.Optional;
 @Component
 public class TestFileMatcher {
 
+    private final TestImportIndex testImportIndex;
     private final List<String> testSuffixes;
+    private final List<String> testPrefixes;
 
     public TestFileMatcher(IndexingConfig indexingConfig) {
+        this(indexingConfig, null);
+    }
+
+    @Autowired
+    public TestFileMatcher(IndexingConfig indexingConfig, TestImportIndex testImportIndex) {
+        this.testImportIndex = testImportIndex;
         this.testSuffixes = indexingConfig.resolvedTestSuffixes();
+        this.testPrefixes = indexingConfig.resolvedTestPrefixes();
     }
 
     private boolean isTestFileName(String baseName) {
-        return testSuffixes.stream().anyMatch(baseName::endsWith);
+        if (testSuffixes.stream().anyMatch(baseName::endsWith)) return true;
+        return testPrefixes.stream().anyMatch(baseName::startsWith);
     }
 
     public Optional<String> findTestFilePath(String sourceFilePath) {
@@ -39,6 +51,13 @@ public class TestFileMatcher {
             return Optional.empty();
         }
 
+        if (testImportIndex != null) {
+            Optional<String> importMatch = testImportIndex.findTestFileBySourcePath(sourceFilePath);
+            if (importMatch.isPresent()) {
+                return importMatch;
+            }
+        }
+
         Path parent = path.getParent();
         if (parent == null) {
             return Optional.empty();
@@ -46,6 +65,14 @@ public class TestFileMatcher {
 
         for (String suffix : testSuffixes) {
             String testFileName = baseName + suffix + ".java";
+            Path testPath = parent.resolve(testFileName);
+            if (Files.exists(testPath)) {
+                return Optional.of(testPath.toAbsolutePath().normalize().toString());
+            }
+        }
+
+        for (String prefix : testPrefixes) {
+            String testFileName = prefix + baseName + ".java";
             Path testPath = parent.resolve(testFileName);
             if (Files.exists(testPath)) {
                 return Optional.of(testPath.toAbsolutePath().normalize().toString());
@@ -67,9 +94,22 @@ public class TestFileMatcher {
                         return Optional.of(suffixedPath.toAbsolutePath().normalize().toString());
                     }
                 }
+                for (String prefix : testPrefixes) {
+                    Path testDir = basePath.getParent();
+                    if (testDir != null) {
+                        Path prefixedPath = testDir.resolve(prefix + basePath.getFileName().toString());
+                        if (Files.exists(prefixedPath)) {
+                            return Optional.of(prefixedPath.toAbsolutePath().normalize().toString());
+                        }
+                    }
+                }
             }
         }
 
         return Optional.empty();
+    }
+
+    boolean hasTestByImport(String sourceFilePath) {
+        return testImportIndex != null && testImportIndex.hasTests(sourceFilePath);
     }
 }

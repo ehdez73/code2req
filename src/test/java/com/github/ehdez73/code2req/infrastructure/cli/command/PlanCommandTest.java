@@ -52,7 +52,7 @@ class PlanCommandTest {
         var floatingLinkStore = new FloatingLinkStore(jdbc);
 
         var tfm = new TestFileMatcher(
-            new IndexingConfig(null, null));
+            new IndexingConfig(null, null, null));
         List<QualificationRule> rules = List.of(
             new StoredProcedureCallRule(),
             new CustomConstraintValidatorRule(),

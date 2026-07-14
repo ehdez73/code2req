@@ -18,6 +18,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphE
 import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.GlobalDeclarationRegistry;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.Pass1DeclarationCollector;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.TestImportIndex;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.broker.activemq.ActiveMqInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.broker.activemq.ActiveMqPublisherInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.broker.kafka.KafkaInfo;
@@ -92,6 +93,7 @@ public class IndexingOrchestrator {
     );
 
     private final Pass1DeclarationCollector pass1Collector;
+    private final TestImportIndex testImportIndex;
     private final JavaAstAnalyzer astAnalyzer;
     private final SecretRedactor secretRedactor;
     private final TaskStore taskStore;
@@ -105,13 +107,15 @@ public class IndexingOrchestrator {
     private final TransactionTemplate transactionTemplate;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    public IndexingOrchestrator(Pass1DeclarationCollector pass1Collector, JavaAstAnalyzer astAnalyzer,
+    public IndexingOrchestrator(Pass1DeclarationCollector pass1Collector, TestImportIndex testImportIndex,
+                                JavaAstAnalyzer astAnalyzer,
                                 SecretRedactor secretRedactor, TaskStore taskStore, TaskIdHasher taskIdHasher,
                                 TopicLinkResolver topicLinkResolver, FloatingLinkResolver floatingLinkResolver,
                                 ExecutionFindingStore executionFindingStore, TopicLinkStore topicLinkStore,
                                 FloatingLinkStore floatingLinkStore, MetricsStore metricsStore,
                                 TransactionTemplate txTemplate) {
         this.pass1Collector = pass1Collector;
+        this.testImportIndex = testImportIndex;
         this.astAnalyzer = astAnalyzer;
         this.secretRedactor = secretRedactor;
         this.taskStore = taskStore;
@@ -127,6 +131,7 @@ public class IndexingOrchestrator {
 
     public ScanPipelineResult execute(List<Path> allFiles, List<ScanTarget> targets, StringBuilder report) {
         var phaseStart = Instant.now();
+        testImportIndex.clear();
         var registry = new GlobalDeclarationRegistry();
         String runId = UUID.randomUUID().toString().substring(0, 8);
 
@@ -232,6 +237,7 @@ public class IndexingOrchestrator {
                 configureParserForFile(file, targets);
                 CompilationUnit cu = StaticJavaParser.parse(redacted);
                 pass1Collector.collect(cu, registry, fp);
+                testImportIndex.index(fp, cu);
             } catch (Exception e) {
                 log.warn("Pass 1 failed for {}: {}", fp, e.getMessage());
                 failed++;

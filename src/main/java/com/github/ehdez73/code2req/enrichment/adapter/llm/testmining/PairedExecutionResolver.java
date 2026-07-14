@@ -7,7 +7,6 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -16,12 +15,9 @@ public class PairedExecutionResolver {
     private static final Logger log = LoggerFactory.getLogger(PairedExecutionResolver.class);
 
     private final TestFileMatcher testFileMatcher;
-    private final TestAssertionExtractor assertionExtractor;
 
-    public PairedExecutionResolver(TestFileMatcher testFileMatcher,
-                                   TestAssertionExtractor assertionExtractor) {
+    public PairedExecutionResolver(TestFileMatcher testFileMatcher) {
         this.testFileMatcher = testFileMatcher;
-        this.assertionExtractor = assertionExtractor;
     }
 
     public Optional<PairedTestInfo> resolve(String sourceFilePath) {
@@ -40,13 +36,11 @@ public class PairedExecutionResolver {
             return Optional.empty();
         }
 
-        List<TestAssertionExtractor.AssertionInfo> assertions = assertionExtractor.extract(testContent);
-        return Optional.of(new PairedTestInfo(testFilePath, testContent, assertions));
+        return Optional.of(new PairedTestInfo(testFilePath, testContent));
     }
 
     public record PairedTestInfo(
         String testFilePath,
-        String testContent,
-        List<TestAssertionExtractor.AssertionInfo> assertions
+        String testContent
     ) {}
 }

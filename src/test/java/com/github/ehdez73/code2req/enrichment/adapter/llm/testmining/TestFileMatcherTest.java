@@ -23,9 +23,9 @@ class TestFileMatcherTest {
     @BeforeEach
     void setUp() {
         matcher = new TestFileMatcher(
-            new IndexingConfig(null, null));
+            new IndexingConfig(null, null, null));
         matcherWithCustomSuffixes = new TestFileMatcher(
-            new IndexingConfig(null, List.of("Test", "IT", "Spec")));
+            new IndexingConfig(null, List.of("Test", "IT", "Spec"), null));
     }
 
     @Nested
@@ -53,6 +53,21 @@ class TestFileMatcherTest {
             var result = matcher.findTestFilePath(sourceFile.toString());
             assertTrue(result.isPresent());
             assertTrue(result.get().endsWith("OrderRepositoryIT.java"));
+        }
+
+        @Test
+        void findsTestFileWithTestPrefix() throws Exception {
+            var sourceFile = tempDir.resolve("OrderService.java");
+            var testFile = tempDir.resolve("TestOrderService.java");
+            Files.createFile(sourceFile);
+            Files.createFile(testFile);
+
+            var matcherWithPrefix = new TestFileMatcher(
+                new IndexingConfig(null, null, List.of("Test")));
+
+            var result = matcherWithPrefix.findTestFilePath(sourceFile.toString());
+            assertTrue(result.isPresent());
+            assertTrue(result.get().endsWith("TestOrderService.java"));
         }
 
         @Test

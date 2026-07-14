@@ -49,7 +49,7 @@ class EnrichmentPlannerTest {
         findingStore = new ExecutionFindingStore(jdbc);
         floatingLinkStore = new FloatingLinkStore(jdbc);
         var testFileMatcher = new TestFileMatcher(
-            new IndexingConfig(null, null));
+            new IndexingConfig(null, null, null));
         defaultRules = List.of(
             new StoredProcedureCallRule(),
             new CustomConstraintValidatorRule(),
@@ -190,7 +190,7 @@ class EnrichmentPlannerTest {
         @Test
         void customThresholdLower() {
             var tfm = new TestFileMatcher(
-            new IndexingConfig(null, null));
+            new IndexingConfig(null, null, null));
             var rules = List.of(
 
                 new StoredProcedureCallRule(),

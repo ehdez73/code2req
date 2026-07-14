@@ -4,6 +4,9 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.AstAnalysisVisitor;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentVisitor;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.Pass1DeclarationCollector;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.TestImportIndex;
+import com.github.ehdez73.code2req.indexing.domain.model.AllowedLibrariesConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLinkResolver;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkResolver;
 import com.github.ehdez73.code2req.indexing.domain.service.SecretRedactor;
@@ -60,7 +63,10 @@ class IndexingOrchestratorTest {
         var metricsStore = new MetricsStore(jdbc);
         var txManager = new DataSourceTransactionManager(ds);
         var txTemplate = new TransactionTemplate(txManager);
-        pipeline = new IndexingOrchestrator(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher,
+        var testImportIndex = new TestImportIndex(
+            new IndexingConfig(null, null, null),
+            new AllowedLibrariesConfig(null, null));
+        pipeline = new IndexingOrchestrator(pass1Collector, testImportIndex, astAnalyzer, secretRedactor, taskStore, taskIdHasher,
             new TopicLinkResolver(), new FloatingLinkResolver(),
             executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore, txTemplate);
     }

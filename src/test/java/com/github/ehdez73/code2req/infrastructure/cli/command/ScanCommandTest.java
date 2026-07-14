@@ -2,6 +2,9 @@ package com.github.ehdez73.code2req.infrastructure.cli.command;
 
 import com.github.ehdez73.code2req.indexing.domain.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.Pass1DeclarationCollector;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.TestImportIndex;
+import com.github.ehdez73.code2req.indexing.domain.model.AllowedLibrariesConfig;
+import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointDetector;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.detector.SpringEndpointDetector;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLinkResolver;
@@ -97,7 +100,10 @@ class ScanCommandTest {
 
         var pass1Collector = new Pass1DeclarationCollector();
         var metricsStore = new com.github.ehdez73.code2req.infrastructure.persistence.MetricsStore(jdbc);
-        var pipeline = new IndexingOrchestrator(pass1Collector, astAnalyzer, secretRedactor, taskStore, taskIdHasher,
+        var testImportIndex = new TestImportIndex(
+            new IndexingConfig(null, null, null),
+            new AllowedLibrariesConfig(null, null));
+        var pipeline = new IndexingOrchestrator(pass1Collector, testImportIndex, astAnalyzer, secretRedactor, taskStore, taskIdHasher,
             topicLinkResolver, new FloatingLinkResolver(),
             executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore, txTemplate);
 

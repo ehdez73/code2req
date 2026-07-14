@@ -1,9 +1,10 @@
 targets:
-  - name: <YOUR_PROJECT_NAME>
-    path: <PROJECT_PATH>
+  - name: <YOUR_PROJECT_NAME>         # spring-pet-clinic
+    path: <PROJECT_PATH>              # /workspace/projects/spring-petclinic
     layer: backend
     tech_profile: java-spring-legacy
+    java_version: 17
     entry_points:
     exclude_patterns:
       - "**/generated/**"
-      - "**/*Pb.java"
+  

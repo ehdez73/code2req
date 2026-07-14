@@ -1,6 +1,5 @@
 package com.github.ehdez73.code2req.enrichment.adapter.llm;
 
-import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.TestAssertionExtractor;
 import com.github.ehdez73.code2req.enrichment.domain.model.EnrichmentConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.enrichment.domain.model.PlannerDecision;
@@ -54,7 +53,7 @@ class LlmEnrichmentServiceTest {
         var txManager = new DataSourceTransactionManager(ds);
         var txTemplate = new TransactionTemplate(txManager);
         executor = new LlmEnrichmentService(null, findingStore, taskStore,
-            budgetCalculator, simulationStub, null, null, new TestAssertionExtractor(),
+            budgetCalculator, simulationStub, null, null,
             enrichmentConfig, null, txTemplate);
     }
 
