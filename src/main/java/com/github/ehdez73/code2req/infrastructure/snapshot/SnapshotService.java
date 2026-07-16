@@ -67,12 +67,6 @@ public class SnapshotService {
             jdbc.execute("VACUUM INTO '" + escapePath(dbPath) + "'");
             log.info("SQLite DB snapshot saved to {}", dbPath);
 
-            Path indexPath = Path.of(outputConfig.specDir(), outputConfig.indexFile());
-            if (Files.exists(indexPath)) {
-                Files.copy(indexPath, dir.resolve("code-graph-index.json"), REPLACE_EXISTING);
-                log.info("JSON index snapshot saved to {}", dir.resolve("code-graph-index.json"));
-            }
-
             Path cachePath = Path.of(outputConfig.specDir(), outputConfig.extractionCacheFile());
             if (Files.exists(cachePath)) {
                 Files.copy(cachePath, dir.resolve("extraction-cache.json"), REPLACE_EXISTING);
@@ -97,7 +91,6 @@ public class SnapshotService {
         }
 
         Path snapshotDb = dir.resolve("sqlite.db");
-        Path snapshotIndex = dir.resolve("code-graph-index.json");
         Path snapshotCache = dir.resolve("extraction-cache.json");
 
         if (!Files.exists(snapshotDb)) {
@@ -114,13 +107,6 @@ public class SnapshotService {
             Path liveDb = Path.of(dbUrl.replace("jdbc:sqlite:", ""));
             Files.copy(snapshotDb, liveDb, REPLACE_EXISTING);
             log.info("SQLite DB restored from snapshot '{}'", name);
-
-            Path liveIndex = Path.of(outputConfig.specDir(), outputConfig.indexFile());
-            Files.createDirectories(liveIndex.getParent());
-            if (Files.exists(snapshotIndex)) {
-                Files.copy(snapshotIndex, liveIndex, REPLACE_EXISTING);
-                log.info("JSON index restored from snapshot '{}'", name);
-            }
 
             Path liveCache = Path.of(outputConfig.specDir(), outputConfig.extractionCacheFile());
             Files.createDirectories(liveCache.getParent());

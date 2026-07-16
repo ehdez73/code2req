@@ -46,6 +46,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -54,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Component
@@ -292,17 +294,48 @@ public class ExtractionOrchestrator {
             }
         }
 
+        Map<String, String> classToFileMap = new HashMap<>();
+        for (CallGraphEdge edge : edges) {
+            if (edge.sourceClassName() != null && !edge.sourceClassName().isBlank()
+                && edge.sourceFilePath() != null && !edge.sourceFilePath().isBlank()) {
+                classToFileMap.putIfAbsent(edge.sourceClassName(), edge.sourceFilePath());
+            }
+            if (edge.isResolved() && edge.targetClassName() != null && !edge.targetClassName().isBlank()
+                && edge.targetFilePath() != null && !edge.targetFilePath().isBlank()) {
+                classToFileMap.putIfAbsent(edge.targetClassName(), edge.targetFilePath());
+            }
+        }
+        for (ComponentInfo ci : components) {
+            if (ci.className() != null && ci.filePath() != null) {
+                classToFileMap.putIfAbsent(ci.className(), ci.filePath());
+            }
+        }
+
         Map<String, ScheduledEntryPoint> resolvedScheduled = new HashMap<>();
         for (XmlScheduledTaskInfo xst : xmlScheduledTasks) {
             String schedule = xst.cron() != null ? xst.cron()
                 : (xst.fixedRate() != null ? "fixedRate=" + xst.fixedRate()
                 : "fixedDelay=" + xst.fixedDelay());
             String resolvedClassName = beanRegistry.getOrDefault(xst.className(), xst.className());
-            String filePath = xst.filePath();
-            String id = filePath + ":" + resolvedClassName + ":" + xst.method() + " " + schedule;
+            String simpleClassName = resolvedClassName.contains(".")
+                ? resolvedClassName.substring(resolvedClassName.lastIndexOf('.') + 1)
+                : resolvedClassName;
+            String xmlFilePath = xst.filePath();
+            String javaFilePath = classToFileMap.get(simpleClassName);
+            String filePath = javaFilePath != null ? javaFilePath : xmlFilePath;
+            int methodStartLine = 0, methodEndLine = 0;
+            if (javaFilePath != null) {
+                int[] range = findMethodInFile(javaFilePath, xst.method(), 0);
+                if (range != null) {
+                    methodStartLine = range[0];
+                    methodEndLine = range[1];
+                }
+            }
+            String id = xmlFilePath + ":" + resolvedClassName + ":" + xst.method() + " " + schedule;
             resolvedScheduled.put(id, new ScheduledEntryPoint(
-                id, resolvedClassName, xst.method(), filePath,
-                0.0, false, schedule, 0, 0));
+                id, simpleClassName, xst.method(), filePath,
+                0.0, false, schedule, methodStartLine, methodEndLine,
+                javaFilePath != null ? xmlFilePath : null));
         }
 
         Map<String, ActiveMqEntryPoint> resolvedJms = new HashMap<>();
@@ -378,6 +411,69 @@ public class ExtractionOrchestrator {
         int ambiguityGaps = knowledge.findUnresolvedLinks().size()
             + knowledge.findUnresolvedTopicLinks().size();
         return new ExtractionResult(flowsExtracted, ambiguityGaps, 0, allFlowNames);
+    }
+
+    static int[] findMethodInFile(String filePath, String methodName, int argCount) {
+        try {
+            List<String> lines = Files.readAllLines(Path.of(filePath));
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i);
+                int methodIdx = line.indexOf(methodName + "(");
+                if (methodIdx < 0) continue;
+
+                int parenStart = methodIdx + methodName.length();
+                int parenDepth = 0;
+                StringBuilder params = new StringBuilder();
+                for (int k = parenStart; k < line.length(); k++) {
+                    char c = line.charAt(k);
+                    if (c == '(') { parenDepth++; if (parenDepth == 1) continue; }
+                    if (c == ')') { parenDepth--; if (parenDepth == 0) break; }
+                    if (parenDepth == 1) params.append(c);
+                }
+                if (parenDepth > 0) {
+                    for (int j = i + 1; j < lines.size(); j++) {
+                        String nextLine = lines.get(j);
+                        for (int k = 0; k < nextLine.length(); k++) {
+                            char c = nextLine.charAt(k);
+                            if (c == '(') { parenDepth++; if (parenDepth == 1) break; }
+                            if (c == ')') { parenDepth--; if (parenDepth == 0) break; }
+                            if (parenDepth == 1) params.append(c);
+                        }
+                        if (parenDepth == 0) break;
+                    }
+                }
+
+                int actualArgCount = params.toString().strip().isEmpty() ? 0 : params.toString().split(",").length;
+                if (actualArgCount != argCount) continue;
+
+                int startLine = i + 1;
+                int braceDepth = 0;
+                String firstLine = lines.get(i);
+                int braceStart = firstLine.indexOf('{');
+                if (braceStart >= 0) {
+                    for (int k = braceStart; k < firstLine.length(); k++) {
+                        if (firstLine.charAt(k) == '{') braceDepth++;
+                        else if (firstLine.charAt(k) == '}') braceDepth--;
+                    }
+                }
+                if (braceDepth > 0) {
+                    for (int j = i + 1; j < lines.size(); j++) {
+                        String currentLine = lines.get(j);
+                        for (int k = 0; k < currentLine.length(); k++) {
+                            if (currentLine.charAt(k) == '{') braceDepth++;
+                            else if (currentLine.charAt(k) == '}') braceDepth--;
+                        }
+                        if (braceDepth == 0) {
+                            return new int[]{startLine, j + 1};
+                        }
+                    }
+                }
+                return new int[]{startLine, startLine};
+            }
+        } catch (IOException e) {
+            log.warn("Could not scan {} for method {}: {}", filePath, methodName, e.getMessage());
+        }
+        return null;
     }
 
     private void persistMetrics(ExtractionResult result, boolean dryRun) {

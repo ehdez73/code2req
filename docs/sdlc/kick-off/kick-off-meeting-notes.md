@@ -20,7 +20,7 @@ Legacy enterprise codebases contain embedded business rules, domain validations,
 - JavaParser AST traversal: component types, HTTP endpoints, event listeners, method calls, custom validators
 - In-memory secret redaction
 - Exclude pattern filtering
-- Structured JSON index output (`code-graph-index.json`)
+- Structured analysis findings via SQLite persistence
 - SQLite task store ingestion (Spring JDBC, WAL mode, idempotent IDs)
 - CLI `scan` command for Phase 1 execution
 

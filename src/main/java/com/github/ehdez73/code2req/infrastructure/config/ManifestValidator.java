@@ -17,7 +17,7 @@ public class ManifestValidator {
         "max-concurrent-llm-calls", "max-discovery-depth", "semantic-validation-sample-rate"
     );
     private static final Set<String> KNOWN_OUTPUT_FIELDS = Set.of(
-        "spec-dir", "index-file", "db-path"
+        "spec-dir"
     );
 
     private final ManifestLoader manifestLoader;

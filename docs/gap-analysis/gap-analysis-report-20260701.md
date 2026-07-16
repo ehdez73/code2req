@@ -59,7 +59,7 @@ Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin
 | ~~Maven depgraph (F002)~~ | ~~§2.1.1~~ | ~~US004/US005~~ | ~~E001-F002 (4 scen)~~ | ~~—~~ | ~~**REMOVED** — `MavenDependencyResolver` was dead code (zero callers, never wired)~~ | ~~❌~~ |
 | Java AST analysis (F003) | §2.1.2 | US006/7/8/9/10/23/26/27 | E001-F003 (26 scen) | ADR-001 | `AstAnalysisVisitor`, `EndpointVisitor`, broker visitors, etc. | ✅ |
 | Secret redaction + exclude (F004) | §2.1.4/5 | US011/US012 | E001-F004 (6 scen) | ADR-005 | `SecretRedactor`, `ExcludeFilter` | ✅ |
-| ~~Index output + SQLite (F005)~~ | ~~§2.1.3/6~~ | ~~US013/US014/US017~~ | ~~E001-F005 (7 scen)~~ | ~~ADR-003/004~~ | ~~`JsonIndexWriter`, `TaskStore`, `TaskStoreSchema` (≢ schema)~~ | ~~✅ ≢~~ |
+| Index output + SQLite (F005) | §2.1.3/6 | US013/US014/US017 | E001-F005 (7 scen) | ADR-003/004 | `TaskStore`, `TaskStoreSchema` (JsonIndexWriter removed — SQLite is canonical) | ✅ |
 | CLI scan orchestration (F006) | §5.7 | US015/US016/US028 | E001-F006 (10 scen) | — | `ScanCommand`, `IndexingOrchestrator` | ✅ |
 | Parser SPI (F007) | §2.1.2 | US018/US019 | E002-F007 (4 scen) | ADR-001 | **NONE** (no `LanguageParser` interface) | ⊘ |
 | Parser discovery (F008) | — | US020/US021 | E002-F008 (5 scen) | — | **NONE** | ⊘ |
@@ -110,7 +110,7 @@ Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin
 ### 3.2 PRD Requirements Missing from Features (Gherkin)
 
 - No `.feature` covers ~~web.xml discovery~~, ~~`@NamedQuery`, raw JDBC detection~~, ~~`NamedParameterJdbcTemplate`/`SimpleJdbcCall`~~, ~~view-returning `void` controllers with implicit view~~, or the Phase 3 marker lifecycle (all in PRD §2.1.2/§5.5).
-- No scenario covers `--force-phase3`, `--interactive`, `--interactive-timeout`, ~~error-feedback retry~~, or `validate` of `code-graph-index.json` (PRD §5.7 says `validate` should validate both manifest and index structure).
+- No scenario covers `--force-phase3`, `--interactive`, `--interactive-timeout`, ~~error-feedback retry~~, or `validate` of `code-graph-index.json` (now removed — SQLite is canonical) (PRD §5.7 says `validate` should validate both manifest and index structure).
 
 ### 3.3 User Stories Without PRD Coverage
 
@@ -189,7 +189,7 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 | `run --force-phase3`, `run --interactive`, `run --interactive-timeout` | PRD §5.7 | `RunCommand.java:29-39` has only `--manifest/--resume/--dry-run/--force/--llm-threshold`. |
 | Phase 3 marker task (`__phase3_marker__`) + `.tmp.` cleanup + `--force-phase3` semantics | PRD §5.5 §5-8 | No marker mechanism; Phase 3 completion inferred from task statuses + cache file existence. |
 | PRD §3.5 fail-stop guards on `run` (halt on FAILED after scan; halt if 0 qualified after plan; halt on ENRICH_FAILED after enrich) | PRD §3.5 | `RunCommand` chains outputs and strips suggestions; **no halt logic**. |
-| `validate` of `code-graph-index.json` structure | PRD §5.7 | `ValidateCommand.java:27` validates **manifest YAML only**. |
+| `validate` of `code-graph-index.json` structure | PRD §5.7 | `ValidateCommand.java:27` validates **manifest YAML only**. | **Resolved** — `code-graph-index.json` removed; SQLite is canonical. |
 | ~~`tasks.json_payload` column~~ | ~~PRD §2.1.6~~ | ~~`TaskStoreSchema.java:31` has `content_hash` instead of `source_hash` and **no `json_payload`**.~~ |
 | ~~Snapshot metadata git commit hash~~ | ~~PRD §5.9 §5~~| ~~`SnapshotService` writes name/date/cli_version/sizes/checksums — **no git hash**.~~ |
 | `SemanticManifestWriter` / `MarkdownSpecWriter` as distinct classes | F027/US056-b | Manifest is now serialized from typed POJOs (`ManifestMapper` + Jackson) directly from `SynthesizeSpecAction`. No separate writer classes needed — the POJO structure itself defines the output contract. |
@@ -382,7 +382,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | ~~6~~ | ~~F002/US004-005/PRD §2.1.1~~ | ~~**`MavenDependencyResolver` removed** — was dead code, deleted 2026-07-01~~ | ~~—~~ | ~~—~~ | ~~—~~ | ~~Done (removed)~~ |
 | 7 | PRD §5.7 | **`resume` standalone command** | Low | Low | — | Add `ResumeCommand` |
 | 8 | PRD §5.7/§3.5 | **`run --force-phase3`** + Phase 3 marker task (`__phase3_marker__`) + `.tmp.` cleanup + fail-stop guards | High | Medium | #1 (marker FAILED) | Add marker + flag + guards |
-| 9 | PRD §5.7 | **`validate` should validate `code-graph-index.json`** | Low | Low | — | Extend `ValidateCommand` |
+| ~~9~~ | ~~PRD §5.7~~ | ~~**`validate` should validate `code-graph-index.json`**~~ | ~~Low~~ | ~~Low~~ | ~~—~~ | ~~**Closed** — `code-graph-index.json` removed; SQLite is canonical.~~ |
 | 10 | ~~F023/PRD §2.3 §9~~ | ~~**Read guardrails from config** instead of hardcoding `MAX_DEPTH=5`/`LOW_CONFIDENCE_THRESHOLD=0.3` (should be 0.7)~~ | ~~Medium~~ | ~~Low~~ | ~~—~~ | ~~Inject `@Value` into actions~~ |
 | 11 | F023/PRD §5.5b | **Add `UserInteractionService` + `NoOpUserInteractionService`** (PRD says in F023) | Medium | Low | #4 | Add SPI + NoOp |
 | 12 | F025/PRD §5.9 §5 | **Add git commit hash to `snapshot.json`** | Low | Low | — | `git rev-parse HEAD` in `SnapshotService` |

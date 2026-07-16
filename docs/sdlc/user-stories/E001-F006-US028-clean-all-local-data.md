@@ -10,8 +10,8 @@
 ### Acceptance Criteria
 
 - [ ] Running `clean` with a populated task store deletes all rows from the SQLite tasks table
-- [ ] Running `clean` deletes the output index file (`spec-output/code-graph-index.json` by default)
-- [ ] Running `clean` removes the output spec directory if empty after index deletion
+- [ ] Running `clean` deletes all rows from the SQLite execution_findings, topic_links, floating_links, and metrics tables
+- [ ] Running `clean` removes the output spec directory
 - [ ] Running `clean` with an empty store reports a graceful message with no errors
 - [ ] The `--manifest` flag can be used to resolve custom output paths from a manifest file
 - [ ] Running `clean` without `--manifest` falls back to default output paths

@@ -33,16 +33,14 @@ class SnapshotServiceTest {
         jdbc.execute("CREATE TABLE IF NOT EXISTS test (id INTEGER)");
         jdbc.execute("INSERT INTO test VALUES (1), (2), (3)");
 
-        var indexFile = tempDir.resolve("code-graph-index.json");
         var cacheFile = tempDir.resolve("extraction-cache.json");
         try {
-            Files.writeString(indexFile, "{\"version\":\"1.0\"}");
             Files.writeString(cacheFile, "{\"crossRefResult\":null}");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
-        var outputConfig = new OutputConfig(tempDir.toString(), "code-graph-index.json", "extraction-cache.json", dbPath.toString());
+        var outputConfig = new OutputConfig(tempDir.toString(), "extraction-cache.json");
 
         service = new SnapshotService(
             refreshableDs, outputConfig,
@@ -57,7 +55,6 @@ class SnapshotServiceTest {
         var snapDir = tempDir.resolve("snapshots").resolve(name);
         assertTrue(Files.isDirectory(snapDir));
         assertTrue(Files.exists(snapDir.resolve("sqlite.db")));
-        assertTrue(Files.exists(snapDir.resolve("code-graph-index.json")));
         assertTrue(Files.exists(snapDir.resolve("extraction-cache.json")));
         assertTrue(Files.exists(snapDir.resolve("snapshot.json")));
     }

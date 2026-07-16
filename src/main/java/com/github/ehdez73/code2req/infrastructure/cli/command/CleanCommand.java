@@ -1,6 +1,5 @@
 package com.github.ehdez73.code2req.infrastructure.cli.command;
 
-import com.github.ehdez73.code2req.infrastructure.config.ManifestLoader;
 import com.github.ehdez73.code2req.common.domain.OutputConfig;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.FloatingLinkStore;
@@ -44,10 +43,8 @@ public class CleanCommand {
         this.jdbc = jdbc;
     }
 
-    @ShellMethod(key = "clean", value = "Deletes all scanned data: SQLite task store and output JSON files")
-    public String clean(
-            @ShellOption(value = "--manifest", defaultValue = "project-manifest.yaml",
-                         help = "Path to project manifest YAML (optional — uses default output paths)") String manifestPath) {
+    @ShellMethod(key = "clean", value = "Deletes all scanned data: SQLite task store and spec output directory")
+    public String clean() {
 
         var sb = new StringBuilder("=== clean ===\n\n");
 

@@ -27,13 +27,9 @@ class CleanCommandTest {
     private TaskStore taskStore;
     private CleanCommand command;
     private Path specDir;
-    private Path indexPath;
-
     @BeforeEach
     void setUp() throws IOException {
         specDir = tempDir.resolve("spec-output");
-        indexPath = specDir.resolve("code-graph-index.json");
-
         var dbPath = tempDir.resolve("clean-test.db");
         var ds = new org.sqlite.SQLiteDataSource();
         ds.setUrl("jdbc:sqlite:" + dbPath.toAbsolutePath());
@@ -46,12 +42,12 @@ class CleanCommandTest {
         var floatingLinkStore = new FloatingLinkStore(jdbc);
         var metricsStore = new MetricsStore(jdbc);
         command = new CleanCommand(taskStore, executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore,
-            new OutputConfig(specDir.toString(), "code-graph-index.json", null, null), jdbc);
+            new OutputConfig(specDir.toString(), null), jdbc);
     }
 
     @Test
     void cleanWithEmptyStore() {
-        String result = command.clean(null);
+        String result = command.clean();
         assertTrue(result.contains("Rows removed:"), "Expected row counts in output");
         assertTrue(result.contains("Clean complete"));
     }
@@ -64,7 +60,7 @@ class CleanCommandTest {
 
         assertEquals(3, taskStore.count());
 
-        String result = command.clean(null);
+        String result = command.clean();
 
         assertEquals(0, taskStore.count());
         assertTrue(result.contains("3 tasks"), "Expected 3 tasks in output");
@@ -76,7 +72,6 @@ class CleanCommandTest {
         taskStore.save(new Task("id1", "/src/App.java", TaskStatus.INDEXED, "java", "h1", "test"));
 
         Files.createDirectories(specDir);
-        Files.writeString(indexPath, "{\"test\": true}");
 
         Path manifestFile = tempDir.resolve("custom-manifest.yaml");
         String manifestYaml = String.format("""
@@ -91,12 +86,10 @@ class CleanCommandTest {
         Files.writeString(manifestFile, manifestYaml);
 
         assertEquals(1, taskStore.count());
-        assertTrue(Files.exists(indexPath));
 
-        String result = command.clean(manifestFile.toAbsolutePath().toString());
+        String result = command.clean();
 
         assertEquals(0, taskStore.count());
-        assertFalse(Files.exists(indexPath));
         assertFalse(Files.exists(specDir));
         assertTrue(result.contains("1 tasks"), "Expected 1 task in output");
         assertTrue(result.contains("Clean complete"));

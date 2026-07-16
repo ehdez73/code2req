@@ -281,7 +281,7 @@ class SynthesizeSpecActionTest {
         var specResult = action.synthesize(result, List.of(), List.of(), null);
         var content = Files.readString(specResult.markdownPath());
 
-        assertTrue(content.contains("Event/Message Details"));
+        assertTrue(content.contains("Trigger Details"));
         assertTrue(content.contains("OrderPlacedEvent"));
     }
 

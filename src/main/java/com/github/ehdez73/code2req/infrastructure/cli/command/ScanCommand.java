@@ -16,7 +16,6 @@ import com.github.ehdez73.code2req.common.domain.ProjectManifest;
 import com.github.ehdez73.code2req.common.domain.ScanTarget;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
-import com.github.ehdez73.code2req.indexing.application.port.output.IndexWriter;
 import com.github.ehdez73.code2req.enrichment.domain.service.OrphanRecovery;
 import com.github.ehdez73.code2req.indexing.IndexingOrchestrator;
 import com.github.ehdez73.code2req.indexing.domain.model.ScanPipelineResult;
@@ -56,7 +55,6 @@ public class ScanCommand {
     private final IndexingOrchestrator pipeline;
     private final TaskStore taskStore;
     private final TaskIdHasher taskIdHasher;
-    private final IndexWriter indexWriter;
     private final OrphanRecovery orphanRecovery;
     private final TemplateAnalyzer templateAnalyzer;
     private final TemplateLinkResolver templateLinkResolver;
@@ -71,7 +69,6 @@ public class ScanCommand {
             IndexingOrchestrator pipeline,
             TaskStore taskStore,
             TaskIdHasher taskIdHasher,
-            IndexWriter indexWriter,
             OrphanRecovery orphanRecovery,
             TemplateAnalyzer templateAnalyzer,
             TemplateLinkResolver templateLinkResolver,
@@ -84,7 +81,6 @@ public class ScanCommand {
         this.pipeline = pipeline;
         this.taskStore = taskStore;
         this.taskIdHasher = taskIdHasher;
-        this.indexWriter = indexWriter;
         this.orphanRecovery = orphanRecovery;
         this.templateAnalyzer = templateAnalyzer;
         this.templateLinkResolver = templateLinkResolver;
@@ -162,9 +158,6 @@ public class ScanCommand {
 
         allResults = dedupResults(allResults);
         allResults = dedupFindings(allResults);
-
-        writeIndex(manifest, allResults, pipelineResult.topicLinks(), templateForms, templateLinks,
-            pipelineResult.floatingLinks(), report);
 
         appendSummary(report, scanStart);
         return report.toString();
@@ -482,21 +475,6 @@ public class ScanCommand {
         return "";
     }
 
-    private void writeIndex(ProjectManifest manifest, List<AnalysisResult> results,
-                            List<com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink> topicLinks,
-                            List<TemplateFormInfo> templateForms,
-                            List<TemplateLinkInfo> templateLinks,
-                            List<com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo> floatingLinks,
-                            StringBuilder report) {
-        var phaseStart = Instant.now();
-        try {
-            Path indexPath = indexWriter.write(manifest, results, topicLinks, templateForms, templateLinks, floatingLinks);
-            report.append(String.format("Phase 5/5 — Index Output: %s%n", indexPath.toAbsolutePath()));
-        } catch (IOException e) {
-            report.append("Phase 5/5 — Index Output: FAILED — ").append(e.getMessage()).append("\n");
-        }
-        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
-    }
 
     private void appendSummary(StringBuilder report, Instant scanStart) {
         long totalDuration = Duration.between(scanStart, Instant.now()).toSeconds();

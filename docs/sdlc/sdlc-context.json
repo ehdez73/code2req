@@ -80,7 +80,7 @@
       "Java source file AST parsing using JavaParser (component types, HTTP endpoints, event listeners, scheduled task/trigger detection, method calls, custom validators)",
       "In-memory secret redaction (passwords, API keys, credentials) before any LLM processing",
       "Exclude pattern filtering for generated code and vendor packages",
-      "Structured JSON index output (code-graph-index.json) with full structural metadata",
+      "Structured analysis findings persisted to SQLite with full structural metadata",
       "SQLite task store ingestion via Spring JDBC with WAL mode and idempotent task IDs",
       "Global declaration registry for inter-file method resolution (Pass 1)",
       "Inter-file call graph resolution via CallGraphVisitor (Pass 2)",
@@ -275,7 +275,7 @@
       "Unit tests pass",
       "Feature matches the acceptance criteria defined in the user story",
       "No regression in existing functionality",
-      "CLI scan command produces valid code-graph-index.json for the petclinic target"
+      "CLI scan command produces valid SQLite task store for the petclinic target"
     ],
     "definition_of_ready": [
       "Story has clearly defined acceptance criteria",
@@ -384,7 +384,7 @@
       "id": "F005",
       "epic_id": "E001",
       "name": "Index Output & SQLite Persistence",
-      "description": "Generate code-graph-index.json + SQLite task store with WAL mode and idempotent task IDs.",
+      "description": "Generate SQLite task store with WAL mode, idempotent task IDs, and typed finding persistence.",
       "background": "AST analysis and redaction completed for all targets.",
       "business_rules": [
         "SQLite uses WAL journal mode + 5000ms busy timeout",
@@ -748,7 +748,7 @@
       "background": "Pipeline has completed at least once and SQLite + JSON index exist.",
       "business_rules": [
         "Snapshot uses VACUUM INTO for transactionally consistent DB copies",
-        "Snapshot copies code-graph-index.json alongside the DB",
+        "Snapshot copies the SQLite DB and extraction cache for point-in-time recovery",
         "Restore drains HikariCP pool, overwrites live files, reinitializes pool",
         "Snapshots are independent of clean command",
         "Directory and contents are gitignored via snapshots/ pattern"

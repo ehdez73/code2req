@@ -6,7 +6,7 @@
 # Last updated: 2026-06-12 14:00
 
 Feature: Index Output & SQLite Persistence
-  Generate code-graph-index.json + SQLite task store with WAL mode and idempotent task IDs.
+  Persist all analysis findings to the SQLite store with WAL mode and idempotent task IDs.
 
   Background:
     Given AST analysis and redaction have completed for all scan targets

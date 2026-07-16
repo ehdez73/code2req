@@ -15,4 +15,4 @@
 - [ ] JDK and Spring framework method calls are silently ignored
 - [ ] Third-party or unresolved calls are recorded as unresolved_signatures
 - [ ] The resolved call graph is persisted in the execution_findings table
-- [ ] The call graph is included in the code-graph-index.json output
+- [ ] The call graph is persisted in the execution_findings table

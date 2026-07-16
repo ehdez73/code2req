@@ -140,7 +140,6 @@ execution:
 
 output:
   spec-dir: spec-output
-  index-file: code-graph-index.json
   db-path: .code2req_cache.db
 ```
 

@@ -112,9 +112,10 @@ public class AnalyzeFlowAction {
         String stepEnrichmentContext = buildStepEnrichmentContext(flow, ep);
         String stepsContext = buildStepsContext(flow.steps());
         String sourceCodeStr = buildSourceCodeContext(flow.steps());
+        String configContext = buildConfigContext(ep);
 
         String prompt = buildPrompt(epData, complexity, stepsContext,
-            enrichmentContext, stepEnrichmentContext, sourceCodeStr);
+            enrichmentContext, stepEnrichmentContext, sourceCodeStr, configContext);
 
         FlowAnalysisResponse response = callLlmAndPersist(prompt, flowKey, context);
 
@@ -252,6 +253,19 @@ public class AnalyzeFlowAction {
         return sb.isEmpty() ? "No source code context available." : sb.toString();
     }
 
+    private String buildConfigContext(EntryPoint ep) {
+        if (ep instanceof ScheduledEntryPoint se && se.configFilePath() != null) {
+            return """
+                ## XML Configuration
+
+                Schedule: %s
+                Config File: %s
+
+                """.formatted(se.schedule(), se.configFilePath());
+        }
+        return "";
+    }
+
     private static String findClassHeader(List<String> lines, List<FlowStep> stepsForFile) {
         String className = stepsForFile.get(0).className();
         int firstMethodLine = stepsForFile.stream()
@@ -327,7 +341,8 @@ public class AnalyzeFlowAction {
 
     private String buildPrompt(EntryPointData epData, ComplexityLevel complexity,
                                String stepsContext, String enrichmentContext,
-                               String stepEnrichmentContext, String sourceCodeStr) {
+                               String stepEnrichmentContext, String sourceCodeStr,
+                               String configContext) {
         String filePath = epData.filePath();
         return """
     You are a senior software business analyst and reverse-engineering specialist.
@@ -440,6 +455,7 @@ public class AnalyzeFlowAction {
     Payload Type: %s
     Complexity: %s
 
+    %s
     Traced Steps:
     %s
 
@@ -457,6 +473,7 @@ public class AnalyzeFlowAction {
                 filePath,
                 epData.payloadType(),
                 complexity,
+                configContext,
                 stepsContext,
                 enrichmentContext,
                 stepEnrichmentContext,

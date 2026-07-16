@@ -245,37 +245,61 @@ public class SynthesizeSpecAction {
             case HttpEntryPoint h -> "ApplicationEventPublisher";
         };
 
-        sb.append("#### Event/Message Details\n\n");
-        sb.append("| Component Type | Broker / Mechanism | Topic / Queue | Schedule | Event Type | Source File |\n");
-        sb.append("|---|---|---|---|---|---|\n");
+        boolean hasTopicQueue = eventSteps.stream().anyMatch(s -> s.componentType() == FlowStepComponentType.EVENT_PUBLISHER)
+            || entryPoint instanceof KafkaEntryPoint
+            || entryPoint instanceof RabbitMqEntryPoint
+            || entryPoint instanceof ActiveMqEntryPoint;
+        boolean hasSchedule = eventSteps.stream().anyMatch(s -> s.componentType() == FlowStepComponentType.SCHEDULED_TASK);
+        String payloadType = entryPointPayloadType(entryPoint);
+        boolean hasEventType = payloadType != null && !payloadType.isEmpty() && !"\u2014".equals(payloadType);
+
+        sb.append("#### Trigger Details\n\n");
+
+        sb.append("| Component Type | Broker / Mechanism");
+        if (hasTopicQueue) sb.append(" | Topic / Queue");
+        if (hasSchedule) sb.append(" | Schedule");
+        if (hasEventType) sb.append(" | Event Type");
+        sb.append(" | Source File |\n");
+
+        int colCount = 2;
+        if (hasTopicQueue) colCount++;
+        if (hasSchedule) colCount++;
+        if (hasEventType) colCount++;
+        colCount++;
+        sb.append("|").append("---|".repeat(colCount)).append("\n");
 
         for (var step : eventSteps) {
-            String topic = step.componentType() == FlowStepComponentType.EVENT_PUBLISHER
-                ? entryPointTopicOrQueue(entryPoint)
-                : "\u2014";
-            String schedule = step.componentType() == FlowStepComponentType.SCHEDULED_TASK
-                ? entryPointSchedule(entryPoint)
-                : "\u2014";
-            String eventType = entryPointPayloadType(entryPoint);
             sb.append("| ").append(step.componentType())
-              .append(" | ").append(brokerType)
-              .append(" | ").append(topic)
-              .append(" | ").append(schedule)
-              .append(" | ").append(eventType)
-              .append(" | ").append(step.sourceFile() != null ? step.sourceFile() : "")
+              .append(" | ").append(brokerType);
+            if (hasTopicQueue) {
+                sb.append(" | ").append(step.componentType() == FlowStepComponentType.EVENT_PUBLISHER
+                    ? entryPointTopicOrQueue(entryPoint) : "\u2014");
+            }
+            if (hasSchedule) {
+                sb.append(" | ").append(step.componentType() == FlowStepComponentType.SCHEDULED_TASK
+                    ? entryPointSchedule(entryPoint) : "\u2014");
+            }
+            if (hasEventType) {
+                sb.append(" | ").append(payloadType);
+            }
+            sb.append(" | ").append(step.sourceFile() != null ? step.sourceFile() : "")
               .append(" |\n");
         }
 
         if (hasMessagingEntryPoint && eventSteps.stream().noneMatch(s -> s.componentType() == FlowStepComponentType.EVENT_PUBLISHER)) {
-            String topic = entryPointTopicOrQueue(entryPoint);
             String sourceFile = !flow.steps().isEmpty() ? flow.steps().getFirst().sourceFile() : "";
-            String eventType = entryPointPayloadType(entryPoint);
             sb.append("| SERVICE")
-              .append(" | ").append(brokerType)
-              .append(" | ").append(topic)
-              .append(" | \u2014")
-              .append(" | ").append(eventType)
-              .append(" | ").append(sourceFile != null ? sourceFile : "")
+              .append(" | ").append(brokerType);
+            if (hasTopicQueue) {
+                sb.append(" | ").append(entryPointTopicOrQueue(entryPoint));
+            }
+            if (hasSchedule) {
+                sb.append(" | \u2014");
+            }
+            if (hasEventType) {
+                sb.append(" | ").append(payloadType);
+            }
+            sb.append(" | ").append(sourceFile != null ? sourceFile : "")
               .append(" |\n");
         }
 

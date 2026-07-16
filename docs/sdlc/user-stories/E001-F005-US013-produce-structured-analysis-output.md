@@ -10,8 +10,8 @@
 ### Acceptance Criteria
 
 - [ ] All findings (components, endpoints, listeners, validators, scheduled tasks) are included in a single structured index
-- [ ] The output file uses a standard format (JSON)
-- [ ] The output is written to a configurable location (default: `code-graph-index.json`)
+- [ ] Findings are stored as typed JSON blobs in SQLite
+- [ ] All findings are persisted to the SQLite `execution_findings`, `topic_links`, and `floating_links` tables
 - [ ] If the output path is unwritable, the CLI exits with a clear error message
 
 ### INVEST Flags

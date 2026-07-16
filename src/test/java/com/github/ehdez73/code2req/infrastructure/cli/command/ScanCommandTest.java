@@ -15,8 +15,6 @@ import com.github.ehdez73.code2req.indexing.domain.service.ExcludeFilter;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestLoader;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestValidator;
 import com.github.ehdez73.code2req.indexing.domain.service.SecretRedactor;
-import com.github.ehdez73.code2req.indexing.adapter.output.JsonIndexWriter;
-import com.github.ehdez73.code2req.indexing.application.port.output.IndexWriter;
 import com.github.ehdez73.code2req.enrichment.domain.service.OrphanRecovery;
 import com.github.ehdez73.code2req.indexing.IndexingOrchestrator;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.template.TemplateAnalyzer;
@@ -51,7 +49,6 @@ class ScanCommandTest {
     private JavaAstAnalyzer astAnalyzer;
     private TaskStore taskStore;
     private TaskIdHasher taskIdHasher;
-    private IndexWriter indexWriter;
     private OrphanRecovery orphanRecovery;
     private ScanCommand command;
     private TopicLinkResolver topicLinkResolver;
@@ -91,7 +88,6 @@ class ScanCommandTest {
         );
         astAnalyzer = new JavaAstAnalyzer(visitors);
 
-        indexWriter = new JsonIndexWriter(new com.github.ehdez73.code2req.common.domain.OutputConfig(tempDir.toString(), "code-graph-index.json", null, null));
         var txManager = new DataSourceTransactionManager(ds);
         var txTemplate = new TransactionTemplate(txManager);
         var executionFindingStore = new ExecutionFindingStore(jdbc);
@@ -116,7 +112,7 @@ class ScanCommandTest {
 
         command = new ScanCommand(
             manifestLoader, manifestValidator, excludeFilter, pipeline,
-            taskStore, taskIdHasher, indexWriter, orphanRecovery,
+            taskStore, taskIdHasher, orphanRecovery,
             templateAnalyzer, templateLinkResolver, executionFindingStore,
             webXmlAnalyzer, xmlBeanAnalyzer);
     }
@@ -150,10 +146,8 @@ import org.springframework.web.bind.annotation.RestController;
         assertTrue(result.contains("Phase 1/5 — Manifest: OK"), "Expected manifest phase OK");
         assertTrue(result.contains("Phase 3/5 — File Discovery"), "Expected file discovery phase");
         assertTrue(result.contains("Phase 4/5 — Analysis"), "Expected analysis phase");
-        assertTrue(result.contains("Phase 5/5 — Index Output"), "Expected index output phase");
 
         assertTrue(taskStore.count() > 0, "Expected tasks in store");
-        assertTrue(Files.exists(tempDir.resolve("code-graph-index.json")), "Expected index file");
     }
 
     @Test

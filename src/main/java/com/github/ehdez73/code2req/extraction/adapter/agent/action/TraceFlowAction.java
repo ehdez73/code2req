@@ -18,6 +18,7 @@ import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStatus;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStep;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
+import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,6 +76,11 @@ public class TraceFlowAction {
         for (XmlScheduledTaskInfo xst : knowledge.structuralGraph().xmlScheduledTasks()) {
             lookup.putIfAbsent(xst.filePath(), FlowStepComponentType.SCHEDULED_TASK);
             lookup.putIfAbsent(xst.className(), FlowStepComponentType.SCHEDULED_TASK);
+        }
+
+        for (ScheduledEntryPoint sep : knowledge.structuralGraph().resolvedXmlScheduledTasks()) {
+            lookup.putIfAbsent(sep.filePath(), FlowStepComponentType.SCHEDULED_TASK);
+            lookup.putIfAbsent(sep.className(), FlowStepComponentType.SCHEDULED_TASK);
         }
 
         for (XmlJmsListenerInfo xjl : knowledge.structuralGraph().xmlJmsListeners()) {

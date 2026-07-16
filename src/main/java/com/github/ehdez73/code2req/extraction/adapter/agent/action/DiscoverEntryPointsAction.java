@@ -82,7 +82,7 @@ public class DiscoverEntryPointsAction {
             case ScheduledEntryPoint s -> new ScheduledEntryPoint(
                 s.id(), s.className(), s.methodName(), s.filePath(),
                 score, trivial, s.schedule(),
-                s.startLine(), s.endLine()
+                s.startLine(), s.endLine(), s.configFilePath()
             );
             case KafkaEntryPoint k -> new KafkaEntryPoint(
                 k.id(), k.className(), k.methodName(), k.filePath(),

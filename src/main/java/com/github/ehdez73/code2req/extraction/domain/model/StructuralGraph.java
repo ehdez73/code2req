@@ -101,6 +101,7 @@ public class StructuralGraph {
     public List<EventListenerInfo> eventListeners() { return eventListeners; }
     public List<XmlScheduledTaskInfo> xmlScheduledTasks() { return xmlScheduledTasks; }
     public List<XmlJmsListenerInfo> xmlJmsListeners() { return xmlJmsListeners; }
+    public List<ScheduledEntryPoint> resolvedXmlScheduledTasks() { return resolvedXmlScheduledTasks; }
 
     public List<String> getFlowCandidates() {
         return callGraphEdges.stream()
@@ -224,8 +225,8 @@ public class StructuralGraph {
             methods.add(new MethodIdentifier(el.className(), el.methodName(), el.filePath()));
         }
 
-        for (XmlScheduledTaskInfo xst : xmlScheduledTasks) {
-            methods.add(new MethodIdentifier(xst.className(), xst.method(), xst.filePath()));
+        for (ScheduledEntryPoint sep : resolvedXmlScheduledTasks) {
+            methods.add(new MethodIdentifier(sep.className(), sep.methodName(), sep.filePath()));
         }
 
         for (XmlJmsListenerInfo xjl : xmlJmsListeners) {
