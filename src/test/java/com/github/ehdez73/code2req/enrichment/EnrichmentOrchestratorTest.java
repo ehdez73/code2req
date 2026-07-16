@@ -25,6 +25,7 @@ import com.github.ehdez73.code2req.enrichment.domain.planner.rule.StoredProcedur
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedFloatingLinkRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedSignaturesRule;
+import com.github.ehdez73.code2req.enrichment.domain.service.BeanDefinitionResolver;
 import com.github.ehdez73.code2req.infrastructure.file.FilePathResolver;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.FloatingLinkStore;
@@ -109,8 +110,9 @@ class EnrichmentOrchestratorTest {
         var filePathResolver = new FilePathResolver();
         var per = new PairedExecutionResolver(
             new TestFileMatcher(indexingConfig));
+        var beanDefinitionResolver = new BeanDefinitionResolver(findingStore);
         return new EnrichmentOrchestrator(planner, executor, taskStore, metricsStore, indexingConfig, taskIdHasher, budgetCalculator,
-            manifestLoader, filePathResolver, per);
+            manifestLoader, filePathResolver, per, findingStore, beanDefinitionResolver);
     }
 
     private void insertTask(String taskId, String filePath) {
@@ -211,10 +213,11 @@ class EnrichmentOrchestratorTest {
                 enrichmentConfig, null, txTemplate);
             var per = new PairedExecutionResolver(
                 new TestFileMatcher(indexingConfig));
+            var beanDefResolver = new BeanDefinitionResolver(findingStore);
             var orchestratorWithDeps = new EnrichmentOrchestrator(planner, executor, taskStore, metricsStore,
                 indexingConfig,
                 taskIdHasher, budgetCalculator, new ManifestLoader(),
-                new FilePathResolver(), per);
+                new FilePathResolver(), per, findingStore, beanDefResolver);
 
             CompletionStatus status = orchestratorWithDeps.execute(manifestPath.toString(), true);
 
@@ -248,9 +251,10 @@ class EnrichmentOrchestratorTest {
                 enrichmentConfig, null, txTemplate);
             var per = new PairedExecutionResolver(
                 new TestFileMatcher(indexingConfig));
+            var beanDefResolver = new BeanDefinitionResolver(findingStore);
             var orchestratorWithDeps = new EnrichmentOrchestrator(planner, executor, taskStore,
                 metricsStore, indexingConfig, taskIdHasher, budgetCalculator,
-                new ManifestLoader(), new FilePathResolver(), per);
+                new ManifestLoader(), new FilePathResolver(), per, findingStore, beanDefResolver);
 
             CompletionStatus status = orchestratorWithDeps.execute(manifestPath.toString(), true);
 

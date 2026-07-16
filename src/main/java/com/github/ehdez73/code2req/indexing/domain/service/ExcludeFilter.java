@@ -45,7 +45,15 @@ public class ExcludeFilter {
         return applyFilter(targetRoot, files, DEFAULT_PATTERNS);
     }
 
-    public boolean shouldExclude(Path targetRoot, Path file, List<String> patterns) {
+    public boolean shouldExclude(Path targetRoot, Path file, List<String> extraPatterns) {
+        List<String> allPatterns = new ArrayList<>(DEFAULT_PATTERNS);
+        if (extraPatterns != null) {
+            allPatterns.addAll(extraPatterns);
+        }
+        return matchesAny(targetRoot, file, allPatterns);
+    }
+
+    private boolean matchesAny(Path targetRoot, Path file, List<String> patterns) {
         Path relative = targetRoot.toAbsolutePath().normalize().relativize(file.toAbsolutePath().normalize());
         for (String pattern : patterns) {
             String normalized = normalizeGlob(pattern);
@@ -70,7 +78,7 @@ public class ExcludeFilter {
         Path root = targetRoot.toAbsolutePath().normalize();
 
         for (Path file : files) {
-            if (shouldExclude(root, file, patterns)) {
+            if (matchesAny(root, file, patterns)) {
                 excluded.add(file);
             } else {
                 included.add(file);

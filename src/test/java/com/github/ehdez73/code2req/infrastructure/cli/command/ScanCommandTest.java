@@ -9,6 +9,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.Endpoin
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.detector.SpringEndpointDetector;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLinkResolver;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkResolver;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlBeanAnalyzer;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.WebXmlAnalyzer;
 import com.github.ehdez73.code2req.indexing.domain.service.ExcludeFilter;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestLoader;
@@ -111,11 +112,13 @@ class ScanCommandTest {
         var templateLinkResolver = new TemplateLinkResolver();
         var webXmlAnalyzer = new WebXmlAnalyzer();
 
+        var xmlBeanAnalyzer = new XmlBeanAnalyzer();
+
         command = new ScanCommand(
             manifestLoader, manifestValidator, excludeFilter, pipeline,
             taskStore, taskIdHasher, indexWriter, orphanRecovery,
             templateAnalyzer, templateLinkResolver, executionFindingStore,
-            webXmlAnalyzer);
+            webXmlAnalyzer, xmlBeanAnalyzer);
     }
 
     @Test
@@ -124,7 +127,8 @@ class ScanCommandTest {
         Path javaFile = src.resolve("App.java");
         Files.writeString(javaFile, """
             package com.app;
-            import org.springframework.web.bind.annotation.RestController;
+            import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlBeanAnalyzer;
+import org.springframework.web.bind.annotation.RestController;
             import org.springframework.web.bind.annotation.GetMapping;
             @RestController
             public class App {

@@ -89,8 +89,10 @@ public class AnalyzeFlowAction {
 
         Optional<FlowAnalysisResponse> cached = loadCachedAnalysis(flowKey);
         if (cached.isPresent()) {
-            log.info("Reusing cached flow analysis for {} ({})", flowKey, ep.filePath());
+            log.info("Reusing cached flow analysis for {}", flowKey);
             return buildFunctionalFlow(flow, complexity, cached.get());
+        } else {
+            log.info("Analyzing flow {}", flowKey);
         }
 
         var epData = collectEntryPointData(ep);

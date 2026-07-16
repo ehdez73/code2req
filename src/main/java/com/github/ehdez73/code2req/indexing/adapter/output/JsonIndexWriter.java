@@ -28,7 +28,9 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.validator.ValidatorI
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlAopConfigInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlBeanInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlComponentScanInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlJmsListenerInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlNamespaceBeanInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlScheduledTaskInfo;
 import com.github.ehdez73.code2req.common.domain.OutputConfig;
 import com.github.ehdez73.code2req.common.domain.ProjectManifest;
 import com.github.ehdez73.code2req.common.domain.ScanTarget;
@@ -69,6 +71,8 @@ public class JsonIndexWriter implements IndexWriter {
         FINDING_KEYS.put(XmlComponentScanInfo.class, "xml_component_scans");
         FINDING_KEYS.put(XmlAopConfigInfo.class, "xml_aop_configs");
         FINDING_KEYS.put(XmlNamespaceBeanInfo.class, "xml_namespace_beans");
+        FINDING_KEYS.put(XmlScheduledTaskInfo.class, "xml_scheduled_tasks");
+        FINDING_KEYS.put(XmlJmsListenerInfo.class, "xml_jms_listeners");
         FINDING_KEYS.put(CallGraphEdge.class, "call_graph_edges");
         FINDING_KEYS.put(OutboundHttpCallInfo.class, "outbound_http_calls");
     }

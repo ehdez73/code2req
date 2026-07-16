@@ -108,8 +108,7 @@ public class AsyncConfig implements AsyncConfigurer {
 
 Return `CompletableFuture<Result>` from `@Async` methods. Use `CompletableFuture.allOf(...)` for phase barrier synchronization.
 
-## Spring AI (Future — Phase 2)
-
+## Spring AI 
 Dependencies for OpenAI + Anthropic are in `pom.xml`. Spring AI BOM is imported. Client beans are auto-configured when credentials are present (not needed for Phase 1).
 
 ## Testing
@@ -148,3 +147,4 @@ class ScanCommandTest {
 - **`-Djline.terminal=jline.UnixTerminal`** — required for Spring Shell on macOS/Linux. Set in `pom.xml` `<jvmArguments>`.
 - **No `@Transactional`** — SQLite has limited transaction support via JDBC. Use manual transaction management with `DataSourceUtils` or simple `jdbc.update()` calls.
 - **Single-file failures never block full scan** — wrap per-file processing in try/catch, log warning, continue.
+

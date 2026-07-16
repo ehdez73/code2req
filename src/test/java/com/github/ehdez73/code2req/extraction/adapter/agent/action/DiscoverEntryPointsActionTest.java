@@ -51,7 +51,7 @@ class DiscoverEntryPointsActionTest {
     void discoverReturnsScheduledTasks() {
         var scheduled = List.of(
             new ScheduledTaskInfo("processOrders", "OrderScheduler", "0 0 * * *", null, null, "cron", "/src/OrderScheduler.java"));
-        var graph = new StructuralGraph(List.of(), List.of(), List.of(), List.of(), scheduled, List.of(), List.of(), List.of(), List.of());
+        var graph = new StructuralGraph(List.of(), List.of(), List.of(), List.of(), scheduled, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
 
         var result = new DiscoverEntryPointsAction(knowledge).discover();
@@ -80,7 +80,7 @@ class DiscoverEntryPointsActionTest {
             new ScheduledTaskInfo("check", "HealthChecker", "0 * * * *", null, null, "cron", "/src/HealthChecker.java"),
             new ScheduledTaskInfo("report", "MetricsReporter", "0 * * * *", null, null, "cron", "/src/MetricsReporter.java"),
             new ScheduledTaskInfo("process", "OrderScheduler", "0 0 * * *", null, null, "cron", "/src/OrderScheduler.java"));
-        var graph = new StructuralGraph(List.of(), List.of(), List.of(), List.of(), scheduled, List.of(), List.of(), List.of(), List.of());
+        var graph = new StructuralGraph(List.of(), List.of(), List.of(), List.of(), scheduled, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
 
         var result = new DiscoverEntryPointsAction(knowledge).discover();
@@ -117,7 +117,7 @@ class DiscoverEntryPointsActionTest {
         var scheduled = List.of(
             new ScheduledTaskInfo("run", "ActiveScheduler", "0 * * * *", null, null, "cron", "/src/ActiveScheduler.java"),
             new ScheduledTaskInfo("report", "MetricsReporter", "0 * * * *", null, null, "cron", "/src/MetricsReporter.java"));
-        var graph = new StructuralGraph(List.of(), List.of(), List.of(), List.of(), scheduled, List.of(), List.of(), List.of(), List.of());
+        var graph = new StructuralGraph(List.of(), List.of(), List.of(), List.of(), scheduled, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
 
         var result = new DiscoverEntryPointsAction(knowledge).discover();
@@ -131,7 +131,7 @@ class DiscoverEntryPointsActionTest {
             CallGraphEdge.resolved("Scheduler", "run", "/src/Scheduler.java", "OrderService", "process", "/src/OrderService.java", 1));
         var scheduled = List.of(
             new ScheduledTaskInfo("run", "Scheduler", "0 * * * *", null, null, "cron", "/src/Scheduler.java"));
-        var graph = new StructuralGraph(edges, List.of(), List.of(), List.of(), scheduled, List.of(), List.of(), List.of(), List.of());
+        var graph = new StructuralGraph(edges, List.of(), List.of(), List.of(), scheduled, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
 
         var result = new DiscoverEntryPointsAction(knowledge).discover();

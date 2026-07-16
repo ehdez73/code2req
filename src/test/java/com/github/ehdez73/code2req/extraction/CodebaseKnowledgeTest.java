@@ -135,7 +135,7 @@ class CodebaseKnowledgeTest {
                 new EndpointInfo("GET", "/api", "Ctrl", "", List.of(), List.of(), "/src/Ctrl.java", false, null, List.of())),
             List.of(), List.of(),
             List.of(new ScheduledTaskInfo("run", "Task", "0 * * * *", null, null, "cron", "/src/Task.java")),
-            List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
 
         var entryPoints = knowledge.getEntryPoints();
@@ -150,7 +150,7 @@ class CodebaseKnowledgeTest {
         var graph = new StructuralGraph(
             List.of(), List.of(), List.of(), List.of(),
             List.of(new ScheduledTaskInfo("run", "Task", "0 * * * *", null, null, "cron", "/src/Task.java")),
-            List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
 
         var methods = knowledge.getAllKnownMethods();

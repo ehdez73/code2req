@@ -5,6 +5,9 @@ import com.github.ehdez73.code2req.common.domain.ProjectManifest;
 import com.github.ehdez73.code2req.common.domain.ScanTarget;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.ContextBudgetCalculator;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.LlmEnrichmentService;
 import com.github.ehdez73.code2req.enrichment.adapter.llm.testmining.PairedExecutionResolver;
@@ -14,11 +17,13 @@ import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.enrichment.domain.model.PlannerDecision;
 import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
+import com.github.ehdez73.code2req.enrichment.domain.service.BeanDefinitionResolver;
 import com.github.ehdez73.code2req.enrichment.domain.service.BranchState;
 import com.github.ehdez73.code2req.enrichment.domain.service.EnrichmentDag;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestLoader;
 import com.github.ehdez73.code2req.infrastructure.file.FilePathResolver;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
+import com.github.ehdez73.code2req.infrastructure.persistence.FindingType;
 import com.github.ehdez73.code2req.infrastructure.persistence.MetricsStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.TaskIdHasher;
 import com.github.ehdez73.code2req.infrastructure.persistence.TaskStore;
@@ -32,8 +37,11 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -54,12 +62,17 @@ public class EnrichmentOrchestrator {
     private final ManifestLoader manifestLoader;
     private final FilePathResolver filePathResolver;
     private final PairedExecutionResolver pairedExecutionResolver;
+    private final ExecutionFindingStore executionFindingStore;
+    private final BeanDefinitionResolver beanDefinitionResolver;
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public EnrichmentOrchestrator(EnrichmentPlanner planner, LlmEnrichmentService executor,
                                   TaskStore taskStore, MetricsStore metricsStore, IndexingConfig indexingConfig,
                                   TaskIdHasher taskIdHasher, ContextBudgetCalculator budgetCalculator,
                                   ManifestLoader manifestLoader, FilePathResolver filePathResolver,
-                                  PairedExecutionResolver per) {
+                                  PairedExecutionResolver per,
+                                  ExecutionFindingStore executionFindingStore,
+                                  BeanDefinitionResolver beanDefinitionResolver) {
         this.planner = planner;
         this.semanticExecutor = executor;
         this.taskStore = taskStore;
@@ -70,6 +83,8 @@ public class EnrichmentOrchestrator {
         this.manifestLoader = manifestLoader;
         this.filePathResolver = filePathResolver;
         this.pairedExecutionResolver = per;
+        this.executionFindingStore = executionFindingStore;
+        this.beanDefinitionResolver = beanDefinitionResolver;
     }
 
     public CompletionStatus execute(String manifestPath, boolean dryRun) {
@@ -194,6 +209,9 @@ public class EnrichmentOrchestrator {
             }
 
             String sourceContent = readFileContent(resolvedPath);
+            if ("xml".equals(task.contentType())) {
+                sourceContent = buildXmlEnrichmentContent(task.taskId(), resolvedPath, targets);
+            }
             taskStore.updateStatus(task.taskId(), TaskStatus.ENRICHING);
 
             String testContent = resolveTestContent(resolvedPath, decision);
@@ -377,6 +395,141 @@ public class EnrichmentOrchestrator {
         return resolveTestInfo(sourceFilePath, decision)
             .map(PairedTestInfo::testContent)
             .orElse(null);
+    }
+
+    private String buildXmlEnrichmentContent(String taskId, String xmlPath, Collection<ScanTarget> targets) {
+        var findings = executionFindingStore.findByTaskId(taskId);
+        Map<String, String> beanRegistry = beanDefinitionResolver.buildRegistry();
+
+        StringBuilder summary = new StringBuilder();
+        summary.append("=== XML Configuration Findings ===\n\n");
+
+        for (var finding : findings) {
+            String findingType = (String) finding.get("finding_type");
+            String json = (String) finding.get("finding_json");
+            if (json == null || json.isBlank()) continue;
+
+            switch (findingType) {
+                case FindingType.XML_BEAN -> appendBeanSummary(summary, json);
+                case FindingType.XML_SCHEDULED_TASK -> appendScheduledTaskSummary(summary, json, beanRegistry);
+                case FindingType.XML_JMS_LISTENER -> appendJmsListenerSummary(summary, json, beanRegistry);
+                case FindingType.XML_COMPONENT_SCAN -> appendComponentScanSummary(summary, json);
+            }
+        }
+
+        Set<String> resolvedClasses = new HashSet<>();
+        StringBuilder javaSources = new StringBuilder();
+
+        for (var finding : findings) {
+            String findingType = (String) finding.get("finding_type");
+            String json = (String) finding.get("finding_json");
+            if (json == null || json.isBlank()) continue;
+
+            try {
+                JsonNode node = MAPPER.readTree(json);
+                String className = resolveClassName(findingType, node, beanRegistry);
+                if (className != null && !className.isEmpty() && resolvedClasses.add(className)) {
+                    String javaFile = resolveJavaSource(className, targets);
+                    if (javaFile != null) {
+                        javaSources.append("// File: ").append(javaFile).append("\n");
+                        javaSources.append(readFileContent(javaFile)).append("\n\n");
+                    }
+                }
+            } catch (JsonProcessingException e) {
+                log.warn("Failed to parse finding JSON for XML task {}: {}", taskId, e.getMessage());
+            }
+        }
+
+        String result = summary.toString();
+        if (!javaSources.isEmpty()) {
+            result += "\n=== Referenced Java Sources ===\n\n" + javaSources;
+        }
+        return result;
+    }
+
+    private static String resolveClassName(String findingType, JsonNode node, Map<String, String> beanRegistry) {
+        return switch (findingType) {
+            case FindingType.XML_BEAN -> {
+                String cn = node.has("className") ? node.get("className").asText() : null;
+                yield cn != null && !cn.isEmpty() ? cn : null;
+            }
+            case FindingType.XML_SCHEDULED_TASK -> {
+                String ref = node.has("ref") ? node.get("ref").asText() : null;
+                yield ref != null ? beanRegistry.get(ref) : null;
+            }
+            case FindingType.XML_JMS_LISTENER -> {
+                String ref = node.has("beanName") ? node.get("beanName").asText() : null;
+                yield ref != null ? beanRegistry.get(ref) : null;
+            }
+            default -> null;
+        };
+    }
+
+    private String resolveJavaSource(String className, Collection<ScanTarget> targets) {
+        Optional<Path> resolved = filePathResolver.resolve(className, targets);
+        if (resolved.isPresent() && Files.isRegularFile(resolved.get())) {
+            return resolved.get().toString();
+        }
+        return null;
+    }
+
+    private static void appendBeanSummary(StringBuilder sb, String json) {
+        try {
+            JsonNode node = MAPPER.readTree(json);
+            String beanId = node.has("beanId") ? node.get("beanId").asText() : "";
+            String className = node.has("className") ? node.get("className").asText() : "";
+            String scope = node.has("scope") ? node.get("scope").asText() : "singleton";
+            sb.append("  Bean: ").append(beanId);
+            if (!className.isEmpty()) sb.append(" (").append(className).append(")");
+            sb.append(" [").append(scope).append("]\n");
+        } catch (JsonProcessingException e) {
+            sb.append("  Bean: (parse error)\n");
+        }
+    }
+
+    private static void appendScheduledTaskSummary(StringBuilder sb, String json, Map<String, String> beanRegistry) {
+        try {
+            JsonNode node = MAPPER.readTree(json);
+            String ref = node.has("ref") ? node.get("ref").asText() : "";
+            String method = node.has("method") ? node.get("method").asText() : "";
+            String cron = node.has("cron") && !node.get("cron").isNull() ? node.get("cron").asText() : null;
+            Long fixedRate = node.has("fixedRate") && !node.get("fixedRate").isNull() ? node.get("fixedRate").asLong() : null;
+            Long fixedDelay = node.has("fixedDelay") && !node.get("fixedDelay").isNull() ? node.get("fixedDelay").asLong() : null;
+            String className = beanRegistry.get(ref);
+
+            sb.append("  Scheduled: ").append(className != null ? className : ref).append(".").append(method).append("()");
+            if (cron != null) sb.append(" [cron: ").append(cron).append("]");
+            if (fixedRate != null) sb.append(" [fixed-rate: ").append(fixedRate).append("ms]");
+            if (fixedDelay != null) sb.append(" [fixed-delay: ").append(fixedDelay).append("ms]");
+            sb.append("\n");
+        } catch (JsonProcessingException e) {
+            sb.append("  Scheduled: (parse error)\n");
+        }
+    }
+
+    private static void appendJmsListenerSummary(StringBuilder sb, String json, Map<String, String> beanRegistry) {
+        try {
+            JsonNode node = MAPPER.readTree(json);
+            String destination = node.has("destination") ? node.get("destination").asText() : "";
+            String ref = node.has("beanName") ? node.get("beanName").asText() : "";
+            String method = node.has("method") ? node.get("method").asText() : "";
+            String className = beanRegistry.get(ref);
+
+            sb.append("  JMS Listener: ").append(className != null ? className : ref).append(".").append(method).append("()");
+            sb.append(" [destination: ").append(destination).append("]\n");
+        } catch (JsonProcessingException e) {
+            sb.append("  JMS Listener: (parse error)\n");
+        }
+    }
+
+    private static void appendComponentScanSummary(StringBuilder sb, String json) {
+        try {
+            JsonNode node = MAPPER.readTree(json);
+            String basePackage = node.has("basePackage") ? node.get("basePackage").asText() : "";
+            sb.append("  Component Scan: ").append(basePackage).append("\n");
+        } catch (JsonProcessingException e) {
+            sb.append("  Component Scan: (parse error)\n");
+        }
     }
 
     private String readFileContent(String filePath) {

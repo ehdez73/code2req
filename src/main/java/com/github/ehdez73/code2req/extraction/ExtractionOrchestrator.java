@@ -6,8 +6,10 @@ import com.embabel.agent.core.ProcessOptions;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
+import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
+import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.QuarantineConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;
 import com.github.ehdez73.code2req.extraction.domain.model.StructuralGraph;
@@ -15,6 +17,9 @@ import com.github.ehdez73.code2req.common.domain.Metric;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlBeanInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlJmsListenerInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlScheduledTaskInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.broker.activemq.ActiveMqInfo;
@@ -269,9 +274,51 @@ public class ExtractionOrchestrator {
         List<EventListenerInfo> eventListeners = deserializeFindings(
             executionFindingStore.findAllByType(FindingType.EVENT_LISTENER),
             EventListenerInfo.class);
+        List<XmlScheduledTaskInfo> xmlScheduledTasks = deserializeFindings(
+            executionFindingStore.findAllByType(FindingType.XML_SCHEDULED_TASK),
+            XmlScheduledTaskInfo.class);
+        List<XmlJmsListenerInfo> xmlJmsListeners = deserializeFindings(
+            executionFindingStore.findAllByType(FindingType.XML_JMS_LISTENER),
+            XmlJmsListenerInfo.class);
+        List<XmlBeanInfo> xmlBeans = deserializeFindings(
+            executionFindingStore.findAllByType(FindingType.XML_BEAN),
+            XmlBeanInfo.class);
+
+        Map<String, String> beanRegistry = new HashMap<>();
+        for (XmlBeanInfo xb : xmlBeans) {
+            if (xb.beanId() != null && !xb.beanId().isEmpty()
+                && xb.className() != null && !xb.className().isEmpty()) {
+                beanRegistry.put(xb.beanId(), xb.className());
+            }
+        }
+
+        Map<String, ScheduledEntryPoint> resolvedScheduled = new HashMap<>();
+        for (XmlScheduledTaskInfo xst : xmlScheduledTasks) {
+            String schedule = xst.cron() != null ? xst.cron()
+                : (xst.fixedRate() != null ? "fixedRate=" + xst.fixedRate()
+                : "fixedDelay=" + xst.fixedDelay());
+            String resolvedClassName = beanRegistry.getOrDefault(xst.className(), xst.className());
+            String filePath = xst.filePath();
+            String id = filePath + ":" + resolvedClassName + ":" + xst.method() + " " + schedule;
+            resolvedScheduled.put(id, new ScheduledEntryPoint(
+                id, resolvedClassName, xst.method(), filePath,
+                0.0, false, schedule, 0, 0));
+        }
+
+        Map<String, ActiveMqEntryPoint> resolvedJms = new HashMap<>();
+        for (XmlJmsListenerInfo xjl : xmlJmsListeners) {
+            String resolvedClassName = beanRegistry.getOrDefault(xjl.beanName(), xjl.beanName());
+            String filePath = xjl.filePath();
+            String id = filePath + ":" + resolvedClassName + ":" + xjl.method() + " " + xjl.destination();
+            resolvedJms.put(id, new ActiveMqEntryPoint(
+                id, resolvedClassName, xjl.method(), filePath,
+                0.0, false, xjl.destination(), null));
+        }
+
         return new StructuralGraph(edges, endpoints, dbAccess, components,
             scheduledTasks, kafkaListeners, rabbitmqListeners,
-            activemqListeners, eventListeners);
+            activemqListeners, eventListeners, xmlScheduledTasks, xmlJmsListeners,
+            new ArrayList<>(resolvedScheduled.values()), new ArrayList<>(resolvedJms.values()));
     }
 
     private SemanticEnrichment buildSemanticEnrichment() {

@@ -93,7 +93,7 @@ class XmlBeanAnalyzerTest {
             .toList();
 
         assertEquals(1, aliases.size());
-        assertEquals("myService", aliases.getFirst().className());
+        assertEquals("myService", aliases.get(0).className());
     }
 
     @Test
@@ -136,7 +136,7 @@ class XmlBeanAnalyzerTest {
             .toList();
 
         assertEquals(1, scans.size());
-        assertEquals("com.example", scans.getFirst().basePackage());
+        assertEquals("com.example", scans.get(0).basePackage());
     }
 
     @Test
@@ -181,6 +181,94 @@ class XmlBeanAnalyzerTest {
         assertTrue(beans.stream().anyMatch(b -> "importingService".equals(b.beanId())));
         assertTrue(beans.stream().anyMatch(b -> "myService".equals(b.beanId())));
         assertTrue(beans.stream().anyMatch(b -> "myRepo".equals(b.beanId())));
+    }
+
+    @Test
+    void detectsBeansInNestedBeansElements() {
+        List<AnalysisFinding> findings = analyzer.analyze(resourcePath("nested-beans.xml"));
+
+        List<XmlBeanInfo> beans = findings.stream()
+            .filter(f -> f instanceof XmlBeanInfo)
+            .map(f -> (XmlBeanInfo) f)
+            .toList();
+
+        // 1 top-level bean + 1 in dev profile + 1 in prod profile = 3
+        assertEquals(3, beans.size());
+
+        assertTrue(beans.stream().anyMatch(b -> "primaryService".equals(b.beanId())));
+        assertTrue(beans.stream().anyMatch(b -> "dataSource".equals(b.beanId())));
+    }
+
+    @Test
+    void resolvesClasspathStarImport() {
+        List<AnalysisFinding> findings = analyzer.analyze(resourcePath("import-glob-beans.xml"));
+
+        List<XmlBeanInfo> beans = findings.stream()
+            .filter(f -> f instanceof XmlBeanInfo)
+            .map(f -> (XmlBeanInfo) f)
+            .toList();
+
+        // Should contain beans from simple-beans.xml via classpath*: import
+        assertTrue(beans.stream().anyMatch(b -> "myService".equals(b.beanId())));
+        assertTrue(beans.stream().anyMatch(b -> "myRepo".equals(b.beanId())));
+    }
+
+    @Test
+    void detectsScheduledTasksInTaskNamespace() {
+        List<AnalysisFinding> findings = analyzer.analyze(resourcePath("task-scheduled-beans.xml"));
+
+        List<XmlScheduledTaskInfo> tasks = findings.stream()
+            .filter(f -> f instanceof XmlScheduledTaskInfo)
+            .map(f -> (XmlScheduledTaskInfo) f)
+            .toList();
+
+        assertEquals(3, tasks.size());
+
+        XmlScheduledTaskInfo getName = tasks.stream().filter(t -> "getName".equals(t.method())).findFirst().orElseThrow();
+        assertEquals("nameService", getName.ref());
+        assertEquals(Long.valueOf(10000), getName.fixedRate());
+        assertEquals("fixed-rate", getName.taskType());
+        assertNull(getName.cron());
+
+        XmlScheduledTaskInfo generateReport = tasks.stream().filter(t -> "generateReport".equals(t.method())).findFirst().orElseThrow();
+        assertEquals("reportService", generateReport.ref());
+        assertEquals("0 0 * * * ?", generateReport.cron());
+        assertEquals("cron", generateReport.taskType());
+
+        XmlScheduledTaskInfo purgeOldData = tasks.stream().filter(t -> "purgeOldData".equals(t.method())).findFirst().orElseThrow();
+        assertEquals("cleanupService", purgeOldData.ref());
+        assertEquals(Long.valueOf(60000), purgeOldData.fixedDelay());
+        assertEquals("fixed-delay", purgeOldData.taskType());
+
+        // Namespace beans for <task:scheduler> and <task:executor> should still be detected
+        List<XmlNamespaceBeanInfo> nsBeans = findings.stream()
+            .filter(f -> f instanceof XmlNamespaceBeanInfo)
+            .map(f -> (XmlNamespaceBeanInfo) f)
+            .toList();
+        assertTrue(nsBeans.stream().anyMatch(b -> "taskScheduler".equals(b.beanId())));
+        assertTrue(nsBeans.stream().anyMatch(b -> "taskExecutor".equals(b.beanId())));
+    }
+
+    @Test
+    void detectsJmsListenersInJmsNamespace() {
+        List<AnalysisFinding> findings = analyzer.analyze(resourcePath("jms-listener-beans.xml"));
+
+        List<XmlJmsListenerInfo> listeners = findings.stream()
+            .filter(f -> f instanceof XmlJmsListenerInfo)
+            .map(f -> (XmlJmsListenerInfo) f)
+            .toList();
+
+        assertEquals(2, listeners.size());
+
+        XmlJmsListenerInfo order = listeners.stream().filter(l -> "onOrder".equals(l.method())).findFirst().orElseThrow();
+        assertEquals("queue.order", order.destination());
+        assertEquals("orderListener", order.beanName());
+        assertNull(order.responseDestination());
+
+        XmlJmsListenerInfo notification = listeners.stream().filter(l -> "onNotification".equals(l.method())).findFirst().orElseThrow();
+        assertEquals("queue.notification", notification.destination());
+        assertEquals("notificationListener", notification.beanName());
+        assertEquals("queue.response", notification.responseDestination());
     }
 
     @Test

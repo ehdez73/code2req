@@ -4,6 +4,8 @@ import com.github.ehdez73.code2req.common.util.LibraryTypeResolver;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.EntryPointDiscoveryResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlJmsListenerInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlScheduledTaskInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
@@ -68,6 +70,16 @@ public class TraceFlowAction {
         for (ScheduledTaskInfo st : knowledge.structuralGraph().scheduledTasks()) {
             lookup.putIfAbsent(st.filePath(), FlowStepComponentType.SCHEDULED_TASK);
             lookup.putIfAbsent(st.className(), FlowStepComponentType.SCHEDULED_TASK);
+        }
+
+        for (XmlScheduledTaskInfo xst : knowledge.structuralGraph().xmlScheduledTasks()) {
+            lookup.putIfAbsent(xst.filePath(), FlowStepComponentType.SCHEDULED_TASK);
+            lookup.putIfAbsent(xst.className(), FlowStepComponentType.SCHEDULED_TASK);
+        }
+
+        for (XmlJmsListenerInfo xjl : knowledge.structuralGraph().xmlJmsListeners()) {
+            lookup.putIfAbsent(xjl.filePath(), FlowStepComponentType.SCHEDULED_TASK);
+            lookup.putIfAbsent(xjl.beanName(), FlowStepComponentType.SCHEDULED_TASK);
         }
 
         for (ComponentInfo ci : knowledge.structuralGraph().components()) {

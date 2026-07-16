@@ -1,6 +1,8 @@
 package com.github.ehdez73.code2req.infrastructure.cli.command;
 
+import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisFinding;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisResult;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlBeanAnalyzer;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.template.TemplateAnalyzer;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.template.TemplateFormInfo;
@@ -35,8 +37,12 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @ShellComponent
@@ -56,6 +62,7 @@ public class ScanCommand {
     private final TemplateLinkResolver templateLinkResolver;
     private final ExecutionFindingStore executionFindingStore;
     private final WebXmlAnalyzer webXmlAnalyzer;
+    private final XmlBeanAnalyzer xmlBeanAnalyzer;
 
     public ScanCommand(
             ManifestLoader manifestLoader,
@@ -69,7 +76,8 @@ public class ScanCommand {
             TemplateAnalyzer templateAnalyzer,
             TemplateLinkResolver templateLinkResolver,
             ExecutionFindingStore executionFindingStore,
-            WebXmlAnalyzer webXmlAnalyzer) {
+            WebXmlAnalyzer webXmlAnalyzer,
+            XmlBeanAnalyzer xmlBeanAnalyzer) {
         this.manifestLoader = manifestLoader;
         this.manifestValidator = manifestValidator;
         this.excludeFilter = excludeFilter;
@@ -82,6 +90,7 @@ public class ScanCommand {
         this.templateLinkResolver = templateLinkResolver;
         this.executionFindingStore = executionFindingStore;
         this.webXmlAnalyzer = webXmlAnalyzer;
+        this.xmlBeanAnalyzer = xmlBeanAnalyzer;
     }
 
     @ShellMethod(key = "scan", value = "Runs the full Phase 1 scan pipeline: manifest, dependencies, analysis, redaction, and index output")
@@ -141,10 +150,18 @@ public class ScanCommand {
         }
 
         report.append("Phase 4c/5 — web.xml Endpoint Analysis:\n");
-        var webXmlResults = analyzeWebXmlFiles(manifest, report);
+        var webXmlResults = analyzeWebXmlFiles(manifest, report, resume);
         List<AnalysisResult> allResults = new ArrayList<>(pipelineResult.results());
         allResults.addAll(webXmlResults);
         report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(scanStart)));
+
+        report.append("Phase 4d/5 — Spring XML Config Analysis:\n");
+        var springXmlResults = analyzeSpringXmlFiles(manifest, report, resume);
+        allResults.addAll(springXmlResults);
+        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(scanStart)));
+
+        allResults = dedupResults(allResults);
+        allResults = dedupFindings(allResults);
 
         writeIndex(manifest, allResults, pipelineResult.topicLinks(), templateForms, templateLinks,
             pipelineResult.floatingLinks(), report);
@@ -274,10 +291,12 @@ public class ScanCommand {
         return batches;
     }
 
-    private List<AnalysisResult> analyzeWebXmlFiles(ProjectManifest manifest, StringBuilder report) {
+    private List<AnalysisResult> analyzeWebXmlFiles(ProjectManifest manifest, StringBuilder report, boolean resume) {
         List<AnalysisResult> results = new ArrayList<>();
-        int totalFiles = 0;
+        int totalFound = 0;
         int totalEndpoints = 0;
+        int skipped = 0;
+        int analyzed = 0;
 
         for (ScanTarget target : manifest.targets()) {
             Path targetPath = Path.of(target.path());
@@ -287,26 +306,126 @@ public class ScanCommand {
                 webXmlFiles = walk
                     .filter(p -> p.toString().endsWith("web.xml"))
                     .filter(Files::isRegularFile)
+                    .filter(p -> !excludeFilter.shouldExclude(targetPath, p, target.excludePatterns()))
                     .toList();
             } catch (IOException e) {
                 log.warn("Failed to walk target '{}' for web.xml: {}", target.name(), e.getMessage());
                 continue;
             }
 
+            totalFound += webXmlFiles.size();
             for (Path wf : webXmlFiles) {
+                if (resume && isAlreadyCompleted(wf, manifest.targets())) {
+                    skipped++;
+                    continue;
+                }
                 List<EndpointInfo> endpoints = webXmlAnalyzer.analyze(wf);
                 if (!endpoints.isEmpty()) {
-                    results.add(new AnalysisResult(wf.toString(),
-                        new java.util.ArrayList<>(endpoints)));
+                    var result = new AnalysisResult(wf.toString(),
+                        new java.util.ArrayList<>(endpoints));
+                    results.add(result);
                     totalEndpoints += endpoints.size();
+                    persistAnalysisResult(wf, result, target);
                 }
+                analyzed++;
             }
-            totalFiles += webXmlFiles.size();
         }
 
-        report.append(String.format("  %d web.xml file(s) found, %d endpoint(s) extracted%n",
-            totalFiles, totalEndpoints));
+        report.append(String.format("  %d web.xml file(s) found, %d analyzed, %d endpoint(s) extracted",
+            totalFound, analyzed, totalEndpoints));
+        if (skipped > 0) {
+            report.append(String.format(", %d skipped", skipped));
+        }
+        report.append("\n");
         return results;
+    }
+
+    private List<AnalysisResult> analyzeSpringXmlFiles(ProjectManifest manifest, StringBuilder report, boolean resume) {
+        List<AnalysisResult> results = new ArrayList<>();
+        int totalFound = 0;
+        int totalFindings = 0;
+        int skipped = 0;
+        int analyzed = 0;
+
+        for (ScanTarget target : manifest.targets()) {
+            Path targetPath = Path.of(target.path());
+            if (!Files.isDirectory(targetPath)) continue;
+
+            List<Path> xmlFiles;
+            try (Stream<Path> walk = Files.walk(targetPath)) {
+                xmlFiles = walk
+                    .filter(p -> p.toString().endsWith(".xml"))
+                    .filter(Files::isRegularFile)
+                    .filter(p -> !excludeFilter.shouldExclude(targetPath, p, target.excludePatterns()))
+                    .filter(XmlBeanAnalyzer::isSpringXmlConfig)
+                    .toList();
+            } catch (IOException e) {
+                log.warn("Failed to walk target '{}' for Spring XML config: {}", target.name(), e.getMessage());
+                continue;
+            }
+
+            totalFound += xmlFiles.size();
+            for (Path xf : xmlFiles) {
+                if (resume && isAlreadyCompleted(xf, manifest.targets())) {
+                    skipped++;
+                    continue;
+                }
+                List<AnalysisFinding> findings = xmlBeanAnalyzer.analyze(xf);
+                if (!findings.isEmpty()) {
+                    var result = new AnalysisResult(xf.toString(), new ArrayList<>(findings));
+                    results.add(result);
+                    totalFindings += findings.size();
+                    persistAnalysisResult(xf, result, target);
+                }
+                analyzed++;
+            }
+        }
+
+        report.append(String.format("  %d Spring XML config file(s) found, %d analyzed, %d finding(s)",
+            totalFound, analyzed, totalFindings));
+        if (skipped > 0) {
+            report.append(String.format(", %d skipped", skipped));
+        }
+        report.append("\n");
+        return results;
+    }
+
+    private void persistAnalysisResult(Path file, AnalysisResult result, ScanTarget target) {
+        try {
+            String content = Files.readString(file, StandardCharsets.UTF_8);
+            String contentHash = sha256Hex(content);
+            String taskId = taskIdHasher.hash(file.toAbsolutePath().normalize().toString(), contentHash, target.name());
+            taskStore.save(new Task(taskId, file.toAbsolutePath().normalize().toString(),
+                TaskStatus.INDEXED, "xml", contentHash, target.name()));
+            executionFindingStore.deleteByTaskId(taskId);
+            for (var entry : FindingType.FINDING_TYPE_MAP.entrySet()) {
+                var findings = result.findings(entry.getKey());
+                if (!findings.isEmpty()) {
+                    executionFindingStore.saveAllForTask(taskId, findings, entry.getValue());
+                }
+            }
+        } catch (IOException e) {
+            log.warn("Failed to persist findings for {}: {}", file, e.getMessage());
+        }
+    }
+
+    private static List<AnalysisResult> dedupResults(List<AnalysisResult> results) {
+        return results.stream()
+            .collect(Collectors.toMap(AnalysisResult::filePath, r -> r, (a, b) -> a))
+            .values().stream()
+            .toList();
+    }
+
+    private static List<AnalysisResult> dedupFindings(List<AnalysisResult> results) {
+        Set<AnalysisFinding> seen = new HashSet<>();
+        return results.stream()
+            .map(r -> {
+                var unique = r.findings().stream()
+                    .filter(seen::add)
+                    .toList();
+                return new AnalysisResult(r.filePath(), unique);
+            })
+            .toList();
     }
 
     private List<Path> flattenBatches(List<JavaFileBatch> batches) {

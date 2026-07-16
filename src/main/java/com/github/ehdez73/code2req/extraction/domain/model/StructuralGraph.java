@@ -1,6 +1,8 @@
 package com.github.ehdez73.code2req.extraction.domain.model;
 
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlJmsListenerInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlScheduledTaskInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.broker.activemq.ActiveMqInfo;
@@ -27,6 +29,10 @@ public class StructuralGraph {
     private final List<RabbitMqInfo> rabbitmqListeners;
     private final List<ActiveMqInfo> activemqListeners;
     private final List<EventListenerInfo> eventListeners;
+    private final List<XmlScheduledTaskInfo> xmlScheduledTasks;
+    private final List<XmlJmsListenerInfo> xmlJmsListeners;
+    private final List<ScheduledEntryPoint> resolvedXmlScheduledTasks;
+    private final List<ActiveMqEntryPoint> resolvedXmlJmsListeners;
 
     public StructuralGraph() {
         this.callGraphEdges = new ArrayList<>();
@@ -38,6 +44,10 @@ public class StructuralGraph {
         this.rabbitmqListeners = new ArrayList<>();
         this.activemqListeners = new ArrayList<>();
         this.eventListeners = new ArrayList<>();
+        this.xmlScheduledTasks = new ArrayList<>();
+        this.xmlJmsListeners = new ArrayList<>();
+        this.resolvedXmlScheduledTasks = new ArrayList<>();
+        this.resolvedXmlJmsListeners = new ArrayList<>();
     }
 
     public StructuralGraph(
@@ -47,6 +57,7 @@ public class StructuralGraph {
             List<ComponentInfo> components) {
         this(callGraphEdges, endpoints, dbAccessPatterns, components,
             new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+            new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
             new ArrayList<>(), new ArrayList<>());
     }
 
@@ -59,7 +70,11 @@ public class StructuralGraph {
             List<KafkaInfo> kafkaListeners,
             List<RabbitMqInfo> rabbitmqListeners,
             List<ActiveMqInfo> activemqListeners,
-            List<EventListenerInfo> eventListeners) {
+            List<EventListenerInfo> eventListeners,
+            List<XmlScheduledTaskInfo> xmlScheduledTasks,
+            List<XmlJmsListenerInfo> xmlJmsListeners,
+            List<ScheduledEntryPoint> resolvedXmlScheduledTasks,
+            List<ActiveMqEntryPoint> resolvedXmlJmsListeners) {
         this.callGraphEdges = Collections.unmodifiableList(callGraphEdges);
         this.endpoints = Collections.unmodifiableList(endpoints);
         this.dbAccessPatterns = Collections.unmodifiableList(dbAccessPatterns);
@@ -69,6 +84,10 @@ public class StructuralGraph {
         this.rabbitmqListeners = Collections.unmodifiableList(rabbitmqListeners);
         this.activemqListeners = Collections.unmodifiableList(activemqListeners);
         this.eventListeners = Collections.unmodifiableList(eventListeners);
+        this.xmlScheduledTasks = Collections.unmodifiableList(xmlScheduledTasks);
+        this.xmlJmsListeners = Collections.unmodifiableList(xmlJmsListeners);
+        this.resolvedXmlScheduledTasks = Collections.unmodifiableList(resolvedXmlScheduledTasks);
+        this.resolvedXmlJmsListeners = Collections.unmodifiableList(resolvedXmlJmsListeners);
     }
 
     public List<CallGraphEdge> callGraphEdges() { return callGraphEdges; }
@@ -80,6 +99,8 @@ public class StructuralGraph {
     public List<RabbitMqInfo> rabbitmqListeners() { return rabbitmqListeners; }
     public List<ActiveMqInfo> activemqListeners() { return activemqListeners; }
     public List<EventListenerInfo> eventListeners() { return eventListeners; }
+    public List<XmlScheduledTaskInfo> xmlScheduledTasks() { return xmlScheduledTasks; }
+    public List<XmlJmsListenerInfo> xmlJmsListeners() { return xmlJmsListeners; }
 
     public List<String> getFlowCandidates() {
         return callGraphEdges.stream()
@@ -174,6 +195,9 @@ public class StructuralGraph {
             ));
         }
 
+        entryPoints.addAll(resolvedXmlScheduledTasks);
+        entryPoints.addAll(resolvedXmlJmsListeners);
+
         return entryPoints;
     }
 
@@ -198,6 +222,14 @@ public class StructuralGraph {
 
         for (EventListenerInfo el : eventListeners) {
             methods.add(new MethodIdentifier(el.className(), el.methodName(), el.filePath()));
+        }
+
+        for (XmlScheduledTaskInfo xst : xmlScheduledTasks) {
+            methods.add(new MethodIdentifier(xst.className(), xst.method(), xst.filePath()));
+        }
+
+        for (XmlJmsListenerInfo xjl : xmlJmsListeners) {
+            methods.add(new MethodIdentifier(xjl.beanName(), xjl.method(), xjl.filePath()));
         }
 
         return methods;

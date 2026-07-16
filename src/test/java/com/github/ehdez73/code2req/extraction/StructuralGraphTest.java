@@ -84,7 +84,7 @@ class StructuralGraphTest {
             new EventListenerInfo("AppEvent", "onEvent", "K", "/src/K.java", List.of()));
 
         var graph = new StructuralGraph(edges, endpoints, dbAccess, components,
-            scheduled, kafka, rabbit, activeMq, events);
+            scheduled, kafka, rabbit, activeMq, events, List.of(), List.of(), List.of(), List.of());
 
         assertEquals(1, graph.callGraphEdges().size());
         assertEquals(1, graph.endpoints().size());
@@ -200,7 +200,8 @@ class StructuralGraphTest {
             List.of(new KafkaInfo("events", "onEvent", "Listener", "/src/Listener.java", false, "")),
             List.of(new RabbitMqInfo("alerts", "handleAlert", "AlertListener", "/src/AlertListener.java", "")),
             List.of(new ActiveMqInfo("queue.dlq", "onDlq", "DlqHandler", "/src/DlqHandler.java", "")),
-            List.of(new EventListenerInfo("MyEvent", "onMyEvent", "EventHandler", "/src/EventHandler.java", List.of())));
+            List.of(new EventListenerInfo("MyEvent", "onMyEvent", "EventHandler", "/src/EventHandler.java", List.of())),
+            List.of(), List.of(), List.of(), List.of());
 
         var entryPoints = graph.getEntryPoints();
 
@@ -220,7 +221,7 @@ class StructuralGraphTest {
                 new EndpointInfo("POST", "/api/orders", "Ctrl", "", List.of(), List.of(), "/src/Ctrl.java", false, null, List.of())),
             List.of(), List.of(),
             List.of(new ScheduledTaskInfo("run", "Task", null, 5000L, null, "fixedRate", "/src/Task.java")),
-            List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
 
         var entryPoints = graph.getEntryPoints();
 
@@ -242,7 +243,8 @@ class StructuralGraphTest {
             List.of(new KafkaInfo("topic", "consume", "Task2", "/src/Task2.java", false, "")),
             List.of(new RabbitMqInfo("queue", "receive", "Task3", "/src/Task3.java", "")),
             List.of(new ActiveMqInfo("dest", "onMsg", "Task4", "/src/Task4.java", "")),
-            List.of(new EventListenerInfo("Event", "handle", "Task5", "/src/Task5.java", List.of())));
+            List.of(new EventListenerInfo("Event", "handle", "Task5", "/src/Task5.java", List.of())),
+            List.of(), List.of(), List.of(), List.of());
 
         var methods = graph.getAllKnownMethods();
 
@@ -305,7 +307,7 @@ class StructuralGraphTest {
                 new EndpointInfo("GET", "/api", "C", "", List.of(), List.of(), "/src/C.java", false, null, List.of())),
             List.of(), List.of(),
             List.of(new ScheduledTaskInfo("run", "S", "0 * * * *", null, null, "cron", "/src/S.java")),
-            List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         var enrichment = new SemanticEnrichment(Map.of());
         var testMapping = Map.of("/src/C.java", "/src/CTest.java");
 

@@ -21,6 +21,7 @@ import com.github.ehdez73.code2req.enrichment.domain.planner.rule.StoredProcedur
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedFloatingLinkRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedSignaturesRule;
+import com.github.ehdez73.code2req.enrichment.domain.service.BeanDefinitionResolver;
 import com.github.ehdez73.code2req.infrastructure.file.FilePathResolver;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.FloatingLinkStore;
@@ -89,9 +90,10 @@ class EnrichCommandTest {
             enrichmentConfig, null, txTemplate);
         var per = new PairedExecutionResolver(
             new TestFileMatcher(indexingConfig));
+        var beanDefinitionResolver = new BeanDefinitionResolver(findingStore);
         var orchestrator = new EnrichmentOrchestrator(planner, executor, taskStore,
             metricsStore, indexingConfig, taskIdHasher, budgetCalculator,
-            new ManifestLoader(), new FilePathResolver(), per);
+            new ManifestLoader(), new FilePathResolver(), per, findingStore, beanDefinitionResolver);
 
         var manifestLoader = new ManifestLoader();
         var manifestValidator = new ManifestValidator(manifestLoader);

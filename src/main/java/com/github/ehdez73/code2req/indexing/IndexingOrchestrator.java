@@ -69,28 +69,7 @@ public class IndexingOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(IndexingOrchestrator.class);
 
-    private static final Map<Class<? extends AnalysisFinding>, String> FINDING_TYPE_MAP = Map.ofEntries(
-        Map.entry(ComponentInfo.class, FindingType.COMPONENT),
-        Map.entry(com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo.class, FindingType.ENDPOINT),
-        Map.entry(ScheduledTaskInfo.class, FindingType.SCHEDULED_TASK),
-        Map.entry(EventListenerInfo.class, FindingType.EVENT_LISTENER),
-        Map.entry(EventPublisherInfo.class, FindingType.EVENT_PUBLISHER),
-        Map.entry(ValidatorInfo.class, FindingType.VALIDATOR),
-        Map.entry(KafkaInfo.class, FindingType.KAFKA_LISTENER),
-        Map.entry(KafkaPublisherInfo.class, FindingType.KAFKA_PUBLISHER),
-        Map.entry(BeanMethodInfo.class, FindingType.BEAN_METHOD),
-        Map.entry(RabbitMqInfo.class, FindingType.RABBITMQ_LISTENER),
-        Map.entry(RabbitMqPublisherInfo.class, FindingType.RABBITMQ_PUBLISHER),
-        Map.entry(ActiveMqInfo.class, FindingType.ACTIVEMQ_LISTENER),
-        Map.entry(ActiveMqPublisherInfo.class, FindingType.ACTIVEMQ_PUBLISHER),
-        Map.entry(XmlBeanInfo.class, FindingType.XML_BEAN),
-        Map.entry(DbAccessInfo.class, FindingType.DB_ACCESS),
-        Map.entry(XmlComponentScanInfo.class, FindingType.XML_COMPONENT_SCAN),
-        Map.entry(XmlAopConfigInfo.class, FindingType.XML_AOP_CONFIG),
-        Map.entry(XmlNamespaceBeanInfo.class, FindingType.XML_NAMESPACE_BEAN),
-        Map.entry(CallGraphEdge.class, FindingType.CALL_GRAPH_EDGE),
-        Map.entry(OutboundHttpCallInfo.class, FindingType.OUTBOUND_HTTP_CALL)
-    );
+    private static final Map<Class<? extends AnalysisFinding>, String> FINDING_TYPE_MAP = FindingType.FINDING_TYPE_MAP;
 
     private final Pass1DeclarationCollector pass1Collector;
     private final TestImportIndex testImportIndex;
@@ -146,7 +125,8 @@ public class IndexingOrchestrator {
             log.info("Pass 2: analyzing {}", file.toAbsolutePath().normalize());
             configureParserForFile(file, targets);
             String targetName = targetNameForFile(file, targets);
-            var result = analyzeSingleFile(file, registry, targetName);
+            String sourceRoot = targetPathForFile(file, targets);
+            var result = analyzeSingleFile(file, registry, targetName, sourceRoot);
             if (result == null) {
                 pass2Failed++;
             } else {
@@ -214,16 +194,25 @@ public class IndexingOrchestrator {
     }
 
     private static String targetNameForFile(Path file, List<ScanTarget> targets) {
+        return targetForFile(file, targets, ScanTarget::name);
+    }
+
+    private static String targetPathForFile(Path file, List<ScanTarget> targets) {
+        return targetForFile(file, targets, ScanTarget::path);
+    }
+
+    private static <T> T targetForFile(Path file, List<ScanTarget> targets,
+                                        java.util.function.Function<ScanTarget, T> extractor) {
         if (targets == null || targets.isEmpty()) {
-            return "";
+            return null;
         }
         Path normalized = file.toAbsolutePath().normalize();
         for (ScanTarget target : targets) {
             if (normalized.startsWith(Path.of(target.path()).normalize())) {
-                return target.name();
+                return extractor.apply(target);
             }
         }
-        return "";
+        return null;
     }
 
     private int runPass1(List<Path> files, List<ScanTarget> targets, GlobalDeclarationRegistry registry, StringBuilder report) {
@@ -246,7 +235,8 @@ public class IndexingOrchestrator {
         return failed;
     }
 
-    private AnalysisResult analyzeSingleFile(Path file, GlobalDeclarationRegistry registry, String targetName) {
+    private AnalysisResult analyzeSingleFile(Path file, GlobalDeclarationRegistry registry,
+                                              String targetName, String sourceRoot) {
         String fp = file.toAbsolutePath().normalize().toString();
         String content;
         try {
@@ -258,7 +248,7 @@ public class IndexingOrchestrator {
         }
 
         String redactedContent = secretRedactor.redact(content);
-        AnalysisContext context = new AnalysisContext(fp, "", registry);
+        AnalysisContext context = new AnalysisContext(fp, sourceRoot != null ? sourceRoot : "", registry);
         AnalysisResult result = astAnalyzer.analyze(fp, redactedContent, context);
 
         String contentHash = sha256Hex(content);

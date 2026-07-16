@@ -14,7 +14,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -25,6 +24,8 @@ public class XmlBeanAnalyzer {
 
     private static final Logger log = LoggerFactory.getLogger(XmlBeanAnalyzer.class);
     private static final String BEANS_NAMESPACE = "http://www.springframework.org/schema/beans";
+    private static final String TASK_NS = "http://www.springframework.org/schema/task";
+    private static final String JMS_NS = "http://www.springframework.org/schema/jms";
 
     public List<AnalysisFinding> analyze(Path filePath) {
         Set<Path> visited = new HashSet<>();
@@ -33,7 +34,18 @@ public class XmlBeanAnalyzer {
         return findings;
     }
 
+    public List<AnalysisFinding> analyze(Path filePath, Path sourceRoot) {
+        Set<Path> visited = new HashSet<>();
+        List<AnalysisFinding> findings = new ArrayList<>();
+        collectFindings(filePath, sourceRoot, visited, findings);
+        return findings;
+    }
+
     private void collectFindings(Path filePath, Set<Path> visited, List<AnalysisFinding> findings) {
+        collectFindings(filePath, null, visited, findings);
+    }
+
+    private void collectFindings(Path filePath, Path sourceRoot, Set<Path> visited, List<AnalysisFinding> findings) {
         Path normalized = filePath.toAbsolutePath().normalize();
         if (!visited.add(normalized)) {
             return;
@@ -58,28 +70,39 @@ public class XmlBeanAnalyzer {
             }
 
             Path parentDir = normalized.getParent();
-            NodeList children = root.getChildNodes();
-            for (int i = 0; i < children.getLength(); i++) {
-                Node child = children.item(i);
-                if (child.getNodeType() != Node.ELEMENT_NODE) {
-                    continue;
-                }
-                Element el = (Element) child;
-                String ns = el.getNamespaceURI();
-                String localName = el.getLocalName();
-
-                if (BEANS_NAMESPACE.equals(ns) && "bean".equals(localName)) {
-                    findings.add(parseBeanElement(el, normalized));
-                } else if (BEANS_NAMESPACE.equals(ns) && "import".equals(localName)) {
-                    resolveImport(el, parentDir, visited, findings);
-                } else if (BEANS_NAMESPACE.equals(ns) && "alias".equals(localName)) {
-                    findings.add(parseAliasElement(el, normalized));
-                } else if (SpringXmlNamespaceRegistry.isKnownNamespace(ns)) {
-                    findings.add(parseNamespaceElement(el, ns, localName, normalized));
-                }
-            }
+            processChildElements(root.getChildNodes(), normalized, parentDir, sourceRoot, visited, findings);
         } catch (Exception e) {
             log.warn("Failed to parse XML {}: {}", normalized, e.getMessage());
+        }
+    }
+
+    private void processChildElements(NodeList children, Path currentFile, Path parentDir, Path sourceRoot,
+                                       Set<Path> visited, List<AnalysisFinding> findings) {
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+            Element el = (Element) child;
+            String ns = el.getNamespaceURI();
+            String localName = el.getLocalName();
+
+            if (BEANS_NAMESPACE.equals(ns) && "bean".equals(localName)) {
+                findings.add(parseBeanElement(el, currentFile));
+            } else if (BEANS_NAMESPACE.equals(ns) && "import".equals(localName)) {
+                resolveImport(el, parentDir, sourceRoot, visited, findings);
+            } else if (BEANS_NAMESPACE.equals(ns) && "alias".equals(localName)) {
+                findings.add(parseAliasElement(el, currentFile));
+            } else if (BEANS_NAMESPACE.equals(ns) && "beans".equals(localName)) {
+                processChildElements(el.getChildNodes(), currentFile, parentDir, sourceRoot, visited, findings);
+            } else if (TASK_NS.equals(ns) && "scheduled".equals(localName)) {
+                findings.add(parseTaskScheduled(el, currentFile));
+            } else if (JMS_NS.equals(ns) && "listener".equals(localName)) {
+                findings.add(parseJmsListener(el, currentFile));
+            } else if (SpringXmlNamespaceRegistry.isKnownNamespace(ns)) {
+                findings.add(parseNamespaceElement(el, ns, localName, currentFile));
+                processChildElements(el.getChildNodes(), currentFile, parentDir, sourceRoot, visited, findings);
+            }
         }
     }
 
@@ -100,13 +123,13 @@ public class XmlBeanAnalyzer {
         if (factoryMethod.isEmpty()) {
             factoryMethod = null;
         }
-        return new XmlBeanInfo(id, clazz, scope, factoryMethod, filePath.toString(), el.getUserData("lineNumber") != null ? (int) el.getUserData("lineNumber") : 0);
+        return new XmlBeanInfo(id, clazz, scope, factoryMethod, filePath != null ? filePath.toString() : "", el.getUserData("lineNumber") != null ? (int) el.getUserData("lineNumber") : 0);
     }
 
     private XmlBeanInfo parseAliasElement(Element el, Path filePath) {
         String alias = el.getAttribute("alias");
         String name = el.getAttribute("name");
-        return new XmlBeanInfo(alias, name, null, null, filePath.toString(), 0);
+        return new XmlBeanInfo(alias, name, null, null, filePath != null ? filePath.toString() : "", 0);
     }
 
     private AnalysisFinding parseNamespaceElement(Element el, String ns, String localName, Path filePath) {
@@ -118,29 +141,52 @@ public class XmlBeanAnalyzer {
 
         if (SpringXmlNamespaceRegistry.isComponentScanNamespace(ns) && "component-scan".equals(localName)) {
             String basePackage = el.getAttribute("base-package");
-            return new XmlComponentScanInfo(basePackage.isEmpty() ? el.getTextContent() : basePackage, filePath.toString());
+            return new XmlComponentScanInfo(basePackage.isEmpty() ? el.getTextContent() : basePackage, filePath != null ? filePath.toString() : "");
         }
 
         if (SpringXmlNamespaceRegistry.isAopOrTxNamespace(ns)) {
-            return new XmlAopConfigInfo(ns + ":" + localName, filePath.toString(), 0);
+            return new XmlAopConfigInfo(ns + ":" + localName, filePath != null ? filePath.toString() : "", 0);
         }
 
-        return new XmlNamespaceBeanInfo(id, ns, localName, resolvedType, filePath.toString(), 0);
+        return new XmlNamespaceBeanInfo(id, ns, localName, resolvedType, filePath != null ? filePath.toString() : "", 0);
     }
 
-    private void resolveImport(Element el, Path parentDir, Set<Path> visited, List<AnalysisFinding> findings) {
+    private XmlScheduledTaskInfo parseTaskScheduled(Element el, Path currentFile) {
+        String ref = el.getAttribute("ref");
+        String method = el.getAttribute("method");
+        String cron = el.getAttribute("cron");
+        String fixedRateStr = el.getAttribute("fixed-rate");
+        String fixedDelayStr = el.getAttribute("fixed-delay");
+        Long fixedRate = fixedRateStr.isEmpty() ? null : Long.parseLong(fixedRateStr);
+        Long fixedDelay = fixedDelayStr.isEmpty() ? null : Long.parseLong(fixedDelayStr);
+        String taskType = !cron.isEmpty() ? "cron" : fixedRate != null ? "fixed-rate" : fixedDelay != null ? "fixed-delay" : "unknown";
+        return new XmlScheduledTaskInfo(ref, method,
+            cron.isEmpty() ? null : cron,
+            fixedRate, fixedDelay, taskType,
+            currentFile != null ? currentFile.toString() : "", 0);
+    }
+
+    private XmlJmsListenerInfo parseJmsListener(Element el, Path currentFile) {
+        String destination = el.getAttribute("destination");
+        String ref = el.getAttribute("ref");
+        String method = el.getAttribute("method");
+        String responseDestination = el.getAttribute("response-destination");
+        return new XmlJmsListenerInfo(destination, ref, method,
+            responseDestination.isEmpty() ? null : responseDestination,
+            currentFile != null ? currentFile.toString() : "", 0);
+    }
+
+    private void resolveImport(Element el, Path parentDir, Path sourceRoot,
+                                Set<Path> visited, List<AnalysisFinding> findings) {
         String resource = el.getAttribute("resource");
         if (resource.isEmpty()) {
             return;
         }
 
-        String resolvedPath = resource;
-        if (resolvedPath.startsWith("classpath:")) {
-            resolvedPath = resolvedPath.substring("classpath:".length());
+        List<Path> resolvedPaths = ResourcePathResolver.resolve(resource, sourceRoot, parentDir);
+        for (Path resolved : resolvedPaths) {
+            collectFindings(resolved, sourceRoot, visited, findings);
         }
-
-        Path imported = parentDir.resolve(resolvedPath).normalize();
-        collectFindings(imported, visited, findings);
     }
 
     public static boolean isSpringXmlConfig(Path filePath) {

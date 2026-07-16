@@ -26,6 +26,8 @@ mvn spring-boot:run        # run interactive shell
 
 ## Canonical References for Coding
 
+You **must** always follow SOLID and clean code principles
+
 Before writing code, consult these sources for tech stack decisions and rationale:
 
 - **`docs/sdlc/tech-stack.md`** — maps every technology (Java 21, Spring Boot 3.4.x, JavaParser, SQLite, etc.) to its version, purpose, and governing ADR. Use this to verify library choices and version alignment.
