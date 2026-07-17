@@ -62,6 +62,7 @@ Regardless of build-system state, JavaParser runs as the authoritative engine to
 The indexer leverages a dedicated `VoidVisitorAdapter<Context>` traversal strategy to capture four structural dimensions:
 
 * **Component Identification & Types:** Detect classes, interfaces, and records. Identify stereotypes by inspecting class-level annotations (e.g., `@RestController`, `@Service`, `@Component`, `@Repository`).
+* **Bean Method Detection (Pass 2):** Detect `@Bean`-annotated methods in `@Configuration` and `@SpringBootApplication` classes. Extract the explicit bean name (from `@Bean("name")`, `@Bean(name="name")`, or `@Bean(value="name")`) or fall back to the method name for implicit declarations. Capture the declared return type, enclosing configuration class name, and source file path. Interfaces, abstract classes, and non-`@Configuration` classes are skipped. Results are stored as `BEAN_METHOD` findings and consumed by Phase 2's `BeanDefinitionResolver` for inter-bean reference resolution.
 * **Inbound Ingress Points (HTTP/Events/Scheduled):**
 * *REST Endpoints (Pass 2):* Map methods annotated with `@RequestMapping`, `@PostMapping`, `@GetMapping`, etc. Extract literal path strings and HTTP verbs. Implemented via `SpringEndpointDetector` (`@Component` implementing `EndpointDetector` SPI).
 * *Servlet Endpoints (Pass 2):* Map `HttpServlet` subclasses (both `javax.servlet.http.HttpServlet` and `jakarta.servlet.http.HttpServlet`). Detect `doGet`/`doPost`/`doPut`/`doDelete`/`doPatch`/`doHead`/`doTrace`/`doOptions` method names and map to HTTP verbs. Extract URL patterns from `@WebServlet` annotation (`javax.servlet.annotation.WebServlet` and `jakarta.servlet.annotation.WebServlet`). Validate method signature includes `HttpServletRequest` and `HttpServletResponse` parameters. Implemented via `ServletEndpointDetector` (`@Component` implementing `EndpointDetector` SPI). Adding a new endpoint framework (e.g., JAX-RS) requires only a new `@Component EndpointDetector` class — zero changes to the delegating `EndpointVisitor`.
@@ -139,6 +140,17 @@ The indexer leverages a dedicated `VoidVisitorAdapter<Context>` traversal strate
   * After template parsing, form action URLs are matched against known controller `EndpointInfo` paths.
   * Exact literal matches are linked with confidence 1.0; path-parameterized matches (e.g., `/owners/{ownerId}` ↔ form action `/owners/5`) at confidence 0.8.
   * Matched pairs are registered as `template_endpoint_links` in the index output, enabling end-to-end frontend-to-backend traceability.
+
+* **Spring XML Configuration Analysis (Post-Pass):**
+  * After Java AST analysis completes, `**/*.xml` files are discovered and DOM-parsed to identify Spring XML configuration content (root namespace `http://www.springframework.org/schema/beans`).
+  * **Bean Declarations:** `<bean id="..." class="..." scope="..." factory-method="...">` elements are extracted, capturing id/class/scope/factory-method. `<alias name="..." alias="...">` mappings are recorded.
+  * **Namespace Elements:** Elements in known Spring namespaces (util, jdbc, task, cache, tx, aop, context, lang, jee, jms, mvc, oxm) are resolved to their Java types where applicable via a namespace registry.
+  * **Component Scan:** `<context:component-scan base-package="...">` base packages are captured.
+  * **AOP/TX/Cache Configuration:** `<aop:config>`, `<tx:*>`, and `<cache:*>` elements are flagged as infrastructure configuration.
+  * **Scheduled Tasks:** `<task:scheduled ref="..." method="..." cron="..." fixed-rate="..." fixed-delay="...">` elements are extracted with task type classification (cron/fixed-rate/fixed-delay).
+  * **JMS Listeners:** `<jms:listener destination="..." ref="..." method="..." response-destination="...">` elements are captured.
+  * **Import Resolution:** `<import resource="...">` references are followed recursively with cycle detection via a visited-set. `classpath:`, `classpath*:`, `file:` prefixes and glob patterns are resolved by the resource path resolver.
+  * **@ImportResource Bridge:** Java classes annotated with `@ImportResource` trigger XML analysis of the referenced Spring config files, with findings attributed to the Java source file's analysis result.
 
 #### 2.1.3 SQLite as the Canonical Index Store
 

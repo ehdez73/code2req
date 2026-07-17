@@ -811,6 +811,47 @@
       "user_stories": [
         { "id": "US057", "title": "Interactive mode for agent-user clarification", "priority": "should", "type": "story", "gherkin_file": "features/E004-F028-interactive-mode.feature" }
       ]
+    },
+    {
+      "id": "F029",
+      "epic_id": "E001",
+      "name": "Spring XML Configuration Analysis",
+      "description": "DOM-based parsing of Spring XML configuration files to extract bean declarations, component scans, AOP config, JMS listeners, scheduled tasks, namespace beans, and alias definitions. Supports <import> recursion, @ImportResource Java annotation bridge, and classpath/file-style resource resolution with glob patterns.",
+      "background": "Scan target directories discovered and .xml files filtered via XmlBeanAnalyzer.isSpringXmlConfig().",
+      "business_rules": [
+        "Only Spring XML files (root namespace http://www.springframework.org/schema/beans) are analyzed — non-Spring XML is silently skipped",
+        "<bean> elements are parsed for id, class, scope, and factory-method; <alias> mappings capture name-to-target pairs",
+        "Elements in 13 known Spring namespaces are resolved to Java types via a namespace registry",
+        "Infrastructure config is flagged: <aop:config>, <tx:*>, <cache:*> as AOP/TX config; <context:component-scan> for base packages",
+        "Scheduled tasks from <task:scheduled> and JMS listeners from <jms:listener> are extracted with all attributes",
+        "<import> chains are followed recursively with cycle detection via a visited-set",
+        "classpath:/classpath*:/file: resource prefixes and glob patterns supported via ResourcePathResolver",
+        "@ImportResource on Java classes bridges to XML analysis, attributing XML findings to the Java file's result"
+      ],
+      "user_stories": [
+        { "id": "US065", "title": "Developer discovers Spring XML bean declarations", "priority": "must", "type": "story", "gherkin_file": "features/E001-F029-spring-xml-configuration-analysis.feature" },
+        { "id": "US066", "title": "Developer discovers scheduled tasks and JMS listeners from XML", "priority": "should", "type": "story", "gherkin_file": "features/E001-F029-spring-xml-configuration-analysis.feature" },
+        { "id": "US067", "title": "Developer traces Spring XML configuration across imports", "priority": "should", "type": "story", "gherkin_file": "features/E001-F029-spring-xml-configuration-analysis.feature" }
+      ]
+    },
+    {
+      "id": "F030",
+      "epic_id": "E001",
+      "name": "@Bean Method Detection (Java Configuration)",
+      "description": "Detects @Bean-annotated methods in @Configuration and @SpringBootApplication classes, capturing explicit or implicit bean names, return types, declaring class, and source file path.",
+      "background": "Java source files analyzed in Pass 2 by JavaAstAnalyzer.",
+      "business_rules": [
+        "@Bean methods in @Configuration and @SpringBootApplication classes are detected",
+        "Explicit bean names from @Bean(\"name\"), @Bean(name=\"name\"), and @Bean(value=\"name\") are extracted",
+        "First name from array form @Bean(name={\"a\",\"b\"}) is used as the primary bean name",
+        "Implicit bean names fall back to the method name",
+        "Interfaces and abstract classes are skipped",
+        "Classes without @Configuration or @SpringBootApplication are skipped",
+        "Return type, configuration class name, and file path are preserved in the finding"
+      ],
+      "user_stories": [
+        { "id": "US068", "title": "Developer discovers @Bean methods in configuration classes", "priority": "must", "type": "story", "gherkin_file": "features/E001-F030-bean-method-detection.feature" }
+      ]
     }
   ],
   "stories": [],
@@ -888,7 +929,9 @@
       "features/E005-F025-snapshot-restore.feature",
       "features/E004-F026-review-command.feature",
       "features/E004-F027-domain-model-output-writers.feature",
-      "features/E004-F028-interactive-mode.feature"
+      "features/E004-F028-interactive-mode.feature",
+      "features/E001-F029-spring-xml-configuration-analysis.feature",
+      "features/E001-F030-bean-method-detection.feature"
     ]
   }
 }

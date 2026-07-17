@@ -1,15 +1,15 @@
 # Gap Analysis Report — code2req
 
-**Date:** 2026-07-16
-**Scope:** PRD v5.6, User Stories (59), Gherkin Features (27), ADRs (6), Source Code (162 main sources + 16 tests)
+**Date:** 2026-07-17
+**Scope:** PRD v5.6, User Stories (63), Gherkin Features (29), ADRs (6), Source Code (162 main sources + 16 tests)
 
 ---
 
 ## 1. Executive Summary
 
-### Overall Alignment Assessment: MODERATE (B-)
+### Overall Alignment Assessment: MODERATE (B)
 
-The code2req project exhibits strong traceability between documentation and implementation for the **Phase 1 (Indexing) and Phase 4 (Generation)** domains. However, **Phase 2 (Enrichment) has notable implementation gaps**, **Phase 3 (Extraction) has deferred features** documented but not built, and the entire **E002 (Language Extension Framework) epic is fully documented but has zero implementation**. Additionally, significant implementation exists (XML bean analysis, `@Bean` method detection) with zero documentation coverage.
+The code2req project exhibits strong traceability between documentation and implementation for the **Phase 1 (Indexing) and Phase 4 (Generation)** domains. However, **Phase 2 (Enrichment) has notable implementation gaps**, **Phase 3 (Extraction) has deferred features** documented but not built, and the entire **E002 (Language Extension Framework) epic is fully documented but has zero implementation**.
 
 ### Major Risks
 
@@ -18,29 +18,28 @@ The code2req project exhibits strong traceability between documentation and impl
 | **E002 completely unimplemented** (8 documented items) | Misalignment between documented capabilities and actual product — 5 user stories, 3 feature files describe a feature that doesn't exist |
 | **Phase 3 Interactive Mode unimplemented** | US057 interactive user prompts for agent ambiguity resolution are documented but deferred — currently headless-only |
 | **Review Command unimplemented** | US055 describes a CLI command to inspect/resolve `AWAITING_HUMAN_REVIEW` tasks — no code exists |
-| **XML Bean Analysis undocumented** | 66 code references, 5 model records, 1 full analyzer, 1 test file — zero documentation coverage |
-| **`@Bean` Method Detection undocumented** | `BeanMethodVisitor`, `BeanMethodInfo`, 1 full test — zero documentation coverage |
+| ~~**XML Bean Analysis undocumented**~~ | ~~66 code references, 5 model records, 1 full analyzer, 1 test file — zero documentation coverage~~ |
+| ~~**`@Bean` Method Detection undocumented**~~ | ~~`BeanMethodVisitor`, `BeanMethodInfo`, 1 full test — zero documentation coverage~~ |
 
 ### Areas with Highest Divergence
 
-1. **Undocumented Implementation**: XML bean parsing (`XmlBeanAnalyzer`) and `@Bean` method detection have extensive code with no corresponding user stories, features, or PRD sections.
+1. ~~**Undocumented Implementation**: XML bean parsing (`XmlBeanAnalyzer`) and `@Bean` method detection have extensive code with no corresponding user stories, features, or PRD sections.~~
 2. **Documented but Unimplemented**: E002 (Multi-Language) entire epic — 5 user stories, 3 feature files, zero code.
 3. **Documented but Unimplemented (Deferred)**: Interactive mode (`InteractiveUserInteractionService`), Review command.
 
 ### Documentation Quality Assessment
 
 - **PRD**: High quality — detailed, versioned, covers architecture comprehensively. Outdated w.r.t. ADR-006 (still refers to 3-phase pipeline, while code has 4-phase with `generate`).
-- **User Stories**: Good coverage — 59 stories spanning all epics. Some story titles in the file header mismatch the file name (e.g., `US064` story header reads `US056`).
+- **User Stories**: Good coverage — 63 stories spanning all epics. Some story titles in the file header mismatch the file name (e.g., `US064` story header reads `US056`).
 - **Gherkin Features**: Good coverage — 27 features covering all epics. All `@draft` tagged — none are marked `@final`.
 - **ADRs**: Excellent — 6 records covering key decisions. ADR-006 is the most recent and accurately reflects the extract/generate split.
 
-### Traceability Maturity Assessment: B
+### Traceability Maturity Assessment: B+
 
-- All 27 features cross-reference their user stories correctly.
-- All 59 user stories are linked to features.
+- All 29 features cross-reference their user stories correctly.
+- All 63 user stories are linked to features.
 - ADRs reference related stories.
 - PRD references are implicit (no formal trace IDs in PRD).
-- Major gap: no traceability from code to documentation for XML bean analysis and `@Bean` method detection.
 
 ---
 
@@ -83,8 +82,8 @@ The code2req project exhibits strong traceability between documentation and impl
 | Domain model + output writers | §2, §6 | US056 | F027 | ADR-006 | 17 manifest model records + `SynthesizeSpecAction` | Correctly Implemented |
 | Interactive mode | — | US057 | F028 | — | **No `InteractiveUserInteractionService` code** | Documented but Not Implemented |
 | Multi-language parser SPI | §2 (future) | US018-022 | F007-009 | — | **No `LanguageParser` interface or registry** | Documented but Not Implemented |
-| XML bean analysis | — | **None** | **None** | — | `XmlBeanAnalyzer`, `ImportResourceVisitor`, 6 model records, test | Implemented but Not Documented |
-| `@Bean` method detection | — | **None** | **None** | — | `BeanMethodVisitor`, `BeanMethodInfo`, test | Implemented but Not Documented |
+| XML bean analysis | §2.1.2 | US065-067 | F029 | — | `XmlBeanAnalyzer`, `ImportResourceVisitor`, 6 model records, test | Correctly Implemented |
+| `@Bean` method detection | §2.1.2 | US068 | F030 | — | `BeanMethodVisitor`, `BeanMethodInfo`, test | Correctly Implemented |
 
 ---
 
@@ -136,7 +135,7 @@ All 6 ADRs reference specific user stories or functional requirements. No orphan
 
 | Location | Issue |
 |---|---|
-| All feature files | All 27 features tagged `@draft` — none are marked `@final`. Unclear which are considered complete/stable. |
+| All feature files | All 29 features tagged `@draft` — none are marked `@final`. Unclear which are considered complete/stable. |
 | PRD | Refers to extract/generate as Phase 3 but pipeline diagram shows only 3 phases — conflicts with ADR-006's 4-phase model. |
 | US048 | Acceptance criteria list is empty in the user story — `Test Suite Mining` has no defined acceptance criteria in the story file (only in the feature file). |
 
@@ -146,19 +145,19 @@ All 6 ADRs reference specific user stories or functional requirements. No orphan
 
 ### 4.1 Implemented but Not Documented
 
-#### 4.1.1 XML Bean Analysis (`XmlBeanAnalyzer`)
+~~#### 4.1.1 XML Bean Analysis (`XmlBeanAnalyzer`)
 - **Code**: `src/main/java/.../indexing/domain/analyzer/bean/xml/` — 10 files
 - **Test**: `XmlBeanAnalyzerTest.java`
 - **Description**: Parses Spring XML configuration files (`applicationContext.xml`, etc.) to extract bean declarations, component scans, AOP config, JMS listeners, scheduled tasks, namespace beans, and alias definitions.
 - **Missing from**: PRD, User Stories, Features, ADRs
-- **Risk**: Medium — this is nontrivial functionality (6 finding types, full `ImportResourceVisitor` integration) that is invisible to anyone reading the product documentation.
+- **Risk**: Medium — this is nontrivial functionality (6 finding types, full `ImportResourceVisitor` integration) that is invisible to anyone reading the product documentation.~~
 
-#### 4.1.2 `@Bean` Method Detection (`BeanMethodVisitor`)
+~~#### 4.1.2 `@Bean` Method Detection (`BeanMethodVisitor`)
 - **Code**: `src/main/java/.../indexing/domain/analyzer/bean/java/BeanMethodVisitor.java`, `BeanMethodInfo.java`
 - **Test**: `BeanMethodVisitorTest.java`
 - **Description**: Detects `@Bean`-annotated methods in `@Configuration` classes, capturing bean name (explicit or implicit), return type, declaring class, and source file.
 - **Missing from**: PRD, User Stories, Features, ADRs
-- **Risk**: Low-Medium — useful capability for Spring configuration discovery, entirely undocumented.
+- **Risk**: Low-Medium — useful capability for Spring configuration discovery, entirely undocumented.~~
 
 #### 4.1.3 Other Undocumented Code
 
@@ -222,6 +221,8 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | F013 — Event Link Resolution | Aligned | US033 | Complete | Aligned, Correctly Implemented |
 | F014 — Structured Trace | Aligned | US034-035 | Complete | Aligned, Correctly Implemented |
 | F015 — Template Form Detection | Aligned | US037-040, 062 | Complete | Aligned, Correctly Implemented |
+| F029 — Spring XML Configuration Analysis | §2.1.2 | US065-067 | Complete | Aligned, Correctly Implemented |
+| F030 — @Bean Method Detection | §2.1.2 | US068 | Complete | Aligned, Correctly Implemented |
 | F007 — Parser Abstraction SPI | Not in PRD | US018-019 | **Not implemented** | Documented but Not Implemented |
 | F008 — Parser Discovery | Not in PRD | US020-021 | **Not implemented** | Documented but Not Implemented |
 | F009 — Shared Pipeline Integration | Not in PRD | US022 | **Not implemented** | Documented but Not Implemented |
@@ -259,6 +260,8 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | US033 (Event Links) | Aligned | F013 | Complete | Correctly Implemented |
 | US034-035 (Trace) | Aligned | F014 | Complete | Correctly Implemented |
 | US037-040, US062 (Views & Templates) | Aligned | F015 | Complete | Correctly Implemented |
+| US065-067 (XML Bean Analysis) | §2.1.2 | F029 | Complete | Correctly Implemented |
+| US068 (@Bean Method Detection) | §2.1.2 | F030 | Complete | Correctly Implemented |
 | US018-022 (E002 Multi-Language) | Not in PRD | F007-009 | **Not implemented** | Documented but Not Implemented |
 | US041-042, US064 (Planner) | Aligned | F016 | Complete | Correctly Implemented |
 | US043-044, US063 (Executor) | Aligned | F017 | Complete | Correctly Implemented |
@@ -294,9 +297,9 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | Gap Type | Count | Details |
 |---|---|---|
 | Requirements without user stories | 2 | `JavaVersionMapper` LanguageLevel mapping, `@Query` nativeQuery flag |
-| User stories without features | 0 | All 59 stories link to a feature |
+| User stories without features | 0 | All 63 stories link to a feature |
 | Features without implementation | 3 | F007 (Parser SPI), F008 (Discovery), F009 (Integration) — all E002 |
-| Code with no documented origin | 2 | XML Bean Analysis (`XmlBeanAnalyzer`), `@Bean` method detection (`BeanMethodVisitor`) |
+| Code with no documented origin | 0 | ~~XML Bean Analysis (`XmlBeanAnalyzer`), `@Bean` method detection (`BeanMethodVisitor`)~~ |
 | ADRs with no implementation evidence | 0 | All 6 ADRs have corresponding implementation |
 
 ---
@@ -309,12 +312,12 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | **High** | PRD | Update pipeline diagram to reflect 5-step pipeline per ADR-006 | PRD still shows 3 phases; code has 4 phases + 5 commands | Architecture alignment | Architecture |
 | **High** | PRD | Add Snapshot & Restore (E005) | Full feature implemented, 0 PRD coverage | Documentation completeness | Product |
 | **Medium** | PRD | Add Interactive Mode (US057) and Review Command (US055) or mark as deferred | Documented but not implemented in stories; no PRD mention | Documentation completeness | Product |
-| **Medium** | User Stories | Create US for XML Bean Analysis | 10+ files of documented behavior, 0 stories | Undocumented features | Engineering |
-| **Medium** | User Stories | Create US for `@Bean` method detection | `BeanMethodVisitor` with full tests, 0 stories | Undocumented features | Engineering |
-| **Medium** | Features | Create Gherkin features for XML Bean Analysis | Same rationale | Undocumented features | Engineering |
-| **Low** | Features | Promote all `@draft` tags to `@final` where implementation is complete | All features still marked draft | Quality signal | Engineering |
+| ~~**Medium** | User Stories | Create US for XML Bean Analysis | 10+ files of documented behavior, 0 stories | Undocumented features | Engineering~~ |
+| ~~**Medium** | User Stories | Create US for `@Bean` method detection | `BeanMethodVisitor` with full tests, 0 stories | Undocumented features | Engineering~~ |
+| ~~**Medium** | Features | Create Gherkin features for XML Bean Analysis | Same rationale | Undocumented features | Engineering~~ |
+| ~~**Low** | Features | Promote all `@draft` tags to `@final` where implementation is complete | All features still marked draft | Quality signal | Engineering~~ |
 | **Low** | User Stories | Fix US064 header (says US056 instead of US064) | Story number mismatch | Accuracy | Engineering |
-| **Low** | PRD | Add `@Bean` method detection | `BeanMethodVisitor` detects `@Bean`-annotated methods in `@Configuration` classes | Documentation completeness | Engineering |
+| ~~**Low** | PRD | Add `@Bean` method detection | `BeanMethodVisitor` detects `@Bean`-annotated methods in `@Configuration` classes | Documentation completeness | Engineering~~ |
 
 ---
 
@@ -332,7 +335,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 ## 11. Recommendations
 
 ### Restore Alignment
-1. **Document the undocumented**: Create user stories and Gherkin features for XML Bean Analysis and `@Bean` method detection — both are nontrivial implemented features with zero documentation.
+~~1. **Document the undocumented**: Create user stories and Gherkin features for XML Bean Analysis and `@Bean` method detection — both are nontrivial implemented features with zero documentation.~~
 2. **Update the PRD**: Reflect the 5-step pipeline (per ADR-006), add E005 (Snapshots), and explicitly list E002 as future scope or remove it.
 3. **Implement or de-scope E002**: Either build the `LanguageParser` SPI or formally move E002 stories to a "Planned" status with documentation updates.
 
@@ -341,7 +344,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 5. **Unify story numbering**: Fix the US064/US056 header mismatch.
 
 ### Reduce Documentation Debt
-6. **Promote `@draft` tags**: All 27 feature files remain `@draft`. Review and promote to `@final` for completed features.
+6. **Promote `@draft` tags**: All 29 feature files remain `@draft`. Review and promote to `@final` for completed features.
 7. **Consolidate acceptance criteria**: US048 has an empty AC list in the story file but scenarios in the feature file — align them.
 
 ### Reduce Technical Debt
