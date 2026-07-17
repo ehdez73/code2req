@@ -29,9 +29,9 @@ The code2req project exhibits strong traceability between documentation and impl
 
 ### Documentation Quality Assessment
 
-- **PRD**: High quality — detailed, versioned, covers architecture comprehensively. Outdated w.r.t. ADR-006 (still refers to 3-phase pipeline, while code has 4-phase with `generate`).
+- **PRD**: High quality — detailed, versioned, covers architecture comprehensively. Pipeline diagram updated to 5-step per ADR-006; Snapshots (E005) added.
 - **User Stories**: Good coverage — 63 stories spanning all epics. Some story titles in the file header mismatch the file name (e.g., `US064` story header reads `US056`).
-- **Gherkin Features**: Good coverage — 27 features covering all epics. All `@draft` tagged — none are marked `@final`.
+- **Gherkin Features**: Good coverage — 29 features covering all epics. 23 promoted to `@final`; 6 incomplete features retain `@draft`.
 - **ADRs**: Excellent — 6 records covering key decisions. ADR-006 is the most recent and accurately reflects the extract/generate split.
 
 ### Traceability Maturity Assessment: B+
@@ -81,7 +81,7 @@ The code2req project exhibits strong traceability between documentation and impl
 | Review command | — | US055 | F026 | — | **No code** | Not Implemented |
 | Domain model + output writers | §2, §6 | US056 | F027 | ADR-006 | 17 manifest model records + `SynthesizeSpecAction` | Correctly Implemented |
 | Interactive mode | — | US057 | F028 | — | **No `InteractiveUserInteractionService` code** | Documented but Not Implemented |
-| Multi-language parser SPI | §2 (future) | US018-022 | F007-009 | — | **No `LanguageParser` interface or registry** | Postponed (de-scoped) |
+| Multi-language parser SPI | §2 (postponed) | US018-022 | F007-009 | — | **No `LanguageParser` interface or registry** | Postponed (de-scoped) |
 | XML bean analysis | §2.1.2 | US065-067 | F029 | — | `XmlBeanAnalyzer`, `ImportResourceVisitor`, 6 model records, test | Correctly Implemented |
 | `@Bean` method detection | §2.1.2 | US068 | F030 | — | `BeanMethodVisitor`, `BeanMethodInfo`, test | Correctly Implemented |
 
@@ -128,7 +128,7 @@ All 6 ADRs reference specific user stories or functional requirements. No orphan
 
 | Source A | Source B | Contradiction |
 |---|---|---|
-| PRD §2 (pipeline diagram) | ADR-006 | PRD shows 3-phase pipeline (Indexing → Enrichment → Extraction). ADR-006 splits Extraction into `extract` + `generate`, creating a 5-step pipeline (`scan → plan → enrich → extract → generate`). PRD has not been updated to reflect this. |
+| ~~PRD §2 (pipeline diagram)~~ | ~~ADR-006~~ | ~~PRD shows 3-phase pipeline (Indexing → Enrichment → Extraction). ADR-006 splits Extraction into `extract` + `generate`, creating a 5-step pipeline (`scan → plan → enrich → extract → generate`). PRD has not been updated to reflect this.~~ |
 | ~~US064 file header~~ | ~~Story title metadata~~ | ~~`US064` file is named `E003-F016-US064-planner-qualifies-dtos-with-bean-validation.md` but the story header reads `US056 — Planner qualifies DTOs with bean validation`. Wrong story number in header.~~ |
 
 ### 3.7 Ambiguous or Incomplete Documentation
@@ -197,7 +197,7 @@ All 6 ADRs reference specific user stories or functional requirements. No orphan
 
 | Documented Expectation | Implementation Reality | Deviation |
 |---|---|---|
-| PRD §2 pipeline: 3 phases | Codebase: 4 phases (`scan → plan → enrich → extract → generate`) | Pipeline split documented in ADR-006 but PRD not updated |
+| ~~PRD §2 pipeline: 3 phases~~ | ~~Codebase: 4 phases (`scan → plan → enrich → extract → generate`)~~ | ~~Pipeline split documented in ADR-006 but PRD not updated~~ |
 | PRD §2 Phase 3: 7 agent actions | Code: Phase 3 has 6 agent actions (SynthesizeSpecAction moved to Phase 4/generate) | Intentional per ADR-006, but PRD still describes the old 7-action model |
 
 ### 4.5 Potentially Obsolete or Dead Functionality
@@ -309,8 +309,8 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | Priority | Document | Change | Reason | Impact | Owner |
 |---|---|---|---|---|---|
 | ~~**High** | PRD | Add E002 (Multi-Language) as explicit epic or mark as deferred/future scope | 5 stories + 3 features documented but 0 code — misleading | Product trust | Product~~ |
-| **High** | PRD | Update pipeline diagram to reflect 5-step pipeline per ADR-006 | PRD still shows 3 phases; code has 4 phases + 5 commands | Architecture alignment | Architecture |
-| **High** | PRD | Add Snapshot & Restore (E005) | Full feature implemented, 0 PRD coverage | Documentation completeness | Product |
+| ~~**High** | PRD | Update pipeline diagram to reflect 5-step pipeline per ADR-006 | PRD still shows 3 phases; code has 4 phases + 5 commands | Architecture alignment | Architecture~~ |
+| ~~**High** | PRD | Add Snapshot & Restore (E005) | Full feature implemented, 0 PRD coverage | Documentation completeness | Product~~ |
 | **Medium** | PRD | Add Interactive Mode (US057) and Review Command (US055) or mark as deferred | Documented but not implemented in stories; no PRD mention | Documentation completeness | Product |
 | ~~**Medium** | User Stories | Create US for XML Bean Analysis | 10+ files of documented behavior, 0 stories | Undocumented features | Engineering~~ |
 | ~~**Medium** | User Stories | Create US for `@Bean` method detection | `BeanMethodVisitor` with full tests, 0 stories | Undocumented features | Engineering~~ |
@@ -336,7 +336,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 
 ### Restore Alignment
 ~~1. **Document the undocumented**: Create user stories and Gherkin features for XML Bean Analysis and `@Bean` method detection — both are nontrivial implemented features with zero documentation.~~
-2. **Update the PRD**: Reflect the 5-step pipeline (per ADR-006), add E005 (Snapshots) — E002 has been listed as postponed in the PRD.
+~~2. **Update the PRD**: Reflect the 5-step pipeline (per ADR-006), add E005 (Snapshots) — E002 has been listed as postponed in the PRD.~~
 ~~3. **Implement or de-scope E002**: Either build the `LanguageParser` SPI or formally move E002 stories to a "Planned" status with documentation updates.~~
 
 ### Improve Traceability

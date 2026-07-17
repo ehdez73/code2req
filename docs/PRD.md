@@ -27,15 +27,20 @@ Crucially, the tool rejects direct test framework generation. Instead, it export
 
 ## 2. Core Architecture & Product Paradigms
 
-The CLI rejects the unpredictable, conversational agent-loop pattern. It adopts a phased engine that transitions from deterministic compilation (Phase 1) through optional per-file LLM enrichment (Phase 2) to an agentic, goal-oriented synthesis phase (Phase 3) powered by Embabel. When Phase 2 is skipped, Phase 3 derives business semantics directly from source code snippets.
+    The CLI adopts a multi-phase pipeline that transitions from deterministic compilation (Phase 1) through optional per-file LLM enrichment (Phase 2) to an agentic extraction phase (Phase 3) and a pure-Java generation phase (Phase 4). When Phase 2 is skipped, Phase 3 derives business semantics directly from source code snippets.
 
-\`\`\`
-[Phase 1: Deterministic Indexing] ──> [Phase 2: Semantic Enrichment] ───┐
-                                      │                                  │
-                                      └── (optional, skip via INDEXED) ──┤
-                                                                          ▼
-                                                    [Phase 3: Agentic Functional Requirement Extraction (Embabel)]
-\`\`\`
+```
+[scan] ──> [plan] ──> [enrich] ──> [extract] ──> [generate]
+  (P1)       (P2)       (P2)          (P3)           (P4)
+                         │
+                         └── (optional, skip via INDEXED)
+```
+
+- **`scan`** (Phase 1): Deterministic indexing — AST parsing, secret redaction, SQLite persistence. Zero network calls.
+- **`plan`** (Phase 2): Qualification pass — reads the task store and decides which files need LLM enrichment.
+- **`enrich`** (Phase 2): Per-file LLM enrichment via Spring AI `@Async`. Optional — skipped when no file qualifies.
+- **`extract`** (Phase 3): Embabel GOAP agent traces entry-point-driven flows and extracts functional requirements.
+- **`generate`** (Phase 4): Pure-Java output writers produce the Markdown specification and `semantic_manifest.json`.
 
 > **Note:** A Language Extension Framework (SPI for non-Java language parsers) was originally planned as E002 but is **formally postponed**. The current implementation is Java/Spring-only via JavaParser. The SPI, parser registry, and routing components described in stories US018-US022 (F007-F009) are de-scoped and retained for future reference.
 
@@ -158,6 +163,11 @@ The indexer leverages a dedicated `VoidVisitorAdapter<Context>` traversal strate
 
 All analysis findings are written directly to the embedded SQLite database via the `execution_findings`, `topic_links`, and `floating_links` tables. SQLite serves as the canonical data store for all downstream pipeline phases. Per-file metadata (content hash, status, target assignment) is recorded in the `tasks` table.
 
-```
+#### 2.1.4 Snapshot & Restore
 
-`
+Point-in-time snapshots of local state (SQLite database + JSON index) enable safe experimentation and rollback during iterative analysis.
+
+* **Snapshot creation:** Uses SQLite's `VACUUM INTO` for transactionally consistent database copies. Copies the SQLite database and extraction cache for point-in-time recovery.
+* **Restore:** Drains the HikariCP connection pool, overwrites live files, and reinitializes the pool.
+* **Lifecycle:** Snapshots are independent of the `clean` command. The directory and contents are gitignored via the `snapshots/` pattern.
+* **CLI:** The `snapshot` command supports listing, creating, and restoring snapshots.
