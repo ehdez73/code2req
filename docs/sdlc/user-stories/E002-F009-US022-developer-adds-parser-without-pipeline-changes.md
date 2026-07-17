@@ -3,6 +3,7 @@
 **Epic:** E002 — Language Extension Framework
 **Feature:** F009 — Shared Pipeline Integration
 **Priority:** should | **Estimate:** 5 SP
+**Status:** Postponed — E002 is formally de-scoped. This story is retained for future reference.
 **Depends on:** US018, US021 | **Blocks:** —
 
 > As a **Developer**, I want **to add a new language parser without modifying the core pipeline (redaction, output, orchestration)**, so that **the tool can be extended cheaply and safely**.

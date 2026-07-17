@@ -300,9 +300,9 @@
     },
     {
       "id": "E002",
-      "name": "Language Extension Framework",
-      "description": "Define a common parser abstraction (SPI) so that adding support for new programming languages does not require modifying the core pipeline. Language parsers implement a shared contract and are discovered at runtime. The rest of the pipeline (redaction, output, orchestration) remains parser-agnostic.",
-      "priority": "should"
+      "name": "Language Extension Framework (Postponed)",
+      "description": "Define a common parser abstraction (SPI) so that adding support for new programming languages does not require modifying the core pipeline. Language parsers implement a shared contract and are discovered at runtime. The rest of the pipeline (redaction, output, orchestration) remains parser-agnostic. E002 is formally postponed — retained for future reference.",
+      "priority": "could"
     },
     {
       "id": "E003",
@@ -416,8 +416,9 @@
     {
       "id": "F007",
       "epic_id": "E002",
+      "status": "postponed",
       "name": "Parser Abstraction SPI",
-      "description": "Define a LanguageParser interface with a common output contract (components, endpoints, events, validators, tasks). Each language provides its own implementation. Contracts use optional fields so parsers can support a subset of capabilities.",
+      "description": "Define a LanguageParser interface with a common output contract (components, endpoints, events, validators, tasks). Each language provides its own implementation. Contracts use optional fields so parsers can support a subset of capabilities. (Postponed — E002 de-scoped.)",
       "background": "The core pipeline has been implemented and is ready to accept parser-agnostic input.",
       "business_rules": [
         "The SPI must define a single LanguageParser interface that all language parsers implement",
@@ -425,15 +426,16 @@
         "The contract must be technology-agnostic (no Java/Spring-specific types in the interface)"
       ],
       "user_stories": [
-        { "id": "US018", "title": "Developer defines a common parser contract", "priority": "should", "type": "story", "gherkin_file": "features/E002-F007-parser-abstraction-spi.feature" },
-        { "id": "US019", "title": "Developer implements a new language parser", "priority": "should", "type": "story", "gherkin_file": "features/E002-F007-parser-abstraction-spi.feature" }
+        { "id": "US018", "title": "Developer defines a common parser contract", "priority": "should", "type": "story", "status": "postponed", "gherkin_file": "features/E002-F007-parser-abstraction-spi.feature" },
+        { "id": "US019", "title": "Developer implements a new language parser", "priority": "should", "type": "story", "status": "postponed", "gherkin_file": "features/E002-F007-parser-abstraction-spi.feature" }
       ]
     },
     {
       "id": "F008",
       "epic_id": "E002",
+      "status": "postponed",
       "name": "Parser Discovery & Routing",
-      "description": "A registry that maps file extensions to parsers. Discovers available parsers at startup and routes each source file to the correct parser based on its extension.",
+      "description": "A registry that maps file extensions to parsers. Discovers available parsers at startup and routes each source file to the correct parser based on its extension. (Postponed — E002 de-scoped.)",
       "background": "The LanguageParser SPI is defined and at least one parser implementation exists.",
       "business_rules": [
         "Parser registration maps one or more file extensions to a single parser",
@@ -441,22 +443,23 @@
         "If multiple parsers claim the same extension, the first registered wins with a warning logged"
       ],
       "user_stories": [
-        { "id": "US020", "title": "Developer registers a new parser for a language", "priority": "should", "type": "story", "gherkin_file": "features/E002-F008-parser-discovery-and-routing.feature" },
-        { "id": "US021", "title": "CLI routes files to the correct parser by extension", "priority": "should", "type": "story", "gherkin_file": "features/E002-F008-parser-discovery-and-routing.feature" }
+        { "id": "US020", "title": "Developer registers a new parser for a language", "priority": "should", "type": "story", "status": "postponed", "gherkin_file": "features/E002-F008-parser-discovery-and-routing.feature" },
+        { "id": "US021", "title": "CLI routes files to the correct parser by extension", "priority": "should", "type": "story", "status": "postponed", "gherkin_file": "features/E002-F008-parser-discovery-and-routing.feature" }
       ]
     },
     {
       "id": "F009",
       "epic_id": "E002",
+      "status": "postponed",
       "name": "Shared Pipeline Integration",
-      "description": "Wire the parser SPI into the existing pipeline (US013-US016) so that redaction, exclude filtering, output generation, and orchestration work with any parser's output without modification.",
+      "description": "Wire the parser SPI into the existing pipeline (US013-US016) so that redaction, exclude filtering, output generation, and orchestration work with any parser's output without modification. (Postponed — E002 de-scoped.)",
       "background": "Parser SPI, discovery, and at least one parser implementation exist.",
       "business_rules": [
         "Adding a new language parser must not require changes to the core pipeline (redaction, output, orchestration)",
         "The shared output schema must accommodate language-specific metadata in optional fields"
       ],
       "user_stories": [
-        { "id": "US022", "title": "Developer adds a parser without changing the pipeline", "priority": "should", "type": "story", "gherkin_file": "features/E002-F009-shared-pipeline-integration.feature" }
+        { "id": "US022", "title": "Developer adds a parser without changing the pipeline", "priority": "should", "type": "story", "status": "postponed", "gherkin_file": "features/E002-F009-shared-pipeline-integration.feature" }
       ]
     },
     {

@@ -1,9 +1,10 @@
 # Feature: Parser Discovery & Routing
 # Epic: E002 — Language Extension Framework
 # Feature ID: F008
+# Status: POSTPONED — E002 is formally de-scoped.
 # Stories: US020, US021
 # Phase 1 draft generated: 2026-06-12
-# Last updated: 2026-06-12 14:00
+# Last updated: 2026-07-17
 
 Feature: Parser Discovery & Routing
   A registry that maps file extensions to parsers. Discovers available parsers at startup and routes each source file to the correct parser.

@@ -1,9 +1,10 @@
 # Feature: Shared Pipeline Integration
 # Epic: E002 — Language Extension Framework
 # Feature ID: F009
+# Status: POSTPONED — E002 is formally de-scoped.
 # Stories: US022
 # Phase 1 draft generated: 2026-06-12
-# Last updated: 2026-06-12 14:00
+# Last updated: 2026-07-17
 
 Feature: Shared Pipeline Integration
   Wire the parser SPI into the existing pipeline so that redaction, exclude filtering, output generation, and orchestration work with any parser's output without modification.

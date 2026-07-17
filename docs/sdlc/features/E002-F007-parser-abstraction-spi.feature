@@ -1,9 +1,10 @@
 # Feature: Parser Abstraction SPI
 # Epic: E002 — Language Extension Framework
 # Feature ID: F007
+# Status: POSTPONED — E002 is formally de-scoped.
 # Stories: US018, US019
 # Phase 1 draft generated: 2026-06-12
-# Last updated: 2026-06-12 14:00
+# Last updated: 2026-07-17
 
 Feature: Parser Abstraction SPI
   Define a LanguageParser interface with a common output contract (components, endpoints, events, validators, tasks). Each language provides its own implementation.

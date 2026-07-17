@@ -3,6 +3,7 @@
 **Epic:** E002 — Language Extension Framework
 **Feature:** F007 — Parser Abstraction SPI
 **Priority:** should | **Estimate:** 3 SP
+**Status:** Postponed — E002 is formally de-scoped. This story is retained for future reference.
 **Depends on:** — | **Blocks:** US019, US020, US021, US022
 
 > As a **Developer**, I want **a common LanguageParser interface that all language parsers implement**, so that **new languages can be supported without modifying the core pipeline**.

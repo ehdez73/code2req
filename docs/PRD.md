@@ -37,6 +37,8 @@ The CLI rejects the unpredictable, conversational agent-loop pattern. It adopts 
                                                     [Phase 3: Agentic Functional Requirement Extraction (Embabel)]
 \`\`\`
 
+> **Note:** A Language Extension Framework (SPI for non-Java language parsers) was originally planned as E002 but is **formally postponed**. The current implementation is Java/Spring-only via JavaParser. The SPI, parser registry, and routing components described in stories US018-US022 (F007-F009) are de-scoped and retained for future reference.
+
 ### 2.1 Phase 1: Deterministic Multi-Language Indexing
 
 Before any LLM interaction takes place, the CLI scans the physical workspace using local code-graph and parsing tools. To maintain platform-agnostic distribution without native OS-level JNI bindings (such as Tree-sitter), the engineering stack enforces pure-Java AST parsers (e.g., **JavaParser** for Spring/Java modules). This phase runs as a deterministic compiler-pass requiring zero network connectivity or LLM credentials. It maps signatures, endpoint routes, call frameworks, and event publishers into a local intermediate contract file, eliminating structural exploration overhead during LLM execution.

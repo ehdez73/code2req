@@ -3,6 +3,7 @@
 **Epic:** E002 — Language Extension Framework
 **Feature:** F008 — Parser Discovery & Routing
 **Priority:** should | **Estimate:** 2 SP
+**Status:** Postponed — E002 is formally de-scoped. This story is retained for future reference.
 **Depends on:** US018 | **Blocks:** US021
 
 > As a **Developer**, I want **to register a parser implementation for one or more file extensions**, so that **the CLI knows which parser to use for each source file**.

@@ -3,6 +3,7 @@
 **Epic:** E002 — Language Extension Framework
 **Feature:** F008 — Parser Discovery & Routing
 **Priority:** should | **Estimate:** 3 SP
+**Status:** Postponed — E002 is formally de-scoped. This story is retained for future reference.
 **Depends on:** US020 | **Blocks:** US022
 
 > As a **Developer**, I want **the CLI to automatically route each source file to the correct parser based on its file extension**, so that **I don't need to manually specify which parser to use**.

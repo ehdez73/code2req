@@ -15,7 +15,7 @@ The code2req project exhibits strong traceability between documentation and impl
 
 | Risk | Impact |
 |------|--------|
-| **E002 completely unimplemented** (8 documented items) | Misalignment between documented capabilities and actual product — 5 user stories, 3 feature files describe a feature that doesn't exist |
+| ~~**E002 completely unimplemented** (8 documented items)~~ | ~~Misalignment between documented capabilities and actual product — 5 user stories, 3 feature files describe a feature that doesn't exist~~ |
 | **Phase 3 Interactive Mode unimplemented** | US057 interactive user prompts for agent ambiguity resolution are documented but deferred — currently headless-only |
 | **Review Command unimplemented** | US055 describes a CLI command to inspect/resolve `AWAITING_HUMAN_REVIEW` tasks — no code exists |
 | ~~**XML Bean Analysis undocumented**~~ | ~~66 code references, 5 model records, 1 full analyzer, 1 test file — zero documentation coverage~~ |
@@ -24,7 +24,7 @@ The code2req project exhibits strong traceability between documentation and impl
 ### Areas with Highest Divergence
 
 1. ~~**Undocumented Implementation**: XML bean parsing (`XmlBeanAnalyzer`) and `@Bean` method detection have extensive code with no corresponding user stories, features, or PRD sections.~~
-2. **Documented but Unimplemented**: E002 (Multi-Language) entire epic — 5 user stories, 3 feature files, zero code.
+2. ~~**Documented but Unimplemented**: E002 (Multi-Language) entire epic — 5 user stories, 3 feature files, zero code.~~
 3. **Documented but Unimplemented (Deferred)**: Interactive mode (`InteractiveUserInteractionService`), Review command.
 
 ### Documentation Quality Assessment
@@ -81,7 +81,7 @@ The code2req project exhibits strong traceability between documentation and impl
 | Review command | — | US055 | F026 | — | **No code** | Not Implemented |
 | Domain model + output writers | §2, §6 | US056 | F027 | ADR-006 | 17 manifest model records + `SynthesizeSpecAction` | Correctly Implemented |
 | Interactive mode | — | US057 | F028 | — | **No `InteractiveUserInteractionService` code** | Documented but Not Implemented |
-| Multi-language parser SPI | §2 (future) | US018-022 | F007-009 | — | **No `LanguageParser` interface or registry** | Documented but Not Implemented |
+| Multi-language parser SPI | §2 (future) | US018-022 | F007-009 | — | **No `LanguageParser` interface or registry** | Postponed (de-scoped) |
 | XML bean analysis | §2.1.2 | US065-067 | F029 | — | `XmlBeanAnalyzer`, `ImportResourceVisitor`, 6 model records, test | Correctly Implemented |
 | `@Bean` method detection | §2.1.2 | US068 | F030 | — | `BeanMethodVisitor`, `BeanMethodInfo`, test | Correctly Implemented |
 
@@ -169,12 +169,12 @@ All 6 ADRs reference specific user stories or functional requirements. No orphan
 
 ### 4.2 Documented but Not Implemented
 
-#### 4.2.1 E002 — Language Extension Framework (Multi-Language Support)
+~~#### 4.2.1 E002 — Language Extension Framework (Multi-Language Support)
 - **Impact**: **High** — 5 user stories, 3 feature files describe a complete language extension SPI that does not exist.
 - **Evidence**: Grep for `LanguageParser` returns zero results. No parser interface, no registry, no routing.
 - **Stories affected**: US018 (interface), US019 (implementation), US020 (registration), US021 (routing), US022 (pipeline integration)
 - **Features affected**: F007 (Parser Abstraction SPI), F008 (Parser Discovery & Routing), F009 (Shared Pipeline Integration)
-- **Mitigation**: Either implement E002 or remove/re-mark documentation as "planned" / "future scope".
+- **Mitigation**: Either implement E002 or remove/re-mark documentation as "planned" / "future scope".~~
 
 #### 4.2.2 US055 — Review Command
 - **Impact**: Medium — `review list`, `review show`, `review accept`, `review reset` commands documented but not implemented.
@@ -223,9 +223,9 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | F015 — Template Form Detection | Aligned | US037-040, 062 | Complete | Aligned, Correctly Implemented |
 | F029 — Spring XML Configuration Analysis | §2.1.2 | US065-067 | Complete | Aligned, Correctly Implemented |
 | F030 — @Bean Method Detection | §2.1.2 | US068 | Complete | Aligned, Correctly Implemented |
-| F007 — Parser Abstraction SPI | Not in PRD | US018-019 | **Not implemented** | Documented but Not Implemented |
-| F008 — Parser Discovery | Not in PRD | US020-021 | **Not implemented** | Documented but Not Implemented |
-| F009 — Shared Pipeline Integration | Not in PRD | US022 | **Not implemented** | Documented but Not Implemented |
+| F007 — Parser Abstraction SPI | Not in PRD | US018-019 | **Not implemented** | Postponed (de-scoped) |
+| F008 — Parser Discovery | Not in PRD | US020-021 | **Not implemented** | Postponed (de-scoped) |
+| F009 — Shared Pipeline Integration | Not in PRD | US022 | **Not implemented** | Postponed (de-scoped) |
 | F016 — Planner | Aligned | US041-042, 064 | Complete | Aligned, Correctly Implemented |
 | F017 — LLM Executor | Aligned | US043-044, 063 | Complete | Aligned, Correctly Implemented |
 | F018 — Orchestrator | Aligned | US045 | Complete | Aligned, Correctly Implemented |
@@ -262,7 +262,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | US037-040, US062 (Views & Templates) | Aligned | F015 | Complete | Correctly Implemented |
 | US065-067 (XML Bean Analysis) | §2.1.2 | F029 | Complete | Correctly Implemented |
 | US068 (@Bean Method Detection) | §2.1.2 | F030 | Complete | Correctly Implemented |
-| US018-022 (E002 Multi-Language) | Not in PRD | F007-009 | **Not implemented** | Documented but Not Implemented |
+| US018-022 (E002 Multi-Language) | Not in PRD | F007-009 | **Not implemented** | Postponed (de-scoped) |
 | US041-042, US064 (Planner) | Aligned | F016 | Complete | Correctly Implemented |
 | US043-044, US063 (Executor) | Aligned | F017 | Complete | Correctly Implemented |
 | US045 (Orchestrator) | Aligned | F018 | Complete | Correctly Implemented |
@@ -298,7 +298,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 |---|---|---|
 | Requirements without user stories | 2 | `JavaVersionMapper` LanguageLevel mapping, `@Query` nativeQuery flag |
 | User stories without features | 0 | All 63 stories link to a feature |
-| Features without implementation | 3 | F007 (Parser SPI), F008 (Discovery), F009 (Integration) — all E002 |
+| Features without implementation | 0 | ~~F007 (Parser SPI), F008 (Discovery), F009 (Integration) — all E002~~ (de-scoped by decision) |
 | Code with no documented origin | 0 | ~~XML Bean Analysis (`XmlBeanAnalyzer`), `@Bean` method detection (`BeanMethodVisitor`)~~ |
 | ADRs with no implementation evidence | 0 | All 6 ADRs have corresponding implementation |
 
@@ -308,7 +308,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 
 | Priority | Document | Change | Reason | Impact | Owner |
 |---|---|---|---|---|---|
-| **High** | PRD | Add E002 (Multi-Language) as explicit epic or mark as deferred/future scope | 5 stories + 3 features documented but 0 code — misleading | Product trust | Product |
+| ~~**High** | PRD | Add E002 (Multi-Language) as explicit epic or mark as deferred/future scope | 5 stories + 3 features documented but 0 code — misleading | Product trust | Product~~ |
 | **High** | PRD | Update pipeline diagram to reflect 5-step pipeline per ADR-006 | PRD still shows 3 phases; code has 4 phases + 5 commands | Architecture alignment | Architecture |
 | **High** | PRD | Add Snapshot & Restore (E005) | Full feature implemented, 0 PRD coverage | Documentation completeness | Product |
 | **Medium** | PRD | Add Interactive Mode (US057) and Review Command (US055) or mark as deferred | Documented but not implemented in stories; no PRD mention | Documentation completeness | Product |
@@ -325,7 +325,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 
 | Priority | Source | Description | Business Impact | Complexity | Dependencies | Recommended Action |
 |---|---|---|---|---|---|---|
-| **High** | US018-022, F007-009 | Implement `LanguageParser` SPI, registration, routing, and pipeline integration | Unable to support non-Java codebases | High | — | Either implement or formally de-scope and update docs |
+| ~~**High** | US018-022, F007-009 | Implement `LanguageParser` SPI, registration, routing, and pipeline integration | Unable to support non-Java codebases | High | — | Either implement or formally de-scope and update docs~~ |
 | **High** | US055, F026 | Implement `ReviewCommand` — list/show/accept/reset `AWAITING_HUMAN_REVIEW` tasks | Cannot resolve quarantined flows from CLI | Medium | US051, TaskStatus.AWAITING_HUMAN_REVIEW | Implement command |
 | **Medium** | US057, F028 | Implement `InteractiveUserInteractionService` for stdin/stdout agent prompts | Agent cannot ask clarification questions; headless only | Medium | US051 Embabel agent | Implement SPI |
 | **Medium** | US048, F020 | Complete test assertion mining — fill in empty acceptance criteria, verify assertion translation | Test-derived edge cases may be incomplete | Low | US043 Executor | Complete story definition |
@@ -336,8 +336,8 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 
 ### Restore Alignment
 ~~1. **Document the undocumented**: Create user stories and Gherkin features for XML Bean Analysis and `@Bean` method detection — both are nontrivial implemented features with zero documentation.~~
-2. **Update the PRD**: Reflect the 5-step pipeline (per ADR-006), add E005 (Snapshots), and explicitly list E002 as future scope or remove it.
-3. **Implement or de-scope E002**: Either build the `LanguageParser` SPI or formally move E002 stories to a "Planned" status with documentation updates.
+2. **Update the PRD**: Reflect the 5-step pipeline (per ADR-006), add E005 (Snapshots) — E002 has been listed as postponed in the PRD.
+~~3. **Implement or de-scope E002**: Either build the `LanguageParser` SPI or formally move E002 stories to a "Planned" status with documentation updates.~~
 
 ### Improve Traceability
 4. **Add trace IDs to PRD**: The PRD lacks explicit identifiers linking requirements to user stories. Add inline references (e.g., `[US001]`).
