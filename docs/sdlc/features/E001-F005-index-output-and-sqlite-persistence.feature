@@ -17,7 +17,7 @@ Feature: Index Output & SQLite Persistence
     # Story US013: Developer produces structured analysis output
     # ---------------------------------------------------------------------------
 
-    @US013 @E001 @F005 @must @draft
+    @US013 @E001 @F005 @must @final
     Scenario: Developer scans a project and obtains the structured index
       Given a completed scan with findings from AST analysis and redaction
       When the CLI generates the output index
@@ -25,13 +25,13 @@ Feature: Index Output & SQLite Persistence
       And the index contains all components, endpoints, listeners, validators, and scheduled tasks
       And the index uses a standard format
 
-    @US013 @E001 @F005 @must @draft
+    @US013 @E001 @F005 @must @final
     Scenario: Developer configures a custom output path
       Given a project-manifest.yaml specifying a custom output path
       When the CLI generates the output index
       Then the index is written to the custom path
 
-    @US013 @E001 @F005 @must @draft
+    @US013 @E001 @F005 @must @final
     Scenario: Developer scans with an unwritable output directory
       Given an output directory that does not exist or is not writable
       When the CLI attempts to write the index
@@ -43,7 +43,7 @@ Feature: Index Output & SQLite Persistence
     # Story US014: Developer persists scan state locally
     # ---------------------------------------------------------------------------
 
-    @US014 @E001 @F005 @should @draft
+    @US014 @E001 @F005 @should @final
     Scenario: Developer runs a scan and state is persisted to SQLite
       Given a completed scan with AST analysis results
       When the CLI persists results to the local database
@@ -51,7 +51,7 @@ Feature: Index Output & SQLite Persistence
       And WAL journal mode and 5000ms busy timeout are configured on the connection
       And each processing task has a deterministic ID derived from file path, content hash, and configuration
 
-    @US014 @E001 @F005 @should @draft
+    @US014 @E001 @F005 @should @final
     Scenario: Developer re-runs scan against an unchanged workspace
       Given a previously scanned workspace with no file modifications
       When the CLI re-runs the scan
@@ -64,7 +64,7 @@ Feature: Index Output & SQLite Persistence
     # Story US017: Developer recovers from crash mid-scan
     # ---------------------------------------------------------------------------
 
-    @US017 @E001 @F005 @should @draft
+    @US017 @E001 @F005 @should @final
     Scenario: Developer resumes after a crash with orphaned tasks
       Given a scan was interrupted leaving some tasks in RUNNING state
       When the tool starts recovery
@@ -72,7 +72,7 @@ Feature: Index Output & SQLite Persistence
       And the dependency graph is rebuilt from the updated state
       And recovery completes within 30 seconds
 
-    @US017 @E001 @F005 @should @draft
+    @US017 @E001 @F005 @should @final
     Scenario: Developer resumes after a crash with valid partial results
       Given a scan was interrupted and some tasks have valid JSON fragments
       When the tool starts recovery

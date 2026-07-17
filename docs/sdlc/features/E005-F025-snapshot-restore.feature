@@ -19,7 +19,7 @@ Feature: Snapshot & Restore
     # Story US053: Developer creates and lists snapshots
     # ---------------------------------------------------------------------------
 
-    @US053 @E005 @F025 @must @draft
+    @US053 @E005 @F025 @must @final
     Scenario: Developer creates a named snapshot
       Given a completed scan with populated SQLite DB and JSON index
       When the developer runs "snapshot create --name before-refactor"
@@ -30,7 +30,7 @@ Feature: Snapshot & Restore
       And the live SQLite database and JSON index are unmodified
       And the CLI reports "Snapshot saved: snapshots/before-refactor/"
 
-    @US053 @E005 @F025 @must @draft
+    @US053 @E005 @F025 @must @final
     Scenario: Developer creates a snapshot without a name (auto-timestamp)
       Given a completed scan with populated data
       When the developer runs "snapshot create"
@@ -38,20 +38,20 @@ Feature: Snapshot & Restore
       And the snapshot contains the DB, JSON index, and metadata files
       And the CLI reports "Snapshot saved: snapshots/snapshot_<...>/"
 
-    @US053 @E005 @F025 @must @draft
+    @US053 @E005 @F025 @must @final
     Scenario: Developer lists available snapshots
       Given two existing snapshots in the snapshots/ directory
       When the developer runs "snapshot list"
       Then the CLI displays each snapshot name with its creation date and total size
 
-    @US053 @E005 @F025 @must @draft
+    @US053 @E005 @F025 @must @final
     Scenario: Developer creates a snapshot with no data
       Given a clean state with no scan data
       When the developer runs "snapshot create"
       Then the CLI reports a graceful message that there is nothing to snapshot
       And no snapshot directory is created
 
-    @US053 @E005 @F025 @must @draft
+    @US053 @E005 @F025 @must @final
     Scenario: Clean command never removes snapshots
       Given two existing snapshots in the snapshots/ directory
       When the developer runs "clean"
@@ -64,7 +64,7 @@ Feature: Snapshot & Restore
     # Story US054: Developer restores state from a snapshot
     # ---------------------------------------------------------------------------
 
-    @US054 @E005 @F025 @must @draft
+    @US054 @E005 @F025 @must @final
     Scenario: Developer restores state from a named snapshot
       Given a named snapshot "snapshots/before-refactor/" with DB and JSON files
       And the current live state has been modified since the snapshot was taken
@@ -74,14 +74,14 @@ Feature: Snapshot & Restore
       And the HikariCP connection pool is drained, recreated, and ready for new operations
       And the CLI reports "Restored from snapshot 'before-refactor'."
 
-    @US054 @E005 @F025 @must @draft
+    @US054 @E005 @F025 @must @final
     Scenario: Developer attempts restore with non-existent snapshot name
       Given no snapshot named "ghost" exists
       When the developer runs "snapshot restore ghost"
       Then the CLI reports an error: "Snapshot 'ghost' not found in snapshots/"
       And the live data is not modified
 
-    @US054 @E005 @F025 @must @draft
+    @US054 @E005 @F025 @must @final
     Scenario: Developer attempts restore without arguments
       When the developer runs "snapshot restore"
       Then the CLI reports an error about missing --name argument

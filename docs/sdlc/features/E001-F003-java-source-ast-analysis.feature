@@ -18,21 +18,21 @@ Feature: Java Source AST Analysis
     # Story US006: Developer discovers application components
     # ---------------------------------------------------------------------------
 
-    @US006 @E001 @F003 @must @draft
+    @US006 @E001 @F003 @must @final
     Scenario: Developer scans a project with Spring stereotyped classes
       Given a scan target containing @Controller, @Service, @Repository, and @Component classes
       When the CLI analyzes the Java source files
       Then each Spring stereotype is classified with its annotation type
       And the component inventory includes all identified classes
 
-    @US006 @E001 @F003 @must @draft
+    @US006 @E001 @F003 @must @final
     Scenario: Developer scans a file that fails to parse
       Given a scan target containing a Java file with syntax errors
       When the CLI analyzes the Java source files
       Then the failed file is logged with its path and parse error
       And other files in the target continue processing
 
-    @US006 @E001 @F003 @must @draft
+    @US006 @E001 @F003 @must @final
     Scenario: Developer scans a project with plain Java classes
       Given a scan target containing classes without Spring stereotypes
       When the CLI analyzes the Java source files
@@ -44,7 +44,7 @@ Feature: Java Source AST Analysis
     # Story US007: Developer maps HTTP endpoints
     # ---------------------------------------------------------------------------
 
-    @US007 @E001 @F003 @must @draft
+    @US007 @E001 @F003 @must @final
     Scenario: Developer scans a controller with multiple endpoint mappings
       Given a @RestController with @GetMapping, @PostMapping, and @RequestMapping methods
       When the CLI extracts HTTP endpoints
@@ -52,14 +52,14 @@ Feature: Java Source AST Analysis
       And class-level and method-level path segments are combined
       And each endpoint is linked to its controller component
 
-    @US007 @E001 @F003 @must @draft
+    @US007 @E001 @F003 @must @final
     Scenario: Developer scans a controller with path variables and query parameters
       Given a @RestController method containing @PathVariable and @RequestParam annotations
       When the CLI extracts HTTP endpoints
       Then the path variables and query parameters are captured with the endpoint
       And the endpoint path includes the path variable segment
 
-    @US007 @E001 @F003 @must @draft
+    @US007 @E001 @F003 @must @final
     Scenario: Developer scans a controller with no request mappings
       Given a @Controller class with no request mapping annotations on its methods
       When the CLI extracts HTTP endpoints
@@ -70,21 +70,21 @@ Feature: Java Source AST Analysis
     # Story US008: Developer traces event listeners
     # ---------------------------------------------------------------------------
 
-    @US008 @E001 @F003 @should @draft
+    @US008 @E001 @F003 @should @final
     Scenario: Developer scans a project with @EventListener methods
       Given a component with @EventListener-annotated methods
       When the CLI extracts event listeners
       Then each listener is identified with its event type
       And the listener is linked to its owning component
 
-    @US008 @E001 @F003 @should @draft
+    @US008 @E001 @F003 @should @final
     Scenario: Developer scans event handlers with method call chains
       Given an event listener method that calls other service methods
       When the CLI extracts call chains from event handlers
       Then method calls within the handler are captured up to 3 levels deep
       And each call is recorded with target type and method name
 
-    @US008 @E001 @F003 @should @draft
+    @US008 @E001 @F003 @should @final
     Scenario: Developer scans a project with ApplicationEventPublisher usage
       Given a component that uses ApplicationEventPublisher to publish events
       When the CLI identifies event publishers
@@ -94,14 +94,14 @@ Feature: Java Source AST Analysis
     # Story US009: Developer extracts custom validation logic
     # ---------------------------------------------------------------------------
 
-    @US009 @E001 @F003 @should @draft
+    @US009 @E001 @F003 @should @final
     Scenario: Developer scans a project with custom @Constraint validators
       Given a field annotated with a custom @Constraint validator
       When the CLI extracts validation logic
       Then the validator class is captured and linked to the field
       And the isValid method body is extracted as a text slice
 
-    @US009 @E001 @F003 @should @draft
+    @US009 @E001 @F003 @should @final
     Scenario: Developer scans a project with built-in Jakarta validators
       Given a field annotated with @NotNull or @Size
       When the CLI extracts validation logic
@@ -112,7 +112,7 @@ Feature: Java Source AST Analysis
     # Story US010: Developer discovers scheduled tasks
     # ---------------------------------------------------------------------------
 
-    @US010 @E001 @F003 @should @draft
+    @US010 @E001 @F003 @should @final
     Scenario: Developer scans a component with cron-based @Scheduled methods
       Given a component with a @Scheduled method using a cron expression
       When the CLI extracts scheduled tasks
@@ -120,7 +120,7 @@ Feature: Java Source AST Analysis
       And the task is categorized as cron-based
       And the method is linked to its owning component
 
-    @US010 @E001 @F003 @should @draft
+    @US010 @E001 @F003 @should @final
     Scenario: Developer scans a component with fixed-rate and fixed-delay tasks
       Given a component with @Scheduled methods using fixedRate and fixedDelay
       When the CLI extracts scheduled tasks
@@ -133,34 +133,34 @@ Feature: Java Source AST Analysis
 
   Rule: Kafka listener subscriptions and publications are extracted independently of Spring's in-process event bus
 
-    @US023 @E001 @F003 @should @draft
+    @US023 @E001 @F003 @should @final
     Scenario: Developer scans a component with @KafkaListener methods
       Given a component with @KafkaListener-annotated methods specifying topics
       When the CLI extracts Kafka event listeners
       Then each listener is identified with its topic list
       And the listener is linked to its owning component
 
-    @US023 @E001 @F003 @should @draft
+    @US023 @E001 @F003 @should @final
     Scenario: Developer scans a @KafkaListener with multiple topics
       Given a @KafkaListener method with topics = {"order-events", "inventory-events"}
       When the CLI extracts Kafka event listeners
       Then all topics in the array are captured
       And the listener is linked to its owning component
 
-    @US023 @E001 @F003 @should @draft
+    @US023 @E001 @F003 @should @final
     Scenario: Developer scans a @KafkaListener with topic pattern
       Given a @KafkaListener method using topicPattern attribute
       When the CLI extracts Kafka event listeners
       Then the topic pattern is captured as a text expression
 
-    @US023 @E001 @F003 @should @draft
+    @US023 @E001 @F003 @should @final
     Scenario: Developer scans a component publishing to Kafka topics
       Given a component that calls KafkaTemplate.send() with a topic name
       When the CLI extracts outbound event publications
       Then the destination topic is captured with the broker type "KAFKA"
       And the publication is linked to its owning component
 
-    @US023 @E001 @F003 @should @draft
+    @US023 @E001 @F003 @should @final
     Scenario: Developer scans a file with Kafka imports but no Kafka annotations
       Given a component that imports Kafka classes but has no @KafkaListener or KafkaTemplate usage
       When the CLI extracts Kafka event listeners and publications
@@ -175,35 +175,35 @@ Feature: Java Source AST Analysis
 
   Rule: RabbitMQ listener subscriptions and publications are extracted independently of Spring's in-process event bus
 
-    @US026 @E001 @F003 @should @draft
+    @US026 @E001 @F003 @should @final
     Scenario: Developer scans a component with @RabbitListener methods
       Given a component with @RabbitListener-annotated methods specifying queues
       When the CLI extracts RabbitMQ event listeners
       Then each listener is identified with its queue list
       And the listener is linked to its owning component
 
-    @US026 @E001 @F003 @should @draft
+    @US026 @E001 @F003 @should @final
     Scenario: Developer scans a @RabbitListener with multiple queues
       Given a @RabbitListener method with queues = {"order.queue", "notification.queue"}
       When the CLI extracts RabbitMQ event listeners
       Then all queues in the array are captured
       And the listener is linked to its owning component
 
-    @US026 @E001 @F003 @should @draft
+    @US026 @E001 @F003 @should @final
     Scenario: Developer scans a component publishing to RabbitMQ exchanges
       Given a component that calls RabbitTemplate.convertAndSend() with an exchange and routing key
       When the CLI extracts outbound event publications
       Then the exchange and routing key are captured with the broker type "RABBITMQ"
       And the publication is linked to its owning component
 
-    @US026 @E001 @F003 @should @draft
+    @US026 @E001 @F003 @should @final
     Scenario: Developer scans a component publishing via RabbitTemplate.send()
       Given a component that calls RabbitTemplate.send() with an exchange and routing key
       When the CLI extracts outbound event publications
       Then the exchange and routing key are captured with the broker type "RABBITMQ"
       And the publication is linked to its owning component
 
-    @US026 @E001 @F003 @should @draft
+    @US026 @E001 @F003 @should @final
     Scenario: Developer scans a file with RabbitMQ imports but no RabbitMQ usage
       Given a component that imports RabbitMQ classes but has no @RabbitListener or RabbitTemplate usage
       When the CLI extracts RabbitMQ event listeners and publications
@@ -216,21 +216,21 @@ Feature: Java Source AST Analysis
 
   Rule: ActiveMQ JMS listener subscriptions and publications are extracted independently of Spring's in-process event bus
 
-    @US027 @E001 @F003 @should @draft
+    @US027 @E001 @F003 @should @final
     Scenario: Developer scans a component with @JmsListener methods
       Given a component with @JmsListener-annotated methods specifying destinations
       When the CLI extracts ActiveMQ event listeners
       Then each listener is identified with its destination
       And the listener is linked to its owning component
 
-    @US027 @E001 @F003 @should @draft
+    @US027 @E001 @F003 @should @final
     Scenario: Developer scans a component publishing via JmsTemplate
       Given a component that calls JmsTemplate.convertAndSend() with a destination
       When the CLI extracts outbound event publications
       Then the destination is captured with the broker type "ACTIVEMQ"
       And the publication is linked to its owning component
 
-    @US027 @E001 @F003 @should @draft
+    @US027 @E001 @F003 @should @final
     Scenario: Developer scans a file with JMS imports but no JMS usage
       Given a component that imports JMS classes but has no @JmsListener or JmsTemplate usage
       When the CLI extracts ActiveMQ event listeners and publications
@@ -241,7 +241,7 @@ Feature: Java Source AST Analysis
     # Story US058: Developer discovers servlet endpoints in web.xml
     # ---------------------------------------------------------------------------
 
-    @US058 @E001 @F003 @should @draft
+    @US058 @E001 @F003 @should @final
     Scenario: Developer scans a project with legacy web.xml servlet declarations
       Given a scan target containing a web.xml with <servlet> and <servlet-mapping> elements
       When the CLI analyzes the project
@@ -249,14 +249,14 @@ Feature: Java Source AST Analysis
       And each endpoint has the mapped url-pattern as its path
       And each endpoint references the servlet class name
 
-    @US058 @E001 @F003 @should @draft
+    @US058 @E001 @F003 @should @final
     Scenario: Developer scans a project without web.xml
       Given a scan target without a web.xml file
       When the CLI analyzes the project
       Then no web.xml endpoints are reported
       And the scan continues without error
 
-    @US058 @E001 @F003 @should @draft
+    @US058 @E001 @F003 @should @final
     Scenario: Developer scans a project with an invalid web.xml
       Given a scan target containing a malformed web.xml
       When the CLI analyzes the project

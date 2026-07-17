@@ -15,7 +15,7 @@ Feature: Outbound HTTP Client Detection
 
   Rule: RestTemplate calls are captured with HTTP method and URL
 
-    @US032 @E001 @F012 @must @draft
+    @US032 @E001 @F012 @must @final
     Scenario: Service calls external API via RestTemplate
       Given a @Service using RestTemplate
       And a method calls restTemplate.postForObject(url, request, Response.class)
@@ -24,7 +24,7 @@ Feature: Outbound HTTP Client Detection
       And the URL pattern is captured (literal or expression)
       And the call is registered as a floating_link in the SQLite store
 
-    @US032 @E001 @F012 @must @draft
+    @US032 @E001 @F012 @must @final
     Scenario: RestTemplate.exchange() with HttpMethod
       Given a method calling restTemplate.exchange(url, HttpMethod.GET, entity, Response.class)
       When OutboundHttpVisitor analyses the method
@@ -32,7 +32,7 @@ Feature: Outbound HTTP Client Detection
 
   Rule: WebClient builder chains are followed
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: WebClient fluent chain
       Given a method using webClient.method(HttpMethod.POST).uri(url).retrieve().bodyToMono(Response.class)
       When OutboundHttpVisitor analyses the method
@@ -41,7 +41,7 @@ Feature: Outbound HTTP Client Detection
 
   Rule: FeignClient interfaces are detected
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: FeignClient interface declares external API
       Given a @FeignClient(name = "payment", url = "${payment.url}")
       And a method annotated with @PostMapping("/charges")
@@ -51,14 +51,14 @@ Feature: Outbound HTTP Client Detection
 
   Rule: SpEL expressions in URLs are flagged
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: RestTemplate URL contains environment variable
       Given a method calling restTemplate.exchange("${api.base.url}/orders", ...)
       When OutboundHttpVisitor analyses the call
       Then the URL pattern "${api.base.url}/orders" is captured as-is
       And is_expression is set to true
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: Multiple RestTemplate calls in the same method
       Given a method calling restTemplate.getForObject(url1, A.class) and restTemplate.postForObject(url2, body, B.class)
       When OutboundHttpVisitor analyses the method
@@ -67,7 +67,7 @@ Feature: Outbound HTTP Client Detection
 
   Rule: Spring 6.1 RestClient calls are detected
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: RestClient fluent chain
       Given a method using restClient.get().uri(url).retrieve()
       When OutboundHttpVisitor analyses the method
@@ -76,7 +76,7 @@ Feature: Outbound HTTP Client Detection
 
   Rule: Spring 6 @HttpExchange interfaces are detected
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: @HttpExchange interface declares API
       Given an interface annotated with @HttpExchange(url = "${service.url}")
       And a method annotated with @PostExchange("/charges")
@@ -85,7 +85,7 @@ Feature: Outbound HTTP Client Detection
 
   Rule: Java 11+ java.net.http.HttpClient calls are detected
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: HttpClient.send() with HttpRequest
       Given a method using HttpClient.newHttpClient().send(request, handler)
       When OutboundHttpVisitor analyses the method
@@ -94,7 +94,7 @@ Feature: Outbound HTTP Client Detection
 
   Rule: Legacy HttpURLConnection calls are detected
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: HttpURLConnection with openConnection
       Given a method using new URL("http://example.com").openConnection()
       When OutboundHttpVisitor analyses the method
@@ -103,7 +103,7 @@ Feature: Outbound HTTP Client Detection
 
   Rule: Apache HttpClient calls are detected
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: Apache HttpClient using HttpGet
       Given a method using new HttpGet("http://example.com/users")
       When OutboundHttpVisitor analyses the method
@@ -112,7 +112,7 @@ Feature: Outbound HTTP Client Detection
 
   Rule: OkHttp calls are detected
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: OkHttp client.newCall()
       Given a method using OkHttpClient.newCall(request)
       When OutboundHttpVisitor analyses the method
@@ -121,21 +121,21 @@ Feature: Outbound HTTP Client Detection
 
   Rule: Floating links are resolved against known endpoints
 
-    @US032 @E001 @F012 @must @draft
+    @US032 @E001 @F012 @must @final
     Scenario: Literal URL matches known endpoint
       Given an OutboundHttpCallInfo with method GET and URL "/api/users"
       And an EndpointInfo with method GET and path "/api/users"
       When FloatingLinkResolver resolves the link
       Then the link is RESOLVED with confidence 1.0
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: Path-variable URL matches known endpoint
       Given an OutboundHttpCallInfo with method GET and URL "/api/users/42"
       And an EndpointInfo with method GET and path "/api/users/{id}"
       When FloatingLinkResolver resolves the link
       Then the link is RESOLVED with confidence >= 0.6
 
-    @US032 @E001 @F012 @should @draft
+    @US032 @E001 @F012 @should @final
     Scenario: Unmatched URL remains PENDING
       Given an OutboundHttpCallInfo with method POST and URL "/api/external"
       And no matching endpoint exists

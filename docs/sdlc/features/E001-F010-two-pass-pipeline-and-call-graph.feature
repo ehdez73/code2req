@@ -12,7 +12,7 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
 
   Rule: Pass 1 collects all declarations before any resolution runs
 
-    @US036 @E001 @F010 @must @draft
+    @US036 @E001 @F010 @must @final
     Scenario: All files are parsed in Pass 1 before Pass 2 begins
       Given N source files in the scan target
       When Pass 1 executes across all files
@@ -20,7 +20,7 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
       And the GlobalDeclarationRegistry contains declarations from all N files
       And no resolution or analysis is performed during Pass 1
 
-    @US036 @E001 @F010 @must @draft
+    @US036 @E001 @F010 @must @final
     Scenario: Pass 2 runs full visitor suite against populated registry
       Given the GlobalDeclarationRegistry is populated from Pass 1
       When Pass 2 executes across all files
@@ -30,7 +30,7 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
 
   Rule: Existing tests pass unchanged after refactoring
 
-    @US036 @E001 @F010 @should @draft
+    @US036 @E001 @F010 @should @final
     Scenario: All existing F003 and F006 tests pass after refactoring
       Given the codebase has been refactored to two-pass orchestration
       When the full test suite is executed
@@ -40,7 +40,7 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
 
   Rule: Post-pass runs after all files are processed
 
-    @US036 @E001 @F010 @should @draft
+    @US036 @E001 @F010 @should @final
     Scenario: Post-pass resolvers run after all files analyzed
       Given Pass 2 has completed for all files
       When the post-pass phase executes
@@ -50,7 +50,7 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
 
   Rule: Graceful degradation on parse errors
 
-    @US036 @E001 @F010 @should @draft
+    @US036 @E001 @F010 @should @final
     Scenario: Parse error in one file does not block other files
       Given one source file has a syntax error
       When Pass 1 runs
@@ -60,7 +60,7 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
 
   Rule: Empty codebase produces empty output
 
-    @US036 @E001 @F010 @should @draft
+    @US036 @E001 @F010 @should @final
     Scenario: Empty scan target produces empty registry
       Given a scan target with zero source files
       When Pass 1 runs
@@ -74,7 +74,7 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
 
   Rule: Direct method calls on known field types are resolved against the registry
 
-    @US030 @E001 @F010 @must @draft
+    @US030 @E001 @F010 @must @final
     Scenario: Controller calls service method via injected field
       Given a @RestController with an @Autowired OrderService field
       And OrderService declares createOrder(OrderDto)
@@ -83,7 +83,7 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
       And the edge includes source file, target file, and method signatures
       And the edge is marked resolved = true
 
-    @US030 @E001 @F010 @must @draft
+    @US030 @E001 @F010 @must @final
     Scenario: Service calls repository method
       Given a @Service with an @Autowired OrderRepository field
       And OrderRepository declares save(Order)
@@ -93,7 +93,7 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
 
   Rule: Method calls to JDK and Spring framework classes are not recorded
 
-    @US030 @E001 @F010 @should @draft
+    @US030 @E001 @F010 @should @final
     Scenario: Method calls to JDK classes are ignored
       Given a service method that calls order.getTotal(), String.format(), and List.add()
       When the method calls are processed by CallGraphVisitor
@@ -101,7 +101,7 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
 
   Rule: Unresolved calls are logged as unresolved_signatures
 
-    @US030 @E001 @F010 @should @draft
+    @US030 @E001 @F010 @should @final
     Scenario: Method call to third-party library is unresolved
       Given a service that calls thirdparty-sdk.calculateScore(data)
       And thirdparty-sdk is not in the scanned codebase
@@ -109,14 +109,14 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
       Then the call is recorded as an unresolved_signature
       And no call graph edge is created
 
-    @US030 @E001 @F010 @should @draft
+    @US030 @E001 @F010 @should @final
     Scenario: Overloaded method with same argument count
       Given OrderService declares find(String id) and find(String name, String status)
       When a controller calls service.find("abc")
       Then the call is resolved to OrderService.find(String)
       And the edge is marked resolved = true
 
-    @US030 @E001 @F010 @should @draft
+    @US030 @E001 @F010 @should @final
     Scenario: Overloaded method with ambiguous argument count
       Given OrderService declares process(OrderDto) and process(InvoiceDto)
       When a controller calls service.process(dto) and dto type cannot be resolved
@@ -125,7 +125,7 @@ Feature: Two-Pass Pipeline Orchestration & Call Graph Resolution
 
   Rule: Event listener call chains are resolved against the registry
 
-    @US030 @E001 @F010 @should @draft
+    @US030 @E001 @F010 @should @final
     Scenario: Event listener calls service method
       Given a component with @EventListener handling OrderCreated event
       And the listener method calls notificationService.sendEmail(event)

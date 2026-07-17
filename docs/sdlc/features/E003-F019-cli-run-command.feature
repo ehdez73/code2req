@@ -14,7 +14,7 @@ Feature: CLI Commands — plan, run, and generate
 
   Rule: The plan command shows the execution DAG with zero LLM calls
 
-    @US046 @E003 @F019 @must @draft
+    @US046 @E003 @F019 @must @final
     Scenario: Developer runs plan command and sees qualified tasks
       Given 8 qualified tasks and 12 non-qualified tasks exist in SQLite
       When the developer runs plan --manifest project-manifest.yaml
@@ -23,7 +23,7 @@ Feature: CLI Commands — plan, run, and generate
       And the 12 non-qualified tasks are listed with "NONE" reason
       And zero LLM calls are made
 
-    @US046 @E003 @F019 @must @draft
+    @US046 @E003 @F019 @must @final
     Scenario: Developer runs plan with zero qualified tasks
       Given no tasks qualify for LLM enrichment
       When the developer runs plan --manifest project-manifest.yaml
@@ -32,7 +32,7 @@ Feature: CLI Commands — plan, run, and generate
 
   Rule: The run command orchestrates Phase 2 then Phase 3 end-to-end
 
-    @US047 @E003 @F019 @must @draft
+    @US047 @E003 @F019 @must @final
     Scenario: Developer runs full pipeline end-to-end
       Given qualified tasks exist in SQLite
       When the developer runs run --manifest project-manifest.yaml
@@ -41,14 +41,14 @@ Feature: CLI Commands — plan, run, and generate
       And Phase 3 generate runs after extract
       And spec-output/ contains specification documents
 
-    @US047 @E003 @F019 @must @draft
+    @US047 @E003 @F019 @must @final
     Scenario: Developer runs with --llm-threshold 0 to skip Phase 2
       Given qualified tasks exist in SQLite
       When the developer runs run --llm-threshold 0
       Then Phase 2 is skipped entirely
       And Phase 3 (extract + generate) runs on structural data only
 
-    @US047 @E003 @F019 @must @draft
+    @US047 @E003 @F019 @must @final
     Scenario: Developer runs with --dry-run for simulation
       Given no LLM credentials are configured
       When the developer runs run --dry-run --manifest project-manifest.yaml
@@ -57,7 +57,7 @@ Feature: CLI Commands — plan, run, and generate
       And extract produces simulated cache
       And generate produces spec-output/ from simulated cache
 
-    @US047 @E003 @F019 @must @draft
+    @US047 @E003 @F019 @must @final
     Scenario: Developer checks status with Phase 2 counters
       Given Phase 2 has completed some tasks
       When the developer runs status
@@ -65,7 +65,7 @@ Feature: CLI Commands — plan, run, and generate
       And shows tokens consumed and estimated cost
       And shows pending and completed counts
 
-    @US047 @E003 @F019 @must @draft
+    @US047 @E003 @F019 @must @final
     Scenario: Developer recovers AWAITING_HUMAN_REVIEW tasks with --resume
       Given 2 tasks are AWAITING_HUMAN_REVIEW
       And the Phase 3 marker is stuck on ENRICHING
@@ -75,14 +75,14 @@ Feature: CLI Commands — plan, run, and generate
       And stale .tmp.* output files are cleaned
       And Phase 3 re-runs from scratch
 
-    @US047 @E003 @F019 @must @draft
+    @US047 @E003 @F019 @must @final
     Scenario: Developer sees Phase 3 skip guard when already complete
       Given the Phase 3 marker is ENRICHED
       When the developer runs run without --force-phase3
       Then Phase 3 extract is skipped
       And the output shows "Phase 3 already completed (use --force-phase3 to re-run)"
 
-    @US047 @E003 @F019 @must @draft
+    @US047 @E003 @F019 @must @final
     Scenario: Developer forces Phase 3 re-run with --force-phase3
       Given the Phase 3 marker is ENRICHED
       When the developer runs run --force-phase3

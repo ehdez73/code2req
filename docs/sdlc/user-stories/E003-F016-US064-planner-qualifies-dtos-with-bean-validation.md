@@ -1,4 +1,4 @@
-# US056 — Planner qualifies DTOs/records with bean validation annotations
+# US064 — Planner qualifies DTOs/records with bean validation annotations
 
 **Epic:** E003 — Semantic Enrichment
 **Feature:** F016 — Planner

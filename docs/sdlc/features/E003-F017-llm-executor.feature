@@ -15,7 +15,7 @@ Feature: LLM Executor Framework
 
   Rule: The executor calls the LLM with the structural context and source file, producing a validated ExecutionFinding
 
-    @US043 @E003 @F017 @must @draft
+    @US043 @E003 @F017 @must @final
     Scenario: Executor enriches a single file successfully
       Given a qualified task with full structural context
       When the executor processes the file
@@ -26,14 +26,14 @@ Feature: LLM Executor Framework
       And the finding is persisted to execution_findings with type SEMANTIC_ENRICHMENT
       And the task transitions to SUCCESS
 
-    @US043 @E003 @F017 @must @draft
+    @US043 @E003 @F017 @must @final
     Scenario: Executor detects a discovered dependency
       Given a qualified task with a runtime dependency not in the index
       When the executor processes the file
       Then the ExecutionFinding contains a discovered_dependencies array
       And the new dependency is registered in SQLite as PENDING
 
-    @US043 @E003 @F017 @must @draft
+    @US043 @E003 @F017 @must @final
     Scenario: Executor fails on invalid JSON Schema output
       Given the LLM returns a response missing the required "business_abstraction" field
       When the executor validates the output
@@ -41,7 +41,7 @@ Feature: LLM Executor Framework
       And the task transitions to FAILED
       And the error is logged with schema violation details
 
-    @US043 @E003 @F017 @must @draft
+    @US043 @E003 @F017 @must @final
     Scenario: Executor retries on HTTP 429 rate limit
       Given the first LLM call returns HTTP 429
       When the executor applies exponential backoff
@@ -49,7 +49,7 @@ Feature: LLM Executor Framework
       And the delay doubles on each subsequent retry
       And after 3 retries, if still 429, the task transitions to FAILED
 
-    @US043 @E003 @F017 @should @draft
+    @US043 @E003 @F017 @should @final
     Scenario: Executor triggers pre-summarization when context exceeds 80% window
       Given the combined token weight (source + test + validators) exceeds 80% of model context window
       When the executor applies context budgeting
@@ -59,7 +59,7 @@ Feature: LLM Executor Framework
 
   Rule: Dry-run mode returns deterministic static JSON without calling any LLM
 
-    @US044 @E003 @F017 @should @draft
+    @US044 @E003 @F017 @should @final
     Scenario: Executor in dry-run mode returns deterministic output
       Given dry-run mode is active
       When the executor processes the file
@@ -70,13 +70,13 @@ Feature: LLM Executor Framework
 
   Rule: Invalid LLM responses trigger error-feedback retry
 
-    @US063 @E003 @F017 @should @draft
+    @US063 @E003 @F017 @should @final
     Scenario: Invalid JSON response triggers retry with error-feedback
       Given the LLM returns a response that fails JSON parsing
       When the executor processes the file
       Then the executor retries with an error-feedback prompt containing the failed JSON and parse error
 
-    @US063 @E003 @F017 @should @draft
+    @US063 @E003 @F017 @should @final
     Scenario: Retry exhausted transitions task to FAILED
       Given the LLM consistently returns invalid JSON
       When all 3 retry attempts are exhausted

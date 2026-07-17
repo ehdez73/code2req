@@ -129,13 +129,13 @@ All 6 ADRs reference specific user stories or functional requirements. No orphan
 | Source A | Source B | Contradiction |
 |---|---|---|
 | PRD §2 (pipeline diagram) | ADR-006 | PRD shows 3-phase pipeline (Indexing → Enrichment → Extraction). ADR-006 splits Extraction into `extract` + `generate`, creating a 5-step pipeline (`scan → plan → enrich → extract → generate`). PRD has not been updated to reflect this. |
-| US064 file header | Story title metadata | `US064` file is named `E003-F016-US064-planner-qualifies-dtos-with-bean-validation.md` but the story header reads `US056 — Planner qualifies DTOs with bean validation`. Wrong story number in header. |
+| ~~US064 file header~~ | ~~Story title metadata~~ | ~~`US064` file is named `E003-F016-US064-planner-qualifies-dtos-with-bean-validation.md` but the story header reads `US056 — Planner qualifies DTOs with bean validation`. Wrong story number in header.~~ |
 
 ### 3.7 Ambiguous or Incomplete Documentation
 
 | Location | Issue |
 |---|---|
-| All feature files | All 29 features tagged `@draft` — none are marked `@final`. Unclear which are considered complete/stable. |
+| All feature files | ~~All 29 features tagged `@draft` — none are marked `@final`. Unclear which are considered complete/stable.~~ 23 features promoted to `@final`; 6 incomplete features (F007-009/E002, F020/partial, F026, F028) remain `@draft`. |
 | PRD | Refers to extract/generate as Phase 3 but pipeline diagram shows only 3 phases — conflicts with ADR-006's 4-phase model. |
 | US048 | Acceptance criteria list is empty in the user story — `Test Suite Mining` has no defined acceptance criteria in the story file (only in the feature file). |
 
@@ -316,7 +316,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | ~~**Medium** | User Stories | Create US for `@Bean` method detection | `BeanMethodVisitor` with full tests, 0 stories | Undocumented features | Engineering~~ |
 | ~~**Medium** | Features | Create Gherkin features for XML Bean Analysis | Same rationale | Undocumented features | Engineering~~ |
 | ~~**Low** | Features | Promote all `@draft` tags to `@final` where implementation is complete | All features still marked draft | Quality signal | Engineering~~ |
-| **Low** | User Stories | Fix US064 header (says US056 instead of US064) | Story number mismatch | Accuracy | Engineering |
+| ~~**Low** | User Stories | Fix US064 header (says US056 instead of US064) | Story number mismatch | Accuracy | Engineering~~ |
 | ~~**Low** | PRD | Add `@Bean` method detection | `BeanMethodVisitor` detects `@Bean`-annotated methods in `@Configuration` classes | Documentation completeness | Engineering~~ |
 
 ---
@@ -341,11 +341,11 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 
 ### Improve Traceability
 4. **Add trace IDs to PRD**: The PRD lacks explicit identifiers linking requirements to user stories. Add inline references (e.g., `[US001]`).
-5. **Unify story numbering**: Fix the US064/US056 header mismatch.
+~~5. **Unify story numbering**: Fix the US064/US056 header mismatch.~~
 
 ### Reduce Documentation Debt
-6. **Promote `@draft` tags**: All 29 feature files remain `@draft`. Review and promote to `@final` for completed features.
-7. **Consolidate acceptance criteria**: US048 has an empty AC list in the story file but scenarios in the feature file — align them.
+~~6. **Promote `@draft` tags**: All 29 feature files remain `@draft`. Review and promote to `@final` for completed features.~~
+~~7. **Consolidate acceptance criteria**: US048 has an empty AC list in the story file but scenarios in the feature file — align them.~~
 
 ### Reduce Technical Debt
 8. **Implement `ReviewCommand`**: Without it, `AWAITING_HUMAN_REVIEW` tasks are orphaned — the pipeline can stall with no resolution path.

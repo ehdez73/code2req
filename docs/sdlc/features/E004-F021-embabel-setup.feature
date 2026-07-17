@@ -14,21 +14,21 @@ Feature: Embabel Agent Framework Setup
 
   Rule: The Embabel dependency must be resolvable and the framework must initialize at startup
 
-    @US049 @E004 @F021 @must @draft
+    @US049 @E004 @F021 @must @final
     Scenario: Embabel dependency resolves from Maven repositories
       Given the embabel-agent-starter dependency is uncommented in pom.xml
       When the project is compiled with mvn compile
       Then compilation succeeds
       And Embabel classes are on the classpath
 
-    @US049 @E004 @F021 @must @draft
+    @US049 @E004 @F021 @must @final
     Scenario: Embabel initializes on application startup
       Given the Embabel dependency is on the classpath
       When the application starts
       Then Embabel initializes without errors
       And the AgentPlatform is available for Phase 3
 
-    @US049 @E004 @F021 @must @draft
+    @US049 @E004 @F021 @must @final
     Scenario: Embabel repo is unreachable — build fails clearly
       Given the Embabel repository is unreachable
       When the project is compiled

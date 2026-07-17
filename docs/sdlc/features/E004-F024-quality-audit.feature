@@ -13,7 +13,7 @@ Feature: Quality Audit
 
   Rule: The quality audit validates structural conformance and flags quarantined flows
 
-    @US052 @E004 @F024 @should @draft
+    @US052 @E004 @F024 @should @final
     Scenario: Audit validates JSON schema conformance
       Given the semantic_manifest.json has been written
       When the quality audit runs
@@ -21,7 +21,7 @@ Feature: Quality Audit
       And any schema violations are logged as errors
       And the Phase 3 marker is set to FAILED if validation fails
 
-    @US052 @E004 @F024 @should @draft
+    @US052 @E004 @F024 @should @final
     Scenario: Audit ensures quarantined flows appear in spec output
       Given there are flows marked as AWAITING_HUMAN_REVIEW
       When the quality audit runs

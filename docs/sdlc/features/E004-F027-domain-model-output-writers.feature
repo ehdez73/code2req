@@ -16,7 +16,7 @@ Feature: Domain Model + Output Writers
 
   Rule: Domain records are defined for all Phase 3 synthesis output types
 
-    @US056 @E004 @F027 @must @draft
+    @US056 @E004 @F027 @must @final
     Scenario: Domain model defines all Phase 3 output records
       Given a Phase 3 synthesis codebase package exists
       When the domain model is inspected
@@ -29,7 +29,7 @@ Feature: Domain Model + Output Writers
 
   Rule: MarkdownSpecWriter produces a structured specification document
 
-    @US056 @E004 @F027 @must @draft
+    @US056 @E004 @F027 @must @final
     Scenario: Writer produces spec.md with full feature breakdown
       Given a list of FunctionalFeature objects with analyzed flows, business rules, edge cases, and relationships
       When MarkdownSpecWriter.write() is called
@@ -46,7 +46,7 @@ Feature: Domain Model + Output Writers
 
   Rule: SemanticManifestWriter produces a valid JSON manifest
 
-    @US056 @E004 @F027 @must @draft
+    @US056 @E004 @F027 @must @final
     Scenario: Writer produces valid semantic_manifest.json
       Given a list of FunctionalFeature objects with full analysis data
       When SemanticManifestWriter.write() is called
@@ -61,7 +61,7 @@ Feature: Domain Model + Output Writers
 
   Rule: Output validation enforces schema conformance
 
-    @US056 @E004 @F027 @must @draft
+    @US056 @E004 @F027 @must @final
     Scenario: SemanticManifestWriter validates output before persisting
       Given SemanticManifestWriter is invoked from generate command
       When the writer generates the manifest JSON

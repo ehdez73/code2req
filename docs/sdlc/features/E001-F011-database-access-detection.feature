@@ -13,7 +13,7 @@ Feature: Database Access Detection
 
   Rule: JdbcTemplate invocations are captured with their SQL strings
 
-    @US031 @E001 @F011 @must @draft
+    @US031 @E001 @F011 @must @final
     Scenario: Service uses JdbcTemplate.query()
       Given a @Service with an injected JdbcTemplate
       And a method calls jdbcTemplate.query("SELECT * FROM orders WHERE id = ?", rowMapper, id)
@@ -22,7 +22,7 @@ Feature: Database Access Detection
       And the SQL string "SELECT * FROM orders WHERE id = ?" is captured
       And the table hint "orders" is extracted from the SQL
 
-    @US031 @E001 @F011 @must @draft
+    @US031 @E001 @F011 @must @final
     Scenario: Service uses JdbcTemplate.update()
       Given a method calling jdbcTemplate.update("UPDATE orders SET status = ? WHERE id = ?", status, id)
       When DbAccessVisitor analyses the method
@@ -31,7 +31,7 @@ Feature: Database Access Detection
 
   Rule: @Procedure annotations are captured
 
-    @US031 @E001 @F011 @must @draft
+    @US031 @E001 @F011 @must @final
     Scenario: Repository method annotated with @Procedure
       Given a @Repository interface with a method annotated @Procedure(name = "PR_CALCULATE_TAX")
       When DbAccessVisitor analyses the file
@@ -40,14 +40,14 @@ Feature: Database Access Detection
 
   Rule: @Transactional boundaries are recorded
 
-    @US031 @E001 @F011 @should @draft
+    @US031 @E001 @F011 @should @final
     Scenario: Method annotated with @Transactional
       Given a service method annotated with @Transactional
       When DbAccessVisitor analyses the method
       Then a transactional boundary entry is recorded
       And the method is marked as a transaction root
 
-    @US031 @E001 @F011 @should @draft
+    @US031 @E001 @F011 @should @final
     Scenario: Class annotated with @Transactional
       Given a @Service class annotated with @Transactional
       When DbAccessVisitor analyses the class
@@ -55,7 +55,7 @@ Feature: Database Access Detection
 
   Rule: Spring Data interfaces are registered as virtual database access points
 
-    @US031 @E001 @F011 @should @draft
+    @US031 @E001 @F011 @should @final
     Scenario: JpaRepository interface derived query method
       Given an interface extending JpaRepository<Order, Long>
       And a method declaration findByCustomerName(String name)
@@ -66,7 +66,7 @@ Feature: Database Access Detection
 
   Rule: EntityManager calls are detected
 
-    @US031 @E001 @F011 @should @draft
+    @US031 @E001 @F011 @should @final
     Scenario: Service uses EntityManager
       Given a @Service using @PersistenceContext EntityManager em
       And a method calling em.createQuery("SELECT o FROM Order o WHERE o.status = :status")
@@ -76,20 +76,20 @@ Feature: Database Access Detection
 
   Rule: @NamedQuery and @NamedNativeQuery declarations are detected
 
-    @US059 @E001 @F011 @should @draft
+    @US059 @E001 @F011 @should @final
     Scenario: Entity class with @NamedQuery annotation
       Given an entity class annotated with @NamedQuery(name = "Order.findByStatus", query = "SELECT o FROM Order o WHERE o.status = :status")
       When DbAccessVisitor analyses the file
       Then a database access entry is recorded with type JPQL_HQL
       And the JPQL query string is captured
 
-    @US059 @E001 @F011 @should @draft
+    @US059 @E001 @F011 @should @final
     Scenario: Entity class with @NamedQueries container form
       Given an entity class annotated with @NamedQueries({ @NamedQuery(name = "o1", query = "q1"), @NamedQuery(name = "o2", query = "q2") })
       When DbAccessVisitor analyses the file
       Then both named queries are recorded as database access entries
 
-    @US059 @E001 @F011 @should @draft
+    @US059 @E001 @F011 @should @final
     Scenario: Entity class with @NamedNativeQuery
       Given an entity class annotated with @NamedNativeQuery(name = "Order.findActive", query = "SELECT * FROM orders WHERE active = 1", resultClass = Order.class)
       When DbAccessVisitor analyses the file
@@ -98,21 +98,21 @@ Feature: Database Access Detection
 
   Rule: Raw JDBC calls are detected
 
-    @US060 @E001 @F011 @should @draft
+    @US060 @E001 @F011 @should @final
     Scenario: Class using Connection.prepareStatement
       Given a class with a method calling connection.prepareStatement("SELECT * FROM orders WHERE id = ?")
       When DbAccessVisitor analyses the method
       Then a database access entry is recorded with type NATIVE_SQL
       And the SQL string is captured
 
-    @US060 @E001 @F011 @should @draft
+    @US060 @E001 @F011 @should @final
     Scenario: Class using Statement.executeQuery
       Given a class with a method calling statement.executeQuery("SELECT * FROM orders")
       When DbAccessVisitor analyses the method
       Then a database access entry is recorded with type NATIVE_SQL
       And the SQL string is captured
 
-    @US060 @E001 @F011 @should @draft
+    @US060 @E001 @F011 @should @final
     Scenario: Raw JDBC call excludes JdbcTemplate to avoid double-counting
       Given a class with a method calling jdbcTemplate.query("SELECT * FROM orders", ...)
       When DbAccessVisitor analyses the method
@@ -120,7 +120,7 @@ Feature: Database Access Detection
 
   Rule: NamedParameterJdbcTemplate and SimpleJdbcCall are detected
 
-    @US061 @E001 @F011 @should @draft
+    @US061 @E001 @F011 @should @final
     Scenario: NamedParameterJdbcTemplate query via npjt alias
       Given a class with a method calling npjt.query("SELECT * FROM orders WHERE status = :status", params, rowMapper)
       When DbAccessVisitor analyses the method
@@ -128,7 +128,7 @@ Feature: Database Access Detection
       And the SQL string "SELECT * FROM orders WHERE status = :status" is captured
       And the table hint "orders" is extracted
 
-    @US061 @E001 @F011 @should @draft
+    @US061 @E001 @F011 @should @final
     Scenario: SimpleJdbcCall invoke detected
       Given a class with a method calling simpleJdbcCall.withProcedureName("PR_CALCULATE_TAX").execute(params)
       When DbAccessVisitor analyses the method
