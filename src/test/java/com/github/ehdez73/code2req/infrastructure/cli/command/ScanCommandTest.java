@@ -143,9 +143,9 @@ import org.springframework.web.bind.annotation.RestController;
         String result = command.scan(manifest.toString(), false);
 
         assertTrue(result.contains("Scan Complete"), "Expected scan completion message");
-        assertTrue(result.contains("Phase 1/5 — Manifest: OK"), "Expected manifest phase OK");
-        assertTrue(result.contains("Phase 3/5 — File Discovery"), "Expected file discovery phase");
-        assertTrue(result.contains("Phase 4/5 — Analysis"), "Expected analysis phase");
+        assertTrue(result.contains("Phase 1 - Manifest"), "Expected manifest phase");
+        assertTrue(result.contains("Phase 3 - File Discovery"), "Expected file discovery phase");
+        assertTrue(result.contains("Phase 4 - Analysis"), "Expected analysis phase");
 
         assertTrue(taskStore.count() > 0, "Expected tasks in store");
     }

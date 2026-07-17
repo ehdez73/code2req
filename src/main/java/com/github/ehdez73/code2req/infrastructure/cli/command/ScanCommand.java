@@ -120,14 +120,13 @@ public class ScanCommand {
             allFiles = filterCompleted(allFiles, manifest.targets(), report);
         }
 
-        report.append("Phase 4/5 — Analysis (Two-Pass):\n");
+        report.append("Phase 4 - Analysis (Two-Pass):\n");
         var pipelineResult = pipeline.execute(allFiles, manifest.targets(), report);
 
         var templateBatches = discoverTemplateFiles(manifest, report);
         List<TemplateFormInfo> templateForms = new ArrayList<>();
         List<TemplateLinkInfo> templateLinks = new ArrayList<>();
         if (templateBatches != null) {
-            report.append("Phase 4b/5 — Template Analysis:\n");
             for (var batch : templateBatches) {
                 for (Path tf : batch.files()) {
                     templateForms.addAll(templateAnalyzer.analyze(tf));
@@ -142,19 +141,14 @@ public class ScanCommand {
             report.append(String.format("  %d template-to-endpoint link(s) matched%n", templateLinks.size()));
 
             persistTemplateFindings(pipelineResult, templateForms, templateLinks, manifest.targets());
-            report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(scanStart)));
         }
 
-        report.append("Phase 4c/5 — web.xml Endpoint Analysis:\n");
         var webXmlResults = analyzeWebXmlFiles(manifest, report, resume);
         List<AnalysisResult> allResults = new ArrayList<>(pipelineResult.results());
         allResults.addAll(webXmlResults);
-        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(scanStart)));
 
-        report.append("Phase 4d/5 — Spring XML Config Analysis:\n");
         var springXmlResults = analyzeSpringXmlFiles(manifest, report, resume);
         allResults.addAll(springXmlResults);
-        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(scanStart)));
 
         allResults = dedupResults(allResults);
         allResults = dedupFindings(allResults);
@@ -175,35 +169,34 @@ public class ScanCommand {
         try {
             var validation = manifestValidator.validate(manifestFile);
             if (validation.hasErrors()) {
-                report.append("Phase 1/5 — Manifest: FAILED\n");
+                report.append("Phase 1 - Manifest: FAILED\n");
                 for (var err : validation.getErrors()) {
                     report.append("  - ").append(err).append("\n");
                 }
                 return null;
             }
             manifest = manifestLoader.load(manifestFile);
-            report.append(String.format("Phase 1/5 — Manifest: OK (%d target(s), %d warning(s))%n",
+            report.append("Phase 1 - Manifest:\n");
+            report.append(String.format("  OK (%d target(s), %d warning(s))%n",
                 manifest.targets().size(), validation.getWarnings().size()));
         } catch (IOException e) {
             report.insert(0, "Error: Failed to read manifest: " + e.getMessage() + "\n");
             return null;
         }
 
-        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
         return manifest;
     }
 
     private void recoverOrphans(StringBuilder report) {
-        var phaseStart = Instant.now();
         var result = orphanRecovery.recover();
-        report.append(String.format("Phase 2/5 — Orphan Recovery: %d task(s) reverted%n", result.revertedCount()));
-        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
+        report.append("Phase 2 - Orphan Recovery:\n");
+        report.append(String.format("  %d task(s) reverted%n", result.revertedCount()));
     }
 
     private void cleanFailedTasks(StringBuilder report) {
         int deleted = taskStore.deleteByStatus(TaskStatus.FAILED);
         if (deleted > 0) {
-            report.append(String.format("Phase 2b/5 — Clean Stale FAILED: removed %d task(s) for re-scan%n", deleted));
+            report.append(String.format("  Clean Stale FAILED: removed %d task(s) for re-scan%n", deleted));
         }
     }
 
@@ -240,7 +233,7 @@ public class ScanCommand {
             return null;
         }
 
-        report.append(String.format("Phase 3b/5 — Template Discovery: %d template file(s) across %d target(s)%n",
+        report.append(String.format("  Template Discovery: %d template file(s) across %d target(s)%n",
             totalFiles, batches.size()));
         return batches;
     }
@@ -274,13 +267,14 @@ public class ScanCommand {
         }
 
         if (totalFiles == 0) {
-            report.append("Phase 3/5 — File Discovery: no Java files found across any target\n");
+            report.append("Phase 3 - File Discovery:\n");
+            report.append("  no Java files found across any target\n");
             return null;
         }
 
-        report.append(String.format("Phase 3/5 — File Discovery: %d Java file(s) across %d target(s)%n",
+        report.append("Phase 3 - File Discovery:\n");
+        report.append(String.format("  %d Java file(s) across %d target(s)%n",
             totalFiles, batches.size()));
-        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
         return batches;
     }
 
@@ -485,7 +479,6 @@ public class ScanCommand {
     }
 
     private List<Path> filterCompleted(List<Path> files, List<ScanTarget> targets, StringBuilder report) {
-        var phaseStart = Instant.now();
         int skipped = 0;
         List<Path> pending = new ArrayList<>();
 
@@ -498,7 +491,6 @@ public class ScanCommand {
         }
 
         report.append(String.format("  Skipped (already indexed/enriched): %d, Remaining: %d%n", skipped, pending.size()));
-        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
         return pending;
     }
 

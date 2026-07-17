@@ -10,22 +10,20 @@ public class RunCommand {
     private static final String SUGGESTED_NEXT = "\n=== Suggested Next ===";
 
     private final ScanCommand scanCommand;
-    private final PlanCommand planCommand;
     private final EnrichCommand enrichCommand;
     private final ExtractCommand extractCommand;
     private final GenerateCommand generateCommand;
 
-    public RunCommand(ScanCommand scanCommand, PlanCommand planCommand,
+    public RunCommand(ScanCommand scanCommand,
                      EnrichCommand enrichCommand, ExtractCommand extractCommand,
                      GenerateCommand generateCommand) {
         this.scanCommand = scanCommand;
-        this.planCommand = planCommand;
         this.enrichCommand = enrichCommand;
         this.extractCommand = extractCommand;
         this.generateCommand = generateCommand;
     }
 
-    @ShellMethod(key = "run", value = "Execute the full pipeline: scan -> plan -> enrich -> extract -> generate")
+    @ShellMethod(key = "run", value = "Execute the full pipeline: scan -> enrich -> extract -> generate")
     public String run(
             @ShellOption(value = "--manifest", defaultValue = "project-manifest.yaml",
                          help = "Path to the project manifest YAML file") String manifestPath,
@@ -42,8 +40,7 @@ public class RunCommand {
         sb.append("=== Full Pipeline Run ===\n\n");
 
         sb.append(stripSuggestions(scanCommand.executeScan(manifestPath, resume))).append("\n");
-        sb.append(stripSuggestions(planCommand.plan(manifestPath))).append("\n");
-        sb.append(stripSuggestions(enrichCommand.enrich(manifestPath, dryRun, resume, llmThreshold))).append("\n");
+        sb.append(stripSuggestions(enrichCommand.enrich(manifestPath, false, dryRun, resume, llmThreshold))).append("\n");
         sb.append(stripSuggestions(extractCommand.extract(manifestPath, dryRun, force, resume))).append("\n");
         sb.append(stripSuggestions(generateCommand.generate())).append("\n");
 

@@ -58,11 +58,9 @@ public class SuggestionService {
         }
 
         if (indexedCount > 0) {
-            sb.append("  ").append(indexedCount).append(" INDEXED task(s) ready for qualification:\n");
-            sb.append("    plan\n");
-            if (enrichPendingCount == 0) {
-                sb.append("    (if no tasks qualify, lower llm-unresolved-threshold in manifest)\n");
-            }
+            sb.append("  ").append(indexedCount).append(" INDEXED task(s) ready for enrichment (qualification happens automatically):\n");
+            sb.append("    enrich\n");
+            sb.append("    enrich --show-plan  (preview qualification decisions first)\n");
             hasActionable = true;
         }
 
@@ -77,7 +75,7 @@ public class SuggestionService {
             && pendingCount == 0 && skippedCount > 0;
         if (onlySkipped) {
             sb.append("  All tasks evaluated — none qualified for enrichment.\n");
-            sb.append("    plan  (lower llm-unresolved-threshold in manifest to qualify more)\n");
+            sb.append("    enrich --show-plan --llm-threshold <N>  (re-qualify with lower threshold)\n");
             sb.append("    extract  (proceed without enrichment)\n");
             hasActionable = true;
         }

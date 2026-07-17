@@ -4,6 +4,9 @@ import com.github.ehdez73.code2req.infrastructure.config.ManifestValidator;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.enrichment.domain.model.CompletionStatus;
+import com.github.ehdez73.code2req.enrichment.domain.model.PlannerDecision;
+import com.github.ehdez73.code2req.enrichment.domain.model.QualificationReason;
+import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import com.github.ehdez73.code2req.enrichment.EnrichmentOrchestrator;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.FloatingLinkStore;
@@ -21,6 +24,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @ShellComponent
 public class EnrichCommand {
@@ -28,6 +32,7 @@ public class EnrichCommand {
     private static final Logger log = LoggerFactory.getLogger(EnrichCommand.class);
 
     private final EnrichmentOrchestrator enrichmentOrchestrator;
+    private final EnrichmentPlanner planner;
     private final ManifestValidator manifestValidator;
     private final TaskStore taskStore;
     private final ExecutionFindingStore executionFindingStore;
@@ -35,12 +40,14 @@ public class EnrichCommand {
     private final FloatingLinkStore floatingLinkStore;
 
     public EnrichCommand(EnrichmentOrchestrator enrichmentOrchestrator,
+                         EnrichmentPlanner planner,
                          ManifestValidator manifestValidator,
                          TaskStore taskStore,
                          ExecutionFindingStore executionFindingStore,
                          TopicLinkStore topicLinkStore,
                          FloatingLinkStore floatingLinkStore) {
         this.enrichmentOrchestrator = enrichmentOrchestrator;
+        this.planner = planner;
         this.manifestValidator = manifestValidator;
         this.taskStore = taskStore;
         this.executionFindingStore = executionFindingStore;
@@ -52,6 +59,8 @@ public class EnrichCommand {
     public String enrich(
             @ShellOption(value = "--manifest", defaultValue = "project-manifest.yaml",
                          help = "Path to the project manifest YAML file") String manifestPath,
+            @ShellOption(value = "--show-plan", defaultValue = "false",
+                         help = "Preview qualification decisions before enrichment") boolean showPlan,
             @ShellOption(value = "--dry-run", defaultValue = "false",
                          help = "Simulation mode: stubs instead of LLM calls") boolean dryRun,
             @ShellOption(value = "--resume", defaultValue = "false",
@@ -71,6 +80,10 @@ public class EnrichCommand {
             recoverOrphanedTasks(sb);
         }
 
+        if (showPlan) {
+            appendPlanPreview(sb);
+        }
+
         boolean skipPhase2 = (llmThreshold != null && llmThreshold == 0);
         CompletionStatus status = runPhase2(manifestPath, dryRun, skipPhase2, sb);
 
@@ -84,6 +97,57 @@ public class EnrichCommand {
         }
 
         return sb.toString();
+    }
+
+    private void appendPlanPreview(StringBuilder sb) {
+        List<PlannerDecision> decisions = planner.plan();
+        if (decisions.isEmpty()) {
+            sb.append("=== Plan Preview ===\n");
+            sb.append("No tasks found — run 'scan' first to populate the task store.\n\n");
+            return;
+        }
+
+        var qualified = decisions.stream()
+            .filter(PlannerDecision::qualified)
+            .toList();
+        var nonQualified = decisions.stream()
+            .filter(d -> !d.qualified())
+            .toList();
+
+        sb.append("=== Plan Preview ===\n\n");
+        sb.append(String.format("Total tasks evaluated: %d%n", decisions.size()));
+        sb.append(String.format("  Qualified: %d%n", qualified.size()));
+        sb.append(String.format("  Not qualified: %d%n", nonQualified.size()));
+        sb.append("\n");
+
+        if (!qualified.isEmpty()) {
+            sb.append("=== Qualified Tasks (enrichment candidates) ===\n\n");
+            for (PlannerDecision d : qualified) {
+                String reasons = d.reasons().stream()
+                    .filter(r -> r != QualificationReason.NONE)
+                    .map(QualificationReason::name)
+                    .collect(Collectors.joining(", "));
+                String tid = d.taskId().length() > 8 ? d.taskId().substring(0, 8) : d.taskId();
+                sb.append(String.format("  [%s] %s%n", tid, d.filePath()));
+                sb.append(String.format("         Reasons: %s%n", reasons));
+            }
+            sb.append("\n");
+        }
+
+        if (!nonQualified.isEmpty()) {
+            sb.append("=== Non-Qualified Tasks ===\n\n");
+            for (PlannerDecision d : nonQualified) {
+                String tid = d.taskId().length() > 8 ? d.taskId().substring(0, 8) : d.taskId();
+                sb.append(String.format("  [%s] %s%n", tid, d.filePath()));
+            }
+            sb.append("\n");
+        }
+
+        if (qualified.isEmpty()) {
+            sb.append("No tasks qualified for LLM enrichment. ");
+            sb.append("Consider lowering 'llm-unresolved-threshold' in your manifest ");
+            sb.append("or running with `enrich --llm-threshold <N>`.\n\n");
+        }
     }
 
     private boolean validateManifest(Path manifestFile, StringBuilder sb) {

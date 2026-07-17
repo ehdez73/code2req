@@ -98,13 +98,13 @@ class EnrichCommandTest {
         var manifestLoader = new ManifestLoader();
         var manifestValidator = new ManifestValidator(manifestLoader);
 
-        command = new EnrichCommand(orchestrator, manifestValidator,
+        command = new EnrichCommand(orchestrator, planner, manifestValidator,
             taskStore, findingStore, topicLinkStore, floatingLinkStore);
     }
 
     @Test
     void enrichWithEmptyQualifiedTasksCompletes() {
-        String result = command.enrich("project-manifest.yaml", true, false, null);
+        String result = command.enrich("project-manifest.yaml", false, true, false, null);
         assertTrue(result.contains("Completed: 0"));
         assertTrue(result.contains("Phase 2"));
     }
@@ -115,7 +115,7 @@ class EnrichCommandTest {
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t1", "DATABASE_PROCEDURE_CALL", "{}", 1);
 
-        String result = command.enrich("project-manifest.yaml", true, false, null);
+        String result = command.enrich("project-manifest.yaml", false, true, false, null);
         assertTrue(result.contains("Completed: 1"));
         assertTrue(result.contains("DRY RUN"));
         assertTrue(result.contains("Phase 2"));
@@ -127,7 +127,7 @@ class EnrichCommandTest {
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t1", "SCHEDULED_TASK", "{}", 1);
 
-        String result = command.enrich("project-manifest.yaml", false, false, 0);
+        String result = command.enrich("project-manifest.yaml", false, false, false, 0);
         assertTrue(result.contains("skipping enrichment"));
     }
 
@@ -140,14 +140,14 @@ class EnrichCommandTest {
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t2", "DATABASE_PROCEDURE_CALL", "{}", 1);
 
-        String result = command.enrich("project-manifest.yaml", true, false, null);
+        String result = command.enrich("project-manifest.yaml", false, true, false, null);
         assertTrue(result.contains("Completed: 2"));
         assertTrue(result.contains("Enrich Complete"));
     }
 
     @Test
     void enrichWithInvalidManifestReturnsError() {
-        String result = command.enrich("nonexistent.yaml", false, false, null);
+        String result = command.enrich("nonexistent.yaml", false, false, false, null);
         assertTrue(result.contains("Error: Manifest file not found"));
     }
 
@@ -160,7 +160,7 @@ class EnrichCommandTest {
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "f2", "COMPONENT", "{}", 1);
 
-        String result = command.enrich("project-manifest.yaml", true, true, null);
+        String result = command.enrich("project-manifest.yaml", false, true, true, null);
 
         assertTrue(result.contains("FAILED"));
         assertEquals(TaskStatus.ENRICHED, taskStore.findById("f1").orElseThrow().status());
@@ -171,10 +171,44 @@ class EnrichCommandTest {
     void resumeRecoversFailedTasksWithoutFindings() {
         taskStore.save(new Task("f3", "/src/UnreadableService.java", TaskStatus.FAILED, "java", "hash-f3", "test"));
 
-        String result = command.enrich("project-manifest.yaml", true, true, null);
+        String result = command.enrich("project-manifest.yaml", false, true, true, null);
 
         assertTrue(result.contains("FAILED"));
         assertEquals(TaskStatus.SKIPPED, taskStore.findById("f3").orElseThrow().status());
+    }
+
+    @Test
+    void enrichWithShowPlanShowsQualifiedTasks() {
+        insertIndexedTask("t1", "/src/ProcedureRepo.java");
+        jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+            "t1", "DATABASE_PROCEDURE_CALL", "{}", 1);
+
+        String result = command.enrich("project-manifest.yaml", true, true, false, null);
+        assertTrue(result.contains("Plan Preview"));
+        assertTrue(result.contains("Qualified: 1"));
+        assertTrue(result.contains("/src/ProcedureRepo.java"));
+        assertTrue(result.contains("STORED_PROCEDURE_CALL"));
+        assertTrue(result.contains("Phase 2"));
+    }
+
+    @Test
+    void enrichWithShowPlanAndNoQualifiedTasksShowsSuggestions() {
+        insertIndexedTask("t1", "/src/Foo.java");
+        jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
+            "t1", "CALL_GRAPH_EDGE", "{}", 1);
+
+        String result = command.enrich("project-manifest.yaml", true, true, false, null);
+        assertTrue(result.contains("Plan Preview"));
+        assertTrue(result.contains("No tasks qualified"));
+        assertTrue(result.contains("lowering 'llm-unresolved-threshold'"));
+    }
+
+    @Test
+    void enrichWithShowPlanAndEmptyStoreShowsNoTasks() {
+        String result = command.enrich("project-manifest.yaml", true, true, false, null);
+        assertTrue(result.contains("Plan Preview"));
+        assertTrue(result.contains("No tasks found"));
+        assertTrue(result.contains("run 'scan' first"));
     }
 
     private void insertIndexedTask(String taskId, String filePath) {

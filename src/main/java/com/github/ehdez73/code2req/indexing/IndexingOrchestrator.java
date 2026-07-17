@@ -109,7 +109,6 @@ public class IndexingOrchestrator {
     }
 
     public ScanPipelineResult execute(List<Path> allFiles, List<ScanTarget> targets, StringBuilder report) {
-        var phaseStart = Instant.now();
         testImportIndex.clear();
         var registry = new GlobalDeclarationRegistry();
         String runId = UUID.randomUUID().toString().substring(0, 8);
@@ -170,7 +169,6 @@ public class IndexingOrchestrator {
         report.append(String.format(
             "  Persistence: %d execution finding(s), %d topic link(s), %d floating link(s), 1 metric row(s)%n",
             executionFindingStore.count(), topicLinkStore.count(), floatingLinkStore.count()));
-        report.append(String.format("  Elapsed: %ds%n%n", elapsedSeconds(phaseStart)));
 
         return new ScanPipelineResult(allResults, registry, pass2Analyzed, pass2Failed, topicLinks, floatingLinks);
     }

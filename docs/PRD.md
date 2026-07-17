@@ -30,21 +30,20 @@ Crucially, the tool rejects direct test framework generation. Instead, it export
     The CLI adopts a multi-phase pipeline that transitions from deterministic compilation (Phase 1) through optional per-file LLM enrichment (Phase 2) to an agentic extraction phase (Phase 3) and a pure-Java generation phase (Phase 4). When Phase 2 is skipped, Phase 3 derives business semantics directly from source code snippets.
 
 ```
-[scan] ──> [plan] ──> [enrich] ──> [extract] ──> [generate]
-  (P1)       (P2)       (P2)          (P3)           (P4)
-                         │
-                         └── (optional, skip via INDEXED)
+[scan] ──> [enrich] ──> [extract] ──> [generate]
+  (P1)       (P2)          (P3)           (P4)
+              │
+              └── (optional, skip via INDEXED)
 ```
 
 - **`scan`** (Phase 1): Deterministic indexing — AST parsing, secret redaction, SQLite persistence. Zero network calls.
-- **`plan`** (Phase 2): Qualification pass — reads the task store and decides which files need LLM enrichment.
-- **`enrich`** (Phase 2): Per-file LLM enrichment via Spring AI `@Async`. Optional — skipped when no file qualifies.
+- **`enrich`** (Phase 2): Qualification pass + per-file LLM enrichment via Spring AI `@Async`. Optional — skipped when no file qualifies.
 - **`extract`** (Phase 3): Embabel GOAP agent traces entry-point-driven flows and extracts functional requirements.
 - **`generate`** (Phase 4): Pure-Java output writers produce the Markdown specification and `semantic_manifest.json`.
 
 > **Note:** A Language Extension Framework (SPI for non-Java language parsers) was originally planned as E002 but is **formally postponed**. The current implementation is Java/Spring-only via JavaParser. The SPI, parser registry, and routing components described in stories US018-US022 (F007-F009) are de-scoped and retained for future reference.
 
-### 2.1 Phase 1: Deterministic Multi-Language Indexing
+### 2.1 Phase 1: Deterministic Indexing
 
 Before any LLM interaction takes place, the CLI scans the physical workspace using local code-graph and parsing tools. To maintain platform-agnostic distribution without native OS-level JNI bindings (such as Tree-sitter), the engineering stack enforces pure-Java AST parsers (e.g., **JavaParser** for Spring/Java modules). This phase runs as a deterministic compiler-pass requiring zero network connectivity or LLM credentials. It maps signatures, endpoint routes, call frameworks, and event publishers into a local intermediate contract file, eliminating structural exploration overhead during LLM execution.
 
