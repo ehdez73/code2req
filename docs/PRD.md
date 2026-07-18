@@ -2,7 +2,7 @@
 
 ## AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)
 
-> **Version 5.7** — Expanded §2.1.4 Snapshot & Restore (E005) with full CLI lifecycle — create/list/restore subcommands, `RefreshableDataSource` hot-swap, metadata manifests, and error handling (US053, US054). Phase 2 enrichment is now optional. `INDEXED` tasks (Phase 1 only) proceed directly to Phase 3 — the LLM derives business rules, edge cases, and non-functional requirements from source code snippets. Phase 2 enrichment provides richer context (test insights, discovered dependencies) when available, but is no longer a mandatory gate. Removed 4 redundant qualification rules (Spring Data interfaces, @Scheduled tasks, native SQL/JPQL-HQL queries) — the Phase 3 LLM already receives their source code snippets and can derive the same semantics without a separate enrichment call.
+> **Version 5.8** — Added §2.1.3 Pre-processing: Secret Redaction & File Exclusion (US011, US012 / F004). Renumbered existing §2.1.3 → §2.1.4 and §2.1.4 → §2.1.5. Phase 2 enrichment is now optional. `INDEXED` tasks (Phase 1 only) proceed directly to Phase 3 — the LLM derives business rules, edge cases, and non-functional requirements from source code snippets. Phase 2 enrichment provides richer context (test insights, discovered dependencies) when available, but is no longer a mandatory gate. Removed 4 redundant qualification rules (Spring Data interfaces, @Scheduled tasks, native SQL/JPQL-HQL queries) — the Phase 3 LLM already receives their source code snippets and can derive the same semantics without a separate enrichment call.
 
 ---
 
@@ -27,7 +27,7 @@ Crucially, the tool rejects direct test framework generation. Instead, it export
 
 ## 2. Core Architecture & Product Paradigms
 
-    The CLI adopts a multi-phase pipeline that transitions from deterministic compilation (Phase 1) through optional per-file LLM enrichment (Phase 2) to an agentic extraction phase (Phase 3) and a pure-Java generation phase (Phase 4). When Phase 2 is skipped, Phase 3 derives business semantics directly from source code snippets.
+The CLI adopts a multi-phase pipeline that transitions from deterministic compilation (Phase 1) through optional per-file LLM enrichment (Phase 2) to an agentic extraction phase (Phase 3) and a pure-Java generation phase (Phase 4). When Phase 2 is skipped, Phase 3 derives business semantics directly from source code snippets.
 
 ```
 [scan] ──> [enrich] ──> [extract] ──> [generate]
@@ -158,11 +158,27 @@ The indexer leverages a dedicated `VoidVisitorAdapter<Context>` traversal strate
   * **Import Resolution:** `<import resource="...">` references are followed recursively with cycle detection via a visited-set. `classpath:`, `classpath*:`, `file:` prefixes and glob patterns are resolved by the resource path resolver.
   * **@ImportResource Bridge:** Java classes annotated with `@ImportResource` trigger XML analysis of the referenced Spring config files, with findings attributed to the Java source file's analysis result.
 
-#### 2.1.3 SQLite as the Canonical Index Store
+#### 2.1.3 Pre-processing: Secret Redaction & File Exclusion
+
+Before analysis begins, two pre-processing steps prepare source files for safe and targeted downstream processing: in-memory secret redaction and pattern-based file exclusion. Both operate during Phase 1 file discovery, before any AST parsing or LLM transmission.
+
+* **Secret Redaction (US011):** In-memory only — source files on disk are never modified. Before any content is sent to the LLM (Phase 2 enrichment or Phase 3 extraction), known secret patterns (passwords, API keys, connection strings, tokens, private keys) are replaced with `[REDACTED:type]` placeholders via `SecretRedactor`. The redactor runs on the parsed AST string representation and operates deterministically — no network calls. This ensures zero secret leakage regardless of pipeline configuration.
+* **File Exclusion (US012):** Generated code, build artifacts, VCS metadata, IDE files, and vendor packages are filtered out before any parsing occurs, ensuring only hand-written business logic reaches the analyzer. Nine default glob patterns are always applied:
+  * `target/**`, `build/**`, `generated/**` — build tool output
+  * `.git/**` — VCS metadata
+  * `node_modules/**` — npm dependencies
+  * `.gradle/**`, `.idea/**` — IDE and build cache files
+  * `*.class`, `*.jar` — compiled artifacts
+  * Patterns starting with `**/` are normalized to `{,**/}` syntax for Java's `PathMatcher` to match at any directory depth.
+  * **Override mechanism:** Users specify additional `exclude_patterns` per scan target in `project-manifest.yaml` (via `ScanTarget.excludePatterns()`). These are **additive** to the defaults — there is no replacement mode.
+  * **Pipeline integration:** `ExcludeFilter` is a Spring `@Service` consumed by `ScanCommand` in three discovery flows: Java source files, `web.xml` files, and Spring XML configuration files. Exclusion is purely a logical filter on the file list; excluded files are never read or parsed.
+  * **Reporting:** Excluded file counts are logged at `INFO` level per scan target.
+
+#### 2.1.4 SQLite as the Canonical Index Store
 
 All analysis findings are written directly to the embedded SQLite database via the `execution_findings`, `topic_links`, and `floating_links` tables. SQLite serves as the canonical data store for all downstream pipeline phases. Per-file metadata (content hash, status, target assignment) is recorded in the `tasks` table.
 
-#### 2.1.4 Snapshot & Restore
+#### 2.1.5 Snapshot & Restore
 
 Point-in-time snapshots of local state (SQLite database + JSON extraction cache) enable safe experimentation and rollback during iterative analysis. The feature is realized by three components: `SnapshotService` (business logic), `RefreshableDataSource` (runtime pool-swapping proxy), and `SnapshotCommand` (CLI surface). Epic **E005**, feature **F025**, stories **US053** (create/list) and **US054** (restore).
 
