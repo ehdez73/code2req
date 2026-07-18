@@ -72,6 +72,7 @@ public class ServletEndpointDetector implements EndpointDetector {
 
         List<String> paths = extractServletPaths(clazz);
         if (paths.isEmpty()) {
+            paths = new ArrayList<>();
             paths.add("");
         }
 
