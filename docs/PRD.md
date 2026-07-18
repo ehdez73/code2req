@@ -2,7 +2,7 @@
 
 ## AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)
 
-> **Version 5.6** — Phase 2 enrichment is now optional. `INDEXED` tasks (Phase 1 only) proceed directly to Phase 3 — the LLM derives business rules, edge cases, and non-functional requirements from source code snippets. Phase 2 enrichment provides richer context (test insights, discovered dependencies) when available, but is no longer a mandatory gate. Removed 4 redundant qualification rules (Spring Data interfaces, @Scheduled tasks, native SQL/JPQL-HQL queries) — the Phase 3 LLM already receives their source code snippets and can derive the same semantics without a separate enrichment call.
+> **Version 5.7** — Expanded §2.1.4 Snapshot & Restore (E005) with full CLI lifecycle — create/list/restore subcommands, `RefreshableDataSource` hot-swap, metadata manifests, and error handling (US053, US054). Phase 2 enrichment is now optional. `INDEXED` tasks (Phase 1 only) proceed directly to Phase 3 — the LLM derives business rules, edge cases, and non-functional requirements from source code snippets. Phase 2 enrichment provides richer context (test insights, discovered dependencies) when available, but is no longer a mandatory gate. Removed 4 redundant qualification rules (Spring Data interfaces, @Scheduled tasks, native SQL/JPQL-HQL queries) — the Phase 3 LLM already receives their source code snippets and can derive the same semantics without a separate enrichment call.
 
 ---
 
@@ -164,9 +164,11 @@ All analysis findings are written directly to the embedded SQLite database via t
 
 #### 2.1.4 Snapshot & Restore
 
-Point-in-time snapshots of local state (SQLite database + JSON index) enable safe experimentation and rollback during iterative analysis.
+Point-in-time snapshots of local state (SQLite database + JSON extraction cache) enable safe experimentation and rollback during iterative analysis. The feature is realized by three components: `SnapshotService` (business logic), `RefreshableDataSource` (runtime pool-swapping proxy), and `SnapshotCommand` (CLI surface). Epic **E005**, feature **F025**, stories **US053** (create/list) and **US054** (restore).
 
-* **Snapshot creation:** Uses SQLite's `VACUUM INTO` for transactionally consistent database copies. Copies the SQLite database and extraction cache for point-in-time recovery.
-* **Restore:** Drains the HikariCP connection pool, overwrites live files, and reinitializes the pool.
-* **Lifecycle:** Snapshots are independent of the `clean` command. The directory and contents are gitignored via the `snapshots/` pattern.
-* **CLI:** The `snapshot` command supports listing, creating, and restoring snapshots.
+* **Snapshot creation:** Uses SQLite's `VACUUM INTO` for transactionally consistent database copies. Copies the live SQLite database and `extraction-cache.json` into a timestamped subdirectory under `code2req.snapshot.dir` (default `./snapshots/`). Auto-generates names (e.g., `snapshot_20260717T120000`) when `--name` is omitted. Each directory includes a `snapshot.json` metadata file recording name, ISO-8601 date, CLI version, and a file manifest with SHA-256 checksums and byte sizes. Duplicate names are rejected. If the cache file does not exist, it is silently skipped — the SQLite DB alone is sufficient.
+* **Snapshot listing:** `snapshot list` reads `snapshot.json` from every subdirectory and displays name, date, and per-file sizes. Corrupt or missing metadata on a per-snapshot basis produces a graceful fallback entry with an error field rather than aborting the full listing.
+* **Restore lifecycle:** `snapshot restore --name <label>` follows a five-step sequence: (1) validate that the snapshot directory exists and contains `sqlite.db`; (2) drain the active HikariCP pool via `hds.close()`; (3) overwrite live `sqlite.db` and `extraction-cache.json` with snapshot copies; (4) create a new `HikariDataSource` with the same JDBC URL, driver, pool size (10), WAL pragmas, and `busy_timeout=5000`; (5) hot-swap via `RefreshableDataSource.replaceDelegate()` so all subsequent `getConnection()` calls route to the new pool. The internal `JdbcTemplate` is also replaced. No CLI restart is required.
+* **RefreshableDataSource:** A `DataSource` proxy wrapping a `volatile` delegate reference. Wired as the `@Primary` bean across the application, enabling live pool replacement without re-injecting any `@Autowired` beans.
+* **CLI subcommands:** Three shell commands: `snapshot create [--name <label>]`, `snapshot list`, `snapshot restore --name <label>`. The `--name` parameter is optional for create, required for restore. Errors report clear messages (missing snapshot, non-existent name).
+* **Lifecycle and configuration:** Snapshots are independent of the `clean` command — `clean` never touches the `snapshots/` directory. The snapshot root is configurable via `code2req.snapshot.dir` (default `./snapshots`) and is gitignored via the `snapshots/` pattern.
