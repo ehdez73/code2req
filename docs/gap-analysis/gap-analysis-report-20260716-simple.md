@@ -1,8 +1,8 @@
 # Gap Analysis: PRD vs. Implementation
 
 > **Date:** 2026-07-16
-> **PRD Version:** 5.9
-> **Last PRD update:** §2.2 Generation & Quality Audit (F024 / US052)  
+> **PRD Version:** 5.10
+> **Last PRD update:** §2.2 Phase 3: Agentic Extraction — Embabel GOAP architecture (6 actions, guardrails) + §2.2.2 Interactive Mode (US057 / F028 — SPI with "Write your own" option, default interactive, `--headless` opt-out, LLM re-evaluation feedback loop)  
 > **Source:** `docs/PRD.md` vs. `src/main/java/com/github/ehdez73/code2req/`
 
 ---
@@ -68,6 +68,8 @@
 - Single-file failures never block full scan
 - CLI is a Spring Shell app with `spring.main.web-application-type=none`
 - Quality audit with manifest schema enforcement (typed POJOs + `@JsonNaming` + quarantined flow `review_required` tagging)
+- Phase 3 Embabel GOAP agent architecture (6 actions, guardrails, priority scoring, sub-chain caching, progressive disclosure per §2.2.1)
+- Interactive Mode US057/F028 — `UserInteractionService` SPI (ask/confirm/select), `NoOpUserInteractionService` default, deferred `InteractiveUserInteractionService`, `AmbiguityGap` audit trail, `user_responses` SQLite table, `run --interactive` CLI flag (§2.2.2)
 
 ---
 
@@ -81,4 +83,4 @@
    ~~- `TemplateLinkResolver`~~
    ~~- `ServletEndpointDetector`~~
    ~~(All four now covered — 63 tests total. Bugfix applied in `ServletEndpointDetector`: `extractServletPaths` returned immutable `List.of()`, causing `UnsupportedOperationException` when no `@WebServlet` annotation was present.)~~
-4. **Consider updating the PRD** to document the additional features (section B) that have accrued since v5.6 was written — particularly the XML bean analysis, event listener detection, test mining, ~~secret redaction,~~ ~~snapshot/restore,~~ ~~exclude filtering,~~ and extended CLI. ~~(Secret redaction and exclude filtering now covered in v5.9 §2.1.3; snapshot/restore in §2.1.5; quality audit in §2.2)~~
+4. **Consider updating the PRD** to document the additional features (section B) that have accrued since v5.6 was written — particularly the XML bean analysis, event listener detection, test mining, ~~secret redaction,~~ ~~snapshot/restore,~~ ~~exclude filtering,~~ and extended CLI. ~~(Secret redaction and exclude filtering now covered in v5.10 §2.1.3; snapshot/restore in §2.1.5; quality audit in §2.3; Embabel agent architecture + Interactive Mode in §2.2)~~

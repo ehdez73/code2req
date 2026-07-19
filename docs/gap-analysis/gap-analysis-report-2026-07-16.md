@@ -1,7 +1,7 @@
 # Gap Analysis Report — code2req
 
 **Date:** 2026-07-17
-**Scope:** PRD v5.9, User Stories (63), Gherkin Features (29), ADRs (6), Source Code (162 main sources + 16 tests)
+**Scope:** PRD v5.10, User Stories (63), Gherkin Features (29), ADRs (6), Source Code (162 main sources + 16 tests)
 
 ---
 
@@ -16,7 +16,7 @@ The code2req project exhibits strong traceability between documentation and impl
 | Risk | Impact |
 |------|--------|
 | ~~**E002 completely unimplemented** (8 documented items)~~ | ~~Misalignment between documented capabilities and actual product — 5 user stories, 3 feature files describe a feature that doesn't exist~~ |
-| **Phase 3 Interactive Mode unimplemented** | US057 interactive user prompts for agent ambiguity resolution are documented but deferred — currently headless-only |
+| **Phase 3 Interactive Mode unimplemented** | US057 interactive user prompts for agent ambiguity resolution are documented (PRD v5.10 §2.2.2) but deferred — currently headless-only |
 | **Review Command unimplemented** | US055 describes a CLI command to inspect/resolve `AWAITING_HUMAN_REVIEW` tasks — no code exists |
 | ~~**XML Bean Analysis undocumented**~~ | ~~66 code references, 5 model records, 1 full analyzer, 1 test file — zero documentation coverage~~ |
 | ~~**`@Bean` Method Detection undocumented**~~ | ~~`BeanMethodVisitor`, `BeanMethodInfo`, 1 full test — zero documentation coverage~~ |
@@ -76,11 +76,11 @@ The code2req project exhibits strong traceability between documentation and impl
 | Embabel agent setup | §2 | US049 | F021 | — | pom.xml + agent-config.yaml | Correctly Implemented |
 | CodebaseKnowledge | §2 | US050 | F022 | — | `CodebaseKnowledge`, `ExtractionOrchestrator` | Correctly Implemented |
 | Embabel agent extraction | §2 | US051 | F023 | ADR-006 | 6 agent actions + `FunctionalRequirementAgent` | Correctly Implemented |
-| Quality audit | §2.2 | US052 | F024 | — | `SemanticManifestWriter` schema validation | Correctly Implemented |
+| Quality audit | §2.3 | US052 | F024 | — | `SemanticManifestWriter` schema validation | Correctly Implemented |
 | Snapshot/restore | §2.1.5 | US053, US054 | F025 | — | `SnapshotService`, `SnapshotCommand` | Correctly Implemented |
 | Review command | — | US055 | F026 | — | **No code** | Not Implemented |
 | Domain model + output writers | §2, §6 | US056 | F027 | ADR-006 | 17 manifest model records + `SynthesizeSpecAction` | Correctly Implemented |
-| Interactive mode | — | US057 | F028 | — | **No `InteractiveUserInteractionService` code** | Documented but Not Implemented |
+| Interactive mode | §2.2.2 | US057 | F028 | — | **No `InteractiveUserInteractionService` code** | Documented but Not Implemented (PRD coverage added v5.10) |
 | Multi-language parser SPI | §2 (postponed) | US018-022 | F007-009 | — | **No `LanguageParser` interface or registry** | Postponed (de-scoped) |
 | XML bean analysis | §2.1.2 | US065-067 | F029 | — | `XmlBeanAnalyzer`, `ImportResourceVisitor`, 6 model records, test | Correctly Implemented |
 | `@Bean` method detection | §2.1.2 | US068 | F030 | — | `BeanMethodVisitor`, `BeanMethodInfo`, test | Correctly Implemented |
@@ -108,7 +108,7 @@ Same as 3.1 — the PRD's technical specificity at the method-call level is not 
 |---|---|---|
 | ~~US053, US054~~ | ~~Snapshot & Restore (E005)~~ | ~~Medium — full feature implemented without PRD coverage (now covered in PRD v5.9 §2.1.5)~~ |
 | US055 | Review Command (F026) | Medium — planned feature without PRD coverage |
-| US057 | Interactive Mode (F028) | Medium — planned feature without PRD coverage |
+| ~~US057~~ | ~~Interactive Mode (F028)~~ | ~~Medium — feature documented in PRD v5.10 §2.2.2 but not yet implemented~~ |
 | ~~US052~~ | ~~Quality Audit (F024)~~ | ~~Low — implementation detail of output validation (now covered in PRD v5.9 §2.2)~~ |
 
 ### 3.4 Features Without PRD Coverage
@@ -118,7 +118,7 @@ Same as 3.1 — the PRD's technical specificity at the method-call level is not 
 | ~~F024~~ | ~~Quality Audit~~ | ~~Low — implementation detail (now covered in PRD v5.9 §2.2)~~ |
 | ~~F025~~ | ~~Snapshot & Restore~~ | ~~Medium — complete feature not in PRD (now covered in PRD v5.9 §2.1.5)~~ |
 | F026 | Review Command | Medium |
-| F028 | Interactive Mode | Medium |
+| ~~F028~~ | ~~Interactive Mode~~ | ~~Medium — feature documented in PRD v5.10 §2.2.2 but not yet implemented~~ |
 
 ### 3.5 ADRs Without Clear Functional Justification
 
@@ -185,6 +185,7 @@ All 6 ADRs reference specific user stories or functional requirements. No orphan
 - **Impact**: Medium — agent-user clarification flow documented but not implemented.
 - **Evidence**: Grep for `InteractiveUserInteractionService`, `UserInteractionService`, `NoOpUserInteractionService` returns zero results.
 - **Note**: US057 explicitly states `InteractiveUserInteractionService deferred` in its acceptance criteria.
+- **Documentation**: PRD coverage added in v5.10 §2.2.2 — `UserInteractionService` SPI (ask/confirm/select with "Write your own" option and LLM re-evaluation), `InteractiveUserInteractionService` as default mode, `NoOpUserInteractionService` for `run --headless`, `AmbiguityGap` audit trail, `user_responses` SQLite table. No implementation code exists.
 
 ### 4.3 Partially Implemented Items
 
@@ -238,7 +239,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | ~~F025 — Snapshot & Restore~~ | ~~PRD v5.9 §2.1.5~~ | ~~US053-054~~ | ~~Complete~~ | ~~Now documented — correctly implemented~~ |
 | F026 — Review Command | Not in PRD | US055 | **Not implemented** | Documented but Not Implemented |
 | F027 — Domain Model + Writers | Aligned (per ADR-006) | US056 | Complete | Aligned, Correctly Implemented |
-| F028 — Interactive Mode | Not in PRD | US057 | **Not implemented** | Documented but Not Implemented |
+| ~~F028 — Interactive Mode~~ | ~~PRD v5.10 §2.2.2~~ | ~~US057~~ | ~~**Not implemented**~~ | ~~Documented but Not Implemented (PRD coverage added v5.10)~~ |
 
 ---
 
@@ -275,7 +276,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | ~~US053-054 (Snapshots)~~ | ~~PRD v5.9 §2.1.5~~ | ~~F025~~ | ~~Complete~~ | ~~Now documented — correctly implemented~~ |
 | US055 (Review Command) | Not in PRD | F026 | **Not implemented** | Documented but Not Implemented |
 | US056 (Domain Model) | Aligned (per ADR-006) | F027 | Complete | Correctly Implemented |
-| US057 (Interactive Mode) | Not in PRD | F028 | **Not implemented** | Documented but Not Implemented |
+| ~~US057 (Interactive Mode)~~ | ~~PRD v5.10 §2.2.2~~ | ~~F028~~ | ~~**Not implemented**~~ | ~~Documented but Not Implemented (PRD coverage added v5.10)~~ |
 
 ---
 
@@ -312,7 +313,8 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | ~~**High** | PRD | Update pipeline diagram to reflect 5-step pipeline per ADR-006 | PRD still shows 3 phases; code has 4 phases + 5 commands | Architecture alignment | Architecture~~ |
 | ~~**High** | PRD | Add Snapshot & Restore (E005) | Full feature implemented, 0 PRD coverage (done in v5.8 §2.1.5) | Documentation completeness | Product~~ |
 | ~~**High** | PRD | Add Secret Redaction & Exclude Filtering (§2.1.3) | Secret redaction was only mentioned in passing; exclude filtering had zero coverage. Both now documented in v5.8 §2.1.3 (US011, US012) | Documentation completeness | Product~~ |
-| **Medium** | PRD | Add Interactive Mode (US057) and Review Command (US055) or mark as deferred | Documented but not implemented in stories; no PRD mention | Documentation completeness | Product |
+| ~~**Medium** | PRD | Add Interactive Mode (US057) — PRD coverage added v5.10 §2.2.2 | Feature documented in SDLC stories but not in PRD | Documentation completeness | Product~~ |
+| **Medium** | PRD | Add Review Command (US055) or mark as deferred | Documented but not implemented in stories; no PRD mention | Documentation completeness | Product |
 | ~~**Medium** | User Stories | Create US for XML Bean Analysis | 10+ files of documented behavior, 0 stories | Undocumented features | Engineering~~ |
 | ~~**Medium** | User Stories | Create US for `@Bean` method detection | `BeanMethodVisitor` with full tests, 0 stories | Undocumented features | Engineering~~ |
 | ~~**Medium** | Features | Create Gherkin features for XML Bean Analysis | Same rationale | Undocumented features | Engineering~~ |
@@ -329,7 +331,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 |---|---|---|---|---|---|---|
 | ~~**High** | US018-022, F007-009 | Implement `LanguageParser` SPI, registration, routing, and pipeline integration | Unable to support non-Java codebases | High | — | Either implement or formally de-scope and update docs~~ |
 | **High** | US055, F026 | Implement `ReviewCommand` — list/show/accept/reset `AWAITING_HUMAN_REVIEW` tasks | Cannot resolve quarantined flows from CLI | Medium | US051, TaskStatus.AWAITING_HUMAN_REVIEW | Implement command |
-| **Medium** | US057, F028 | Implement `InteractiveUserInteractionService` for stdin/stdout agent prompts | Agent cannot ask clarification questions; headless only | Medium | US051 Embabel agent | Implement SPI |
+| **Medium** | US057, F028 | Implement `InteractiveUserInteractionService` for stdin/stdout agent prompts | Agent cannot ask clarification questions; headless only (PRD coverage v5.10 §2.2.2) | Medium | US051 Embabel agent | Implement SPI |
 | **Medium** | US048, F020 | Complete test assertion mining — fill in empty acceptance criteria, verify assertion translation | Test-derived edge cases may be incomplete | Low | US043 Executor | Complete story definition |
 
 ---
@@ -351,7 +353,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 
 ### Reduce Technical Debt
 8. **Implement `ReviewCommand`**: Without it, `AWAITING_HUMAN_REVIEW` tasks are orphaned — the pipeline can stall with no resolution path.
-9. **Implement interactive mode or document limitation**: US057 describes a key usability feature; without it, the agent silently accepts ambiguity below confidence threshold.
+9. **Implement interactive mode**: US057 describes a key usability feature; without it, the agent silently accepts ambiguity below confidence threshold. PRD coverage added v5.10 §2.2.2 — SPI, deferred implementation, audit trail, and CLI flag documented.
 
 ### Improve Governance
 10. **Enforce code-doc traceability in CI**: Add a check that flags new code types without corresponding documentation updates.
