@@ -4,6 +4,10 @@ import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
+import com.github.ehdez73.code2req.extraction.domain.model.UserResponse;
+import com.github.ehdez73.code2req.extraction.domain.spi.UserInteractionService;
+import com.github.ehdez73.code2req.extraction.adapter.cli.InteractiveUserInteractionService;
+import com.github.ehdez73.code2req.extraction.adapter.cli.NoOpUserInteractionService;
 import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
@@ -36,6 +40,7 @@ import com.github.ehdez73.code2req.infrastructure.persistence.FloatingLinkStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.MetricsStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.TaskStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.TopicLinkStore;
+import com.github.ehdez73.code2req.infrastructure.persistence.UserResponseStore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -71,6 +76,7 @@ public class ExtractionOrchestrator {
     private final AgentPlatform agentPlatform;
     private final ExtractionConfig extractionConfig;
     private final QuarantineConfig quarantineConfig;
+    private final UserResponseStore userResponseStore;
     private final ObjectMapper objectMapper;
     private final Path cachePath;
     private final Path specDir;
@@ -80,10 +86,11 @@ public class ExtractionOrchestrator {
                                   FloatingLinkStore floatingLinkStore, TopicLinkStore topicLinkStore,
                                   MetricsStore metricsStore, AgentPlatform agentPlatform,
                                   ExtractionConfig extractionConfig, QuarantineConfig quarantineConfig,
+                                  UserResponseStore userResponseStore,
                                   @Value("${code2req.output.spec-dir:./spec-output}") String specDir,
                                   @Value("${code2req.output.extraction-cache-file:extraction-cache.json}") String cacheFile) {
         this(taskStore, executionFindingStore, floatingLinkStore, topicLinkStore,
-             metricsStore, agentPlatform, extractionConfig, quarantineConfig,
+             metricsStore, agentPlatform, extractionConfig, quarantineConfig, userResponseStore,
              Path.of(specDir).resolve(cacheFile).normalize(),
              Path.of(specDir).normalize());
     }
@@ -93,7 +100,7 @@ public class ExtractionOrchestrator {
                             MetricsStore metricsStore, AgentPlatform agentPlatform,
                             ExtractionConfig extractionConfig, QuarantineConfig quarantineConfig) {
         this(taskStore, executionFindingStore, floatingLinkStore, topicLinkStore,
-             metricsStore, agentPlatform, extractionConfig, quarantineConfig,
+             metricsStore, agentPlatform, extractionConfig, quarantineConfig, null,
              Path.of("./spec-output").resolve("extraction-cache.json").normalize(),
              Path.of("./spec-output").normalize());
     }
@@ -102,6 +109,7 @@ public class ExtractionOrchestrator {
                                    FloatingLinkStore floatingLinkStore, TopicLinkStore topicLinkStore,
                                    MetricsStore metricsStore, AgentPlatform agentPlatform,
                                    ExtractionConfig extractionConfig, QuarantineConfig quarantineConfig,
+                                   UserResponseStore userResponseStore,
                                    Path cachePath, Path specDir) {
         this.taskStore = taskStore;
         this.executionFindingStore = executionFindingStore;
@@ -111,6 +119,7 @@ public class ExtractionOrchestrator {
         this.agentPlatform = agentPlatform;
         this.extractionConfig = extractionConfig;
         this.quarantineConfig = quarantineConfig;
+        this.userResponseStore = userResponseStore;
         this.objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.cachePath = cachePath;
@@ -118,10 +127,14 @@ public class ExtractionOrchestrator {
     }
 
     public ExtractionResult execute(boolean dryRun, boolean force) {
-        return execute(dryRun, force, false);
+        return execute(dryRun, force, false, false);
     }
 
     public ExtractionResult execute(boolean dryRun, boolean force, boolean resume) {
+        return execute(dryRun, force, resume, false);
+    }
+
+    public ExtractionResult execute(boolean dryRun, boolean force, boolean resume, boolean headless) {
         if (resume && force) {
             throw new IllegalArgumentException("--resume and --force are mutually exclusive");
         }
@@ -170,12 +183,16 @@ public class ExtractionOrchestrator {
                 .orElseThrow(() -> new IllegalStateException(
                     "FunctionalRequirementAgent not deployed by Embabel"));
 
+            UserInteractionService uis = headless
+                ? new NoOpUserInteractionService()
+                : new InteractiveUserInteractionService();
             Map<String, Object> initialBlackboard = new HashMap<>();
             initialBlackboard.put("codebaseKnowledge", knowledge);
             initialBlackboard.put("outputDir", specDir);
             initialBlackboard.put("extractionConfig", extractionConfig);
             initialBlackboard.put("quarantineConfig", quarantineConfig);
             initialBlackboard.put("resume", resume);
+            initialBlackboard.put("userInteractionService", uis);
 
             AgentProcess process = agentPlatform.createAgentProcess(
                 agent, ProcessOptions.DEFAULT, initialBlackboard);
@@ -194,6 +211,11 @@ public class ExtractionOrchestrator {
 
             List<Path> generatedFiles = List.of(cachePath);
             ExtractionResult result = new ExtractionResult( flowCount, ambiguityGaps, 0, flowNames, generatedFiles);
+
+            if (cache != null && userResponseStore != null) {
+                persistUserResponses(cache);
+            }
+
             persistMetrics(result, false);
             log.info("Created extraction cache: {}", cachePath);
             return result;
@@ -491,5 +513,21 @@ public class ExtractionOrchestrator {
         metricsStore.save(metric);
         log.info("Phase 3 metrics persisted: {} flows, {} ambiguity gaps, {} awaiting review",
             result.flowsExtracted(), result.ambiguityGaps(), result.awaitingReview());
+    }
+
+    private void persistUserResponses(ExtractionCache cache) {
+        String sessionId = UUID.randomUUID().toString();
+        int saved = 0;
+        for (com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap gap : cache.quarantineGaps()) {
+            if (gap.userProvided() && gap.userAnswer() != null && !gap.userAnswer().isBlank()) {
+                userResponseStore.save(new UserResponse(
+                    sessionId, gap.missingContext(), gap.userAnswer(), null
+                ));
+                saved++;
+            }
+        }
+        if (saved > 0) {
+            log.info("Persisted {} user-provided answers (session {})", saved, sessionId);
+        }
     }
 }

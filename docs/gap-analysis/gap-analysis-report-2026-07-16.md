@@ -16,7 +16,7 @@ The code2req project exhibits strong traceability between documentation and impl
 | Risk | Impact |
 |------|--------|
 | ~~**E002 completely unimplemented** (8 documented items)~~ | ~~Misalignment between documented capabilities and actual product — 5 user stories, 3 feature files describe a feature that doesn't exist~~ |
-| **Phase 3 Interactive Mode unimplemented** | US057 interactive user prompts for agent ambiguity resolution are documented (PRD v5.10 §2.2.2) but deferred — currently headless-only |
+| ~~**Phase 3 Interactive Mode unimplemented**~~ | ~~US057 interactive user prompts for agent ambiguity resolution are documented (PRD v5.10 §2.2.2) but deferred — currently headless-only~~ |
 | **Review Command unimplemented** | US055 describes a CLI command to inspect/resolve `AWAITING_HUMAN_REVIEW` tasks — no code exists |
 | ~~**XML Bean Analysis undocumented**~~ | ~~66 code references, 5 model records, 1 full analyzer, 1 test file — zero documentation coverage~~ |
 | ~~**`@Bean` Method Detection undocumented**~~ | ~~`BeanMethodVisitor`, `BeanMethodInfo`, 1 full test — zero documentation coverage~~ |
@@ -181,11 +181,11 @@ All 6 ADRs reference specific user stories or functional requirements. No orphan
 - **Evidence**: Grep for `ReviewCommand` or `review.*list.*AWAITING` returns zero results.
 - **Note**: US055 references `AWAITING_HUMAN_REVIEW` state which exists in `TaskStatus.java`, but the UI for interacting with it is missing.
 
-#### 4.2.3 US057 — Interactive Mode (`InteractiveUserInteractionService`)
-- **Impact**: Medium — agent-user clarification flow documented but not implemented.
-- **Evidence**: Grep for `InteractiveUserInteractionService`, `UserInteractionService`, `NoOpUserInteractionService` returns zero results.
-- **Note**: US057 explicitly states `InteractiveUserInteractionService deferred` in its acceptance criteria.
-- **Documentation**: PRD coverage added in v5.10 §2.2.2 — `UserInteractionService` SPI (ask/confirm/select with "Write your own" option and LLM re-evaluation), `InteractiveUserInteractionService` as default mode, `NoOpUserInteractionService` for `run --headless`, `AmbiguityGap` audit trail, `user_responses` SQLite table. No implementation code exists.
+#### ~~4.2.3 US057 — Interactive Mode (`InteractiveUserInteractionService`)~~
+- **Impact**: Medium — agent-user clarification flow documented and partially implemented.
+- **Evidence**: `UserInteractionService` SPI defined (`extraction/domain/spi/`), `NoOpUserInteractionService` and `InteractiveUserInteractionService` implementations (`extraction/adapter/cli/`), injected into `QuarantineFlowAction`. 23 new tests (776 total). `user_responses` SQLite table in schema (6 tables). `--headless` flags on `run`/`extract` commands.
+- **Note**: SPI + both implementations + `QuarantineFlowAction` injection completed. `AnalyzeFlowAction` force-analysis prompt deferred to follow-up.
+- **Documentation**: PRD coverage in v5.10 §2.2.2 — SPI with "Write your own" option and LLM re-evaluation; interactive mode is default; `--headless` opt-out.
 
 ### 4.3 Partially Implemented Items
 
@@ -331,7 +331,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 |---|---|---|---|---|---|---|
 | ~~**High** | US018-022, F007-009 | Implement `LanguageParser` SPI, registration, routing, and pipeline integration | Unable to support non-Java codebases | High | — | Either implement or formally de-scope and update docs~~ |
 | **High** | US055, F026 | Implement `ReviewCommand` — list/show/accept/reset `AWAITING_HUMAN_REVIEW` tasks | Cannot resolve quarantined flows from CLI | Medium | US051, TaskStatus.AWAITING_HUMAN_REVIEW | Implement command |
-| **Medium** | US057, F028 | Implement `InteractiveUserInteractionService` for stdin/stdout agent prompts | Agent cannot ask clarification questions; headless only (PRD coverage v5.10 §2.2.2) | Medium | US051 Embabel agent | Implement SPI |
+| ~~**Medium** | US057, F028 | Implement `InteractiveUserInteractionService` for stdin/stdout agent prompts | Agent cannot ask clarification questions; headless only (PRD coverage v5.10 §2.2.2) | Medium | US051 Embabel agent | Implement SPI — **Partially done**: SPI + NoOp + Interactive impl + QuarantineFlowAction injection + schema + CLI flags completed. `AnalyzeFlowAction` force-analysis prompt deferred.~~ |
 | **Medium** | US048, F020 | Complete test assertion mining — fill in empty acceptance criteria, verify assertion translation | Test-derived edge cases may be incomplete | Low | US043 Executor | Complete story definition |
 
 ---
@@ -353,7 +353,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 
 ### Reduce Technical Debt
 8. **Implement `ReviewCommand`**: Without it, `AWAITING_HUMAN_REVIEW` tasks are orphaned — the pipeline can stall with no resolution path.
-9. **Implement interactive mode**: US057 describes a key usability feature; without it, the agent silently accepts ambiguity below confidence threshold. PRD coverage added v5.10 §2.2.2 — SPI, deferred implementation, audit trail, and CLI flag documented.
+9. ~~**Implement interactive mode**: US057 describes a key usability feature; without it, the agent silently accepts ambiguity below confidence threshold. PRD coverage added v5.10 §2.2.2 — SPI, deferred implementation, audit trail, and CLI flag documented. **Partially implemented**: SPI + NoOp + Interactive + QuarantineFlowAction injection + schema + CLI flags complete. AnalyzeFlowAction force-analysis prompt still pending.~~
 
 ### Improve Governance
 10. **Enforce code-doc traceability in CI**: Add a check that flags new code types without corresponding documentation updates.

@@ -2,7 +2,7 @@
 
 > **Date:** 2026-07-16
 > **PRD Version:** 5.10
-> **Last PRD update:** §2.2 Phase 3: Agentic Extraction — Embabel GOAP architecture (6 actions, guardrails) + §2.2.2 Interactive Mode (US057 / F028 — SPI with "Write your own" option, default interactive, `--headless` opt-out, LLM re-evaluation feedback loop)  
+> **Last PRD update:** §2.2 Phase 3: Agentic Extraction — Embabel GOAP architecture (6 actions, guardrails) + §2.2.2 Interactive Mode (US057 / F028 — SPI with "Write your own" option, default interactive, `--headless` opt-out, LLM re-evaluation feedback loop). **Partially implemented** (SPI + NoOp + Interactive + QuarantineFlowAction + schema + CLI flags done; AnalyzeFlowAction deferred)  
 > **Source:** `docs/PRD.md` vs. `src/main/java/com/github/ehdez73/code2req/`
 
 ---

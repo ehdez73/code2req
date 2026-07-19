@@ -1,6 +1,7 @@
 package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
+import com.github.ehdez73.code2req.extraction.adapter.cli.NoOpUserInteractionService;
 import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
@@ -10,9 +11,11 @@ import com.github.ehdez73.code2req.extraction.domain.model.FlowStatus;
 import com.github.ehdez73.code2req.extraction.domain.model.GapReason;
 import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.QuarantineConfig;
+import com.github.ehdez73.code2req.extraction.domain.model.QuarantineUserAction;
 import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.RabbitMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
+import com.github.ehdez73.code2req.extraction.domain.spi.UserInteractionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,23 +23,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Flags flows that cannot be fully resolved for human review. Triggers when
- * a flow falls below the ambiguity confidence threshold due to too many
- * unresolved calls. Produces AmbiguityGap records with reason type
- * LOW_CONFIDENCE for inclusion in the spec's "Unresolved Dependencies"
- * section.
- */
 public class QuarantineFlowAction {
 
     private static final Logger log = LoggerFactory.getLogger(QuarantineFlowAction.class);
 
     private final double lowConfidenceThreshold;
     private final int maxUnresolvedCalls;
+    private final UserInteractionService userInteractionService;
 
     public QuarantineFlowAction(QuarantineConfig config) {
+        this(config, new NoOpUserInteractionService());
+    }
+
+    public QuarantineFlowAction(QuarantineConfig config, UserInteractionService userInteractionService) {
         this.lowConfidenceThreshold = config != null ? config.resolvedAmbiguityConfidenceThreshold() : QuarantineConfig.DEFAULT_AMBIGUITY_CONFIDENCE_THRESHOLD;
         this.maxUnresolvedCalls = config != null ? config.resolvedMaxUnresolvedCalls() : QuarantineConfig.DEFAULT_MAX_UNRESOLVED_CALLS;
+        this.userInteractionService = userInteractionService;
     }
 
     public TracedFlowResult quarantine(TracedFlowResult tracedResult) {
@@ -61,15 +63,18 @@ public class QuarantineFlowAction {
 
                 gaps.add(new AmbiguityGap(
                     flow.flowId(),
-                    deriveFlowName(flow.entryPoint()),
+                    flowLabel(flow.entryPoint()),
                     flow.entryPoint().filePath(),
                     reason.description,
                     reason.suggestedApproach,
                     reason.confidence,
-                    reason.gapReason
+                    reason.gapReason,
+                    reason.userProvided,
+                    reason.selectedOption,
+                    reason.userAnswer
                 ));
             } else {
-                clean.add(flow);
+                clean.add(resetIfDismissed(flow));
             }
         }
 
@@ -95,18 +100,27 @@ public class QuarantineFlowAction {
                 QuarantineReason reason = evaluateQuarantine(f);
                 if (reason != null) {
                     return new AmbiguityGap(
-                        f.flowId(), deriveFlowName(f.entryPoint()), f.entryPoint().filePath(),
+                        f.flowId(), flowLabel(f.entryPoint()), f.entryPoint().filePath(),
                         reason.description, reason.suggestedApproach,
-                        reason.confidence, reason.gapReason
+                        reason.confidence, reason.gapReason,
+                        reason.userProvided, reason.selectedOption, reason.userAnswer
                     );
                 }
                 return new AmbiguityGap(
-                    f.flowId(), deriveFlowName(f.entryPoint()), f.entryPoint().filePath(),
+                    f.flowId(), flowLabel(f.entryPoint()), f.entryPoint().filePath(),
                     "Unknown quarantine reason", "Manual review required",
                     0.0, GapReason.LOW_CONFIDENCE
                 );
             })
             .collect(Collectors.toList());
+    }
+
+    private static ExecutionFlow resetIfDismissed(ExecutionFlow flow) {
+        if (flow.status() != FlowStatus.TRACED) {
+            return new ExecutionFlow(flow.flowId(), flow.entryPoint(), flow.steps(),
+                flow.depth(), flow.unresolvedCalls(), FlowStatus.TRACED);
+        }
+        return flow;
     }
 
     private QuarantineReason evaluateQuarantine(ExecutionFlow flow) {
@@ -118,7 +132,7 @@ public class QuarantineFlowAction {
                     0.1, GapReason.LOW_CONFIDENCE
                 );
             }
-            return new QuarantineReason(
+            return promptOrQuarantine(
                 "Flow marked as quarantined during tracing",
                 "Review entry point configuration and call graph resolution",
                 0.2, GapReason.LOW_CONFIDENCE
@@ -131,7 +145,7 @@ public class QuarantineFlowAction {
         }
 
         if (unresolvedCalls.size() > maxUnresolvedCalls) {
-            return new QuarantineReason(
+            return promptOrQuarantine(
                 "Too many unresolved calls (" + unresolvedCalls.size() + ")",
                 "Resolve external dependencies or add LLM enrichment context",
                 0.4, GapReason.LOW_CONFIDENCE
@@ -142,7 +156,7 @@ public class QuarantineFlowAction {
         if (totalReferences > 0) {
             double confidence = 1.0 - (double) unresolvedCalls.size() / totalReferences;
             if (confidence < lowConfidenceThreshold) {
-                return new QuarantineReason(
+                return promptOrQuarantine(
                     "Flow confidence below threshold (" + String.format("%.2f", confidence)
                         + " < " + lowConfidenceThreshold + ")",
                     "Improve call graph resolution or add manual annotations for unresolved calls",
@@ -154,7 +168,42 @@ public class QuarantineFlowAction {
         return null;
     }
 
-    private static String deriveFlowName(EntryPoint ep) {
+    private QuarantineReason promptOrQuarantine(String description, String suggestedApproach,
+                                                 double confidence, GapReason reason) {
+        if (!userInteractionService.isInteractive()) {
+            return new QuarantineReason(description, suggestedApproach, confidence, reason);
+        }
+
+        String choice = userInteractionService.select(
+            QuarantineUserAction.options(),
+            description
+        );
+
+        if (choice == null) {
+            return new QuarantineReason(description, suggestedApproach, confidence, reason);
+        }
+
+        QuarantineUserAction action = QuarantineUserAction.fromLabel(choice);
+        if (action == null) {
+            return new QuarantineReason(description, suggestedApproach, confidence, reason);
+        }
+
+        return switch (action) {
+            case DISMISS -> null;
+            case PROVIDE_CONTEXT -> {
+                String answer = userInteractionService.ask(
+                    "Describe what the LLM should know about this ambiguity:",
+                    description
+                );
+                yield new QuarantineReason(
+                    description, suggestedApproach, confidence, GapReason.USER_CLARIFIED, true, choice, answer
+                );
+            }
+            case ACCEPT -> new QuarantineReason(description, suggestedApproach, confidence, reason);
+        };
+    }
+
+    private static String flowLabel(EntryPoint ep) {
         return switch (ep) {
             case HttpEntryPoint h -> h.httpMethod() + " " + h.path();
             case ScheduledEntryPoint s -> s.className() + "." + s.methodName();
@@ -169,6 +218,14 @@ public class QuarantineFlowAction {
         String description,
         String suggestedApproach,
         double confidence,
-        GapReason gapReason
-    ) {}
+        GapReason gapReason,
+        boolean userProvided,
+        String selectedOption,
+        String userAnswer
+    ) {
+        QuarantineReason(String description, String suggestedApproach,
+                         double confidence, GapReason gapReason) {
+            this(description, suggestedApproach, confidence, gapReason, false, null, null);
+        }
+    }
 }

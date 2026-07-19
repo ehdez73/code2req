@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.github.ehdez73.code2req.extraction.ExtractionCache;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.QuarantineConfig;
+import com.github.ehdez73.code2req.extraction.domain.spi.UserInteractionService;
+import com.github.ehdez73.code2req.extraction.adapter.cli.NoOpUserInteractionService;
 import com.github.ehdez73.code2req.indexing.domain.model.AllowedLibrariesConfig;
 import com.github.ehdez73.code2req.extraction.adapter.agent.action.*;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.*;
@@ -83,8 +85,10 @@ public class FunctionalRequirementAgent {
         WorldState ws = (WorldState) context.get("worldState");
         ExtractionConfig extractionConfig = (ExtractionConfig) context.get("extractionConfig");
         QuarantineConfig quarantineConfig = (QuarantineConfig) context.get("quarantineConfig");
+        UserInteractionService uis = (UserInteractionService) context.get("userInteractionService");
+        if (uis == null) { uis = new NoOpUserInteractionService(); }
         TraceFlowAction traceAction = new TraceFlowAction(knowledge, extractionConfig, allowedLibrariesConfig.resolvedFrameworkPrefixes());
-        QuarantineFlowAction quarantineAction = new QuarantineFlowAction(quarantineConfig);
+        QuarantineFlowAction quarantineAction = new QuarantineFlowAction(quarantineConfig, uis);
         TracedFlowResult traced = traceAction.traceAll(discoveryResult);
         QuarantineFlowAction.QuarantineFlowResult quarantineResult = quarantineAction.quarantineWithResult(traced);
         if (!quarantineResult.gaps().isEmpty()) {
