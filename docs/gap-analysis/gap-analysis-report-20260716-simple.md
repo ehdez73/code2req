@@ -1,7 +1,8 @@
 # Gap Analysis: PRD vs. Implementation
 
 > **Date:** 2026-07-16
-> **PRD Version:** 5.7  
+> **PRD Version:** 5.9
+> **Last PRD update:** §2.2 Generation & Quality Audit (F024 / US052)  
 > **Source:** `docs/PRD.md` vs. `src/main/java/com/github/ehdez73/code2req/`
 
 ---
@@ -66,6 +67,7 @@
 - In-memory secret redaction (files on disk never modified)
 - Single-file failures never block full scan
 - CLI is a Spring Shell app with `spring.main.web-application-type=none`
+- Quality audit with manifest schema enforcement (typed POJOs + `@JsonNaming` + quarantined flow `review_required` tagging)
 
 ---
 
@@ -79,4 +81,4 @@
    ~~- `TemplateLinkResolver`~~
    ~~- `ServletEndpointDetector`~~
    ~~(All four now covered — 63 tests total. Bugfix applied in `ServletEndpointDetector`: `extractServletPaths` returned immutable `List.of()`, causing `UnsupportedOperationException` when no `@WebServlet` annotation was present.)~~
-4. **Consider updating the PRD** to document the additional features (section B) that have accrued since v5.6 was written — particularly the XML bean analysis, event listener detection, test mining, ~~secret redaction,~~ ~~snapshot/restore,~~ ~~exclude filtering,~~ and extended CLI. ~~(Secret redaction and exclude filtering now covered in v5.8 §2.1.3; snapshot/restore in §2.1.5)~~
+4. **Consider updating the PRD** to document the additional features (section B) that have accrued since v5.6 was written — particularly the XML bean analysis, event listener detection, test mining, ~~secret redaction,~~ ~~snapshot/restore,~~ ~~exclude filtering,~~ and extended CLI. ~~(Secret redaction and exclude filtering now covered in v5.9 §2.1.3; snapshot/restore in §2.1.5; quality audit in §2.2)~~

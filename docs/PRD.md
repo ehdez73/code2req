@@ -2,7 +2,7 @@
 
 ## AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)
 
-> **Version 5.8** — Added §2.1.3 Pre-processing: Secret Redaction & File Exclusion (US011, US012 / F004). Renumbered existing §2.1.3 → §2.1.4 and §2.1.4 → §2.1.5. Phase 2 enrichment is now optional. `INDEXED` tasks (Phase 1 only) proceed directly to Phase 3 — the LLM derives business rules, edge cases, and non-functional requirements from source code snippets. Phase 2 enrichment provides richer context (test insights, discovered dependencies) when available, but is no longer a mandatory gate. Removed 4 redundant qualification rules (Spring Data interfaces, @Scheduled tasks, native SQL/JPQL-HQL queries) — the Phase 3 LLM already receives their source code snippets and can derive the same semantics without a separate enrichment call.
+> **Version 5.9** — Added §2.2 Generation & Quality Audit (F024 / US052) with manifest schema enforcement and quarantined flow documentation. Phase 2 enrichment is now optional. `INDEXED` tasks (Phase 1 only) proceed directly to Phase 3 — the LLM derives business rules, edge cases, and non-functional requirements from source code snippets. Phase 2 enrichment provides richer context (test insights, discovered dependencies) when available, but is no longer a mandatory gate. Removed 4 redundant qualification rules (Spring Data interfaces, @Scheduled tasks, native SQL/JPQL-HQL queries) — the Phase 3 LLM already receives their source code snippets and can derive the same semantics without a separate enrichment call.
 
 ---
 
@@ -188,3 +188,14 @@ Point-in-time snapshots of local state (SQLite database + JSON extraction cache)
 * **RefreshableDataSource:** A `DataSource` proxy wrapping a `volatile` delegate reference. Wired as the `@Primary` bean across the application, enabling live pool replacement without re-injecting any `@Autowired` beans.
 * **CLI subcommands:** Three shell commands: `snapshot create [--name <label>]`, `snapshot list`, `snapshot restore --name <label>`. The `--name` parameter is optional for create, required for restore. Errors report clear messages (missing snapshot, non-existent name).
 * **Lifecycle and configuration:** Snapshots are independent of the `clean` command — `clean` never touches the `snapshots/` directory. The snapshot root is configurable via `code2req.snapshot.dir` (default `./snapshots`) and is gitignored via the `snapshots/` pattern.
+
+### 2.2 Phase 4: Generation & Quality Audit
+
+The output phase produces the two final artifacts — a human-readable Markdown specification and a machine-readable `semantic_manifest.json` — and performs a structural quality audit before persisting.
+
+* **Markdown Specification:** `SynthesizeSpecAction` transforms the extraction domain model (cross-referenced flows, orphaned methods, ambiguity gaps) into a structured Markdown document organized by feature and functional flow. The spec includes resolved flows, unresolved dependencies (Section 5), business rules, edge cases, non-functional requirements, and traceability graphs.
+* **Semantic Manifest JSON:** `ManifestMapper` converts extraction-domain objects into 16 typed Java records (e.g., `SemanticManifest`, `ManifestFlow`, `ManifestBusinessRule`) annotated with `@JsonNaming(SnakeCaseStrategy)` for snake_case serialization. Jackson `ObjectMapper` writes the final `semantic_manifest.json` to the spec output directory. The record types themselves enforce the JSON schema at compile time — unknown fields are impossible, and all required fields are guaranteed present.
+* **Quality Audit (US052 / F024):** After the manifest is produced, a post-agent structural validation ensures output integrity:
+  * **Schema conformance:** The typed record hierarchy mirrors the `semantic-manifest-schema.json` (draft-07) exactly. Conformance is enforced at compile time — no runtime schema validation is required. A dedicated `ManifestPojoSchemaTest` verifies full, minimal, and edge-case serializations against the schema at test time.
+  * **Quarantined flow documentation:** Flows with ambiguity gaps (`AWAITING_HUMAN_REVIEW`) are tagged with `review_required: true` and include an `unresolved_reason` object (reason type, detail text, confidence score). They appear in the spec's Section 5 (Unresolved Dependencies), ensuring quarantined flows are visible even when the agent cannot fully resolve them.
+  * **Pure Java, post-agent:** The quality audit runs inside the output writers (`SynthesizeSpecAction`), not in the Embabel agent. It is deterministic, requires no LLM calls, and single-file failures never block the full pipeline.

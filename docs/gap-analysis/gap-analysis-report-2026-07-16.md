@@ -1,7 +1,7 @@
 # Gap Analysis Report — code2req
 
 **Date:** 2026-07-17
-**Scope:** PRD v5.6, User Stories (63), Gherkin Features (29), ADRs (6), Source Code (162 main sources + 16 tests)
+**Scope:** PRD v5.9, User Stories (63), Gherkin Features (29), ADRs (6), Source Code (162 main sources + 16 tests)
 
 ---
 
@@ -29,7 +29,7 @@ The code2req project exhibits strong traceability between documentation and impl
 
 ### Documentation Quality Assessment
 
-- **PRD**: High quality — detailed, versioned, covers architecture comprehensively. Pipeline diagram updated to 5-step per ADR-006; Snapshots (E005) added.
+- **PRD**: High quality — detailed, versioned, covers architecture comprehensively. Pipeline diagram updated to 5-step per ADR-006; Snapshots (E005), secret redaction & exclude filtering (F004), and quality audit (F024) added.
 - **User Stories**: Good coverage — 63 stories spanning all epics. Some story titles in the file header mismatch the file name (e.g., `US064` story header reads `US056`).
 - **Gherkin Features**: Good coverage — 29 features covering all epics. 23 promoted to `@final`; 6 incomplete features retain `@draft`.
 - **ADRs**: Excellent — 6 records covering key decisions. ADR-006 is the most recent and accurately reflects the extract/generate split.
@@ -57,13 +57,13 @@ The code2req project exhibits strong traceability between documentation and impl
 | RabbitMQ event flows | §2.1.2 | US026 | F003 | ADR-001 | `RabbitMqVisitor`, `RabbitMqTopicLinkResolver` | Correctly Implemented |
 | ActiveMQ event flows | §2.1.2 | US027 | F003 | ADR-001 | `ActiveMqVisitor`, `ActiveMqTopicLinkResolver` | Correctly Implemented |
 | Servlet endpoints via web.xml | §2.1.2 | US058 | F003 | ADR-001 | `WebXmlAnalyzer` | Correctly Implemented |
-| Secret redaction | §2.1.1 | US011 | F004 | ADR-005 | `SecretRedactor` | Correctly Implemented |
-| Exclude filtering | — | US012 | F004 | — | `ExcludeFilter` | Correctly Implemented |
+| Secret redaction | §2.1.3 | US011 | F004 | ADR-005 | `SecretRedactor` | Correctly Implemented |
+| Exclude filtering | §2.1.3 | US012 | F004 | — | `ExcludeFilter` | Correctly Implemented |
 | Two-pass pipeline + call graph | §2.1 | US030, US036 | F010 | ADR-001 | `Pass1DeclarationCollector`, `GlobalDeclarationRegistry`, `CallGraphVisitor` | Correctly Implemented |
 | Database access detection | §2.1.2 | US031, US059-061 | F011 | — | 8 `*Detector` classes + `DbAccessVisitor` | Correctly Implemented |
 | Outbound HTTP detection | §2.1.2 | US032 | F012 | — | 9 `*Detector` classes + `OutboundHttpVisitor` | Correctly Implemented |
 | Event link resolution | §2.1.2 | US033 | F013 | — | `TopicLinkResolver`, 3 broker resolvers | Correctly Implemented |
-| SQLite persistence + crash recovery | §2.1.3 | US013, US014, US017 | F005, F014 | ADR-002, ADR-003, ADR-004 | `TaskStore`, `ExecutionFindingStore`, 3 more stores | Correctly Implemented |
+| SQLite persistence + crash recovery | §2.1.4 | US013, US014, US017 | F005, F014 | ADR-002, ADR-003, ADR-004 | `TaskStore`, `ExecutionFindingStore`, 3 more stores | Correctly Implemented |
 | CLI scan orchestration | §2.1 | US015, US016, US028 | F006 | — | `ScanCommand` | Correctly Implemented |
 | View-returning controller detection | §2.1.2 | US037, US062 | F015 | — | `SpringEndpointDetector` (servesView logic) | Correctly Implemented |
 | JSP/Thymeleaf template parsing | §2.1.2 | US038, US039 | F015 | — | `JspTemplateParser`, `ThymeleafTemplateParser` | Correctly Implemented |
@@ -76,8 +76,8 @@ The code2req project exhibits strong traceability between documentation and impl
 | Embabel agent setup | §2 | US049 | F021 | — | pom.xml + agent-config.yaml | Correctly Implemented |
 | CodebaseKnowledge | §2 | US050 | F022 | — | `CodebaseKnowledge`, `ExtractionOrchestrator` | Correctly Implemented |
 | Embabel agent extraction | §2 | US051 | F023 | ADR-006 | 6 agent actions + `FunctionalRequirementAgent` | Correctly Implemented |
-| Quality audit | — | US052 | F024 | — | `SemanticManifestWriter` schema validation | Correctly Implemented |
-| Snapshot/restore | — | US053, US054 | F025 | — | `SnapshotService`, `SnapshotCommand` | Correctly Implemented |
+| Quality audit | §2.2 | US052 | F024 | — | `SemanticManifestWriter` schema validation | Correctly Implemented |
+| Snapshot/restore | §2.1.5 | US053, US054 | F025 | — | `SnapshotService`, `SnapshotCommand` | Correctly Implemented |
 | Review command | — | US055 | F026 | — | **No code** | Not Implemented |
 | Domain model + output writers | §2, §6 | US056 | F027 | ADR-006 | 17 manifest model records + `SynthesizeSpecAction` | Correctly Implemented |
 | Interactive mode | — | US057 | F028 | — | **No `InteractiveUserInteractionService` code** | Documented but Not Implemented |
@@ -106,17 +106,17 @@ Same as 3.1 — the PRD's technical specificity at the method-call level is not 
 
 | User Story | Topic | Risk |
 |---|---|---|
-| US053, US054 | Snapshot & Restore (E005) | Medium — full feature implemented without PRD coverage |
+| ~~US053, US054~~ | ~~Snapshot & Restore (E005)~~ | ~~Medium — full feature implemented without PRD coverage (now covered in PRD v5.9 §2.1.5)~~ |
 | US055 | Review Command (F026) | Medium — planned feature without PRD coverage |
 | US057 | Interactive Mode (F028) | Medium — planned feature without PRD coverage |
-| US052 | Quality Audit (F024) | Low — implementation detail of output validation |
+| ~~US052~~ | ~~Quality Audit (F024)~~ | ~~Low — implementation detail of output validation (now covered in PRD v5.9 §2.2)~~ |
 
 ### 3.4 Features Without PRD Coverage
 
 | Feature | Topic | Risk |
 |---|---|---|
-| F024 | Quality Audit | Low — implementation detail |
-| F025 | Snapshot & Restore | Medium — complete feature not in PRD |
+| ~~F024~~ | ~~Quality Audit~~ | ~~Low — implementation detail (now covered in PRD v5.9 §2.2)~~ |
+| ~~F025~~ | ~~Snapshot & Restore~~ | ~~Medium — complete feature not in PRD (now covered in PRD v5.9 §2.1.5)~~ |
 | F026 | Review Command | Medium |
 | F028 | Interactive Mode | Medium |
 
@@ -198,7 +198,7 @@ All 6 ADRs reference specific user stories or functional requirements. No orphan
 | Documented Expectation | Implementation Reality | Deviation |
 |---|---|---|
 | ~~PRD §2 pipeline: 3 phases~~ | ~~Codebase: 4 phases (`scan → plan → enrich → extract → generate`)~~ | ~~Pipeline split documented in ADR-006 but PRD not updated~~ |
-| PRD §2 Phase 3: 7 agent actions | Code: Phase 3 has 6 agent actions (SynthesizeSpecAction moved to Phase 4/generate) | Intentional per ADR-006, but PRD still describes the old 7-action model |
+| ~~PRD §2 Phase 3: 7 agent actions~~ | ~~Code: Phase 3 has 6 agent actions (SynthesizeSpecAction moved to Phase 4/generate)~~ | ~~Intentional per ADR-006 — PRD executive summary updated in v5.9; no longer enumerates 7 actions~~ |
 
 ### 4.5 Potentially Obsolete or Dead Functionality
 
@@ -234,8 +234,8 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | F021 — Embabel Setup | Aligned | US049 | Complete | Aligned, Correctly Implemented |
 | F022 — Codebase Knowledge | Aligned | US050 | Complete | Aligned, Correctly Implemented |
 | F023 — Embabel Agent | Aligned (per ADR-006) | US051 | Complete | Aligned, Correctly Implemented |
-| F024 — Quality Audit | Not in PRD | US052 | Complete | Implemented but Not Documented |
-| F025 — Snapshot & Restore | Not in PRD | US053-054 | Complete | Implemented but Not Documented |
+| ~~F024 — Quality Audit~~ | ~~PRD v5.9 §2.2~~ | ~~US052~~ | ~~Complete~~ | ~~Now documented — correctly implemented~~ |
+| ~~F025 — Snapshot & Restore~~ | ~~PRD v5.9 §2.1.5~~ | ~~US053-054~~ | ~~Complete~~ | ~~Now documented — correctly implemented~~ |
 | F026 — Review Command | Not in PRD | US055 | **Not implemented** | Documented but Not Implemented |
 | F027 — Domain Model + Writers | Aligned (per ADR-006) | US056 | Complete | Aligned, Correctly Implemented |
 | F028 — Interactive Mode | Not in PRD | US057 | **Not implemented** | Documented but Not Implemented |
@@ -251,7 +251,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | US023, US026, US027 (Broker Events) | Aligned | F003 | Complete | Correctly Implemented |
 | US058 (web.xml) | Aligned | F003 | Complete | Correctly Implemented |
 | US011 (Secret Redaction) | Aligned | F004 | Complete | Correctly Implemented |
-| US012 (Exclude Filter) | Not in PRD | F004 | Complete | Implemented but Not Documented |
+| US012 (Exclude Filter) | §2.1.3 | F004 | Complete | Correctly Implemented |
 | US013, US014, US017 (Persistence) | Aligned | F005 | Complete | Correctly Implemented |
 | US015, US016, US028 (Scan) | Aligned | F006 | Complete | Correctly Implemented |
 | US030, US036 (Two-Pass) | Aligned | F010 | Complete | Correctly Implemented |
@@ -271,8 +271,8 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 | US049 (Embabel Setup) | Aligned | F021 | Complete | Correctly Implemented |
 | US050 (CodebaseKnowledge) | Aligned | F022 | Complete | Correctly Implemented |
 | US051 (Agent Extraction) | Aligned | F023 | Complete | Correctly Implemented |
-| US052 (Quality Audit) | Not in PRD | F024 | Complete | Implemented but Not Documented |
-| US053-054 (Snapshots) | Not in PRD | F025 | Complete | Implemented but Not Documented |
+| ~~US052 (Quality Audit)~~ | ~~PRD v5.9 §2.2~~ | ~~F024~~ | ~~Complete~~ | ~~Now documented — correctly implemented~~ |
+| ~~US053-054 (Snapshots)~~ | ~~PRD v5.9 §2.1.5~~ | ~~F025~~ | ~~Complete~~ | ~~Now documented — correctly implemented~~ |
 | US055 (Review Command) | Not in PRD | F026 | **Not implemented** | Documented but Not Implemented |
 | US056 (Domain Model) | Aligned (per ADR-006) | F027 | Complete | Correctly Implemented |
 | US057 (Interactive Mode) | Not in PRD | F028 | **Not implemented** | Documented but Not Implemented |
@@ -310,11 +310,13 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 |---|---|---|---|---|---|
 | ~~**High** | PRD | Add E002 (Multi-Language) as explicit epic or mark as deferred/future scope | 5 stories + 3 features documented but 0 code — misleading | Product trust | Product~~ |
 | ~~**High** | PRD | Update pipeline diagram to reflect 5-step pipeline per ADR-006 | PRD still shows 3 phases; code has 4 phases + 5 commands | Architecture alignment | Architecture~~ |
-| ~~**High** | PRD | Add Snapshot & Restore (E005) | Full feature implemented, 0 PRD coverage | Documentation completeness | Product~~ |
+| ~~**High** | PRD | Add Snapshot & Restore (E005) | Full feature implemented, 0 PRD coverage (done in v5.8 §2.1.5) | Documentation completeness | Product~~ |
+| ~~**High** | PRD | Add Secret Redaction & Exclude Filtering (§2.1.3) | Secret redaction was only mentioned in passing; exclude filtering had zero coverage. Both now documented in v5.8 §2.1.3 (US011, US012) | Documentation completeness | Product~~ |
 | **Medium** | PRD | Add Interactive Mode (US057) and Review Command (US055) or mark as deferred | Documented but not implemented in stories; no PRD mention | Documentation completeness | Product |
 | ~~**Medium** | User Stories | Create US for XML Bean Analysis | 10+ files of documented behavior, 0 stories | Undocumented features | Engineering~~ |
 | ~~**Medium** | User Stories | Create US for `@Bean` method detection | `BeanMethodVisitor` with full tests, 0 stories | Undocumented features | Engineering~~ |
 | ~~**Medium** | Features | Create Gherkin features for XML Bean Analysis | Same rationale | Undocumented features | Engineering~~ |
+| ~~**Medium** | PRD | Add Quality Audit (§2.2) — schema enforcement + quarantined flow documentation | F024 / US052 was undocumented — pure-Java manifest validation implemented but 0 PRD coverage | Documentation completeness | Product~~ |
 | ~~**Low** | Features | Promote all `@draft` tags to `@final` where implementation is complete | All features still marked draft | Quality signal | Engineering~~ |
 | ~~**Low** | User Stories | Fix US064 header (says US056 instead of US064) | Story number mismatch | Accuracy | Engineering~~ |
 | ~~**Low** | PRD | Add `@Bean` method detection | `BeanMethodVisitor` detects `@Bean`-annotated methods in `@Configuration` classes | Documentation completeness | Engineering~~ |
@@ -336,7 +338,7 @@ No clearly dead code identified. The undocumented features (XML bean analysis, `
 
 ### Restore Alignment
 ~~1. **Document the undocumented**: Create user stories and Gherkin features for XML Bean Analysis and `@Bean` method detection — both are nontrivial implemented features with zero documentation.~~
-~~2. **Update the PRD**: Reflect the 5-step pipeline (per ADR-006), add E005 (Snapshots) — E002 has been listed as postponed in the PRD.~~
+~~2. **Update the PRD**: Reflect the 5-step pipeline (per ADR-006), add E005 (Snapshots), add F004 (secret redaction & exclude filtering), add F024 (quality audit) — E002 has been listed as postponed in the PRD. All PRD gaps addressed by v5.9.~~
 ~~3. **Implement or de-scope E002**: Either build the `LanguageParser` SPI or formally move E002 stories to a "Planned" status with documentation updates.~~
 
 ### Improve Traceability
