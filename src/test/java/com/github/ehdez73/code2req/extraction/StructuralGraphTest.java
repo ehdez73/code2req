@@ -47,7 +47,7 @@ class StructuralGraphTest {
         var dbAccess = List.of(
             new DbAccessInfo("JPA", null, "table", null, "find", "D", "/src/D.java", "E", false, 0, 0, 0));
         var components = List.of(
-            new ComponentInfo("@Service", "E", "com.acme", "/src/E.java"));
+            new ComponentInfo("@Service", "E", "com.acme", "/src/E.java", false));
 
         var graph = new StructuralGraph(edges, endpoints, dbAccess, components);
 
@@ -71,7 +71,7 @@ class StructuralGraphTest {
         var dbAccess = List.of(
             new DbAccessInfo("JPA", null, "t", null, "f", "D", "/src/D.java", "E", false, 0, 0, 0));
         var components = List.of(
-            new ComponentInfo("@Service", "F", "p", "/src/F.java"));
+            new ComponentInfo("@Service", "F", "p", "/src/F.java", false));
         var scheduled = List.of(
             new ScheduledTaskInfo("run", "G", "0 * * * *", null, null, "cron", "/src/G.java"));
         var kafka = List.of(
@@ -181,9 +181,9 @@ class StructuralGraphTest {
         var graph = new StructuralGraph(
             List.of(), List.of(), List.of(),
             List.of(
-                new ComponentInfo("@Service", "S1", "p", "/src/S1.java"),
-                new ComponentInfo("@Service", "S2", "p", "/src/S2.java"),
-                new ComponentInfo("@Repository", "R1", "p", "/src/R1.java")));
+                new ComponentInfo("@Service", "S1", "p", "/src/S1.java", false),
+                new ComponentInfo("@Service", "S2", "p", "/src/S2.java", false),
+                new ComponentInfo("@Repository", "R1", "p", "/src/R1.java", false)));
 
         assertEquals(2, graph.getComponentsByType("@Service").size());
         assertEquals(1, graph.getComponentsByType("@Repository").size());

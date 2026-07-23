@@ -14,6 +14,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.Endpoin
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -33,6 +34,8 @@ public class StructuralGraph {
     private final List<XmlJmsListenerInfo> xmlJmsListeners;
     private final List<ScheduledEntryPoint> resolvedXmlScheduledTasks;
     private final List<ActiveMqEntryPoint> resolvedXmlJmsListeners;
+    private final Map<String, String> wiringMap;
+    private final Map<String, String> classToFileMap;
 
     public StructuralGraph() {
         this.callGraphEdges = new ArrayList<>();
@@ -48,6 +51,8 @@ public class StructuralGraph {
         this.xmlJmsListeners = new ArrayList<>();
         this.resolvedXmlScheduledTasks = new ArrayList<>();
         this.resolvedXmlJmsListeners = new ArrayList<>();
+        this.wiringMap = new HashMap<>();
+        this.classToFileMap = new HashMap<>();
     }
 
     public StructuralGraph(
@@ -58,7 +63,7 @@ public class StructuralGraph {
         this(callGraphEdges, endpoints, dbAccessPatterns, components,
             new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
             new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-            new ArrayList<>(), new ArrayList<>());
+            new ArrayList<>(), new ArrayList<>(), new HashMap<>(), new HashMap<>());
     }
 
     public StructuralGraph(
@@ -75,6 +80,29 @@ public class StructuralGraph {
             List<XmlJmsListenerInfo> xmlJmsListeners,
             List<ScheduledEntryPoint> resolvedXmlScheduledTasks,
             List<ActiveMqEntryPoint> resolvedXmlJmsListeners) {
+        this(callGraphEdges, endpoints, dbAccessPatterns, components,
+            scheduledTasks, kafkaListeners, rabbitmqListeners,
+            activemqListeners, eventListeners, xmlScheduledTasks, xmlJmsListeners,
+            resolvedXmlScheduledTasks, resolvedXmlJmsListeners,
+            new HashMap<>(), new HashMap<>());
+    }
+
+    public StructuralGraph(
+            List<CallGraphEdge> callGraphEdges,
+            List<EndpointInfo> endpoints,
+            List<DbAccessInfo> dbAccessPatterns,
+            List<ComponentInfo> components,
+            List<ScheduledTaskInfo> scheduledTasks,
+            List<KafkaInfo> kafkaListeners,
+            List<RabbitMqInfo> rabbitmqListeners,
+            List<ActiveMqInfo> activemqListeners,
+            List<EventListenerInfo> eventListeners,
+            List<XmlScheduledTaskInfo> xmlScheduledTasks,
+            List<XmlJmsListenerInfo> xmlJmsListeners,
+            List<ScheduledEntryPoint> resolvedXmlScheduledTasks,
+            List<ActiveMqEntryPoint> resolvedXmlJmsListeners,
+            Map<String, String> wiringMap,
+            Map<String, String> classToFileMap) {
         this.callGraphEdges = Collections.unmodifiableList(callGraphEdges);
         this.endpoints = Collections.unmodifiableList(endpoints);
         this.dbAccessPatterns = Collections.unmodifiableList(dbAccessPatterns);
@@ -88,6 +116,8 @@ public class StructuralGraph {
         this.xmlJmsListeners = Collections.unmodifiableList(xmlJmsListeners);
         this.resolvedXmlScheduledTasks = Collections.unmodifiableList(resolvedXmlScheduledTasks);
         this.resolvedXmlJmsListeners = Collections.unmodifiableList(resolvedXmlJmsListeners);
+        this.wiringMap = wiringMap != null ? Collections.unmodifiableMap(new HashMap<>(wiringMap)) : Map.of();
+        this.classToFileMap = classToFileMap != null ? Collections.unmodifiableMap(new HashMap<>(classToFileMap)) : Map.of();
     }
 
     public List<CallGraphEdge> callGraphEdges() { return callGraphEdges; }
@@ -102,6 +132,9 @@ public class StructuralGraph {
     public List<XmlScheduledTaskInfo> xmlScheduledTasks() { return xmlScheduledTasks; }
     public List<XmlJmsListenerInfo> xmlJmsListeners() { return xmlJmsListeners; }
     public List<ScheduledEntryPoint> resolvedXmlScheduledTasks() { return resolvedXmlScheduledTasks; }
+    public List<ActiveMqEntryPoint> resolvedXmlJmsListeners() { return resolvedXmlJmsListeners; }
+    public Map<String, String> wiringMap() { return wiringMap; }
+    public Map<String, String> classToFileMap() { return classToFileMap; }
 
     public List<String> getFlowCandidates() {
         return callGraphEdges.stream()

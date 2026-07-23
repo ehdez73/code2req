@@ -164,6 +164,14 @@ public class TraceFlowAction {
 
         for (CallGraphEdge edge : getOutgoingEdges(sourceFilePath, sourceClassName, entryMethodName)) {
             if (!edge.isResolved()) {
+                var resolvedTarget = resolveAmbiguousEdge(edge);
+                if (resolvedTarget != null) {
+                    addResolvedAmbiguousStep(steps, resolvedTarget, edge);
+                    traceFromSource(resolvedTarget.filePath, resolvedTarget.className,
+                        steps, unresolvedCalls, visited, depth + 1, edge.targetMethodName(),
+                        edge.targetStartLine(), edge.targetEndLine());
+                    continue;
+                }
                 addUnresolvedCall(unresolvedCalls, edge, sourceFilePath);
                 continue;
             }
@@ -214,6 +222,17 @@ public class TraceFlowAction {
         }
     }
 
+    private ResolvedTarget resolveAmbiguousEdge(CallGraphEdge edge) {
+        String concreteClass = knowledge.structuralGraph().wiringMap().get(edge.targetClassName());
+        if (concreteClass == null) return null;
+        String targetFile = knowledge.structuralGraph().classToFileMap().get(concreteClass);
+        if (targetFile == null) return null;
+        log.info("Resolved ambiguous edge {} → {} via wiring map", edge.targetClassName(), concreteClass);
+        return new ResolvedTarget(targetFile, concreteClass);
+    }
+
+    private record ResolvedTarget(String filePath, String className) {}
+
     private void addUnresolvedCall(List<String> unresolvedCalls, CallGraphEdge edge, String sourceFilePath) {
         String call = edge.targetClassName() + "." + edge.targetMethodName();
         if (!isFrameworkCall(call, sourceFilePath)) {
@@ -228,6 +247,30 @@ public class TraceFlowAction {
                 ? (d.startLine() == edge.targetStartLine() && d.endLine() == edge.targetEndLine())
                 : d.methodName().equals(edge.targetMethodName()) && d.paramCount() == edge.argCount())
             .toList();
+    }
+
+    private void addResolvedAmbiguousStep(List<FlowStep> steps, ResolvedTarget resolved,
+                                           CallGraphEdge edge) {
+        FlowStepComponentType type = componentTypeLookup.get(resolved.filePath);
+        if (type == null) type = componentTypeLookup.get(resolved.className);
+        if (type == null) type = classifyResolvedTargetByPath(resolved.filePath, resolved.className);
+        steps.add(new FlowStep(
+            steps.size(), type,
+            edge.targetClassName(), edge.targetMethodName(), null,
+            resolved.filePath, edge.targetStartLine(), edge.targetEndLine(), List.of()
+        ));
+    }
+
+    private static FlowStepComponentType classifyResolvedTargetByPath(String filePath, String className) {
+        String target = filePath != null ? filePath : className;
+        if (target == null) return FlowStepComponentType.SERVICE;
+        if (target.contains("Controller")) return FlowStepComponentType.REST_ENDPOINT;
+        if (target.contains("Service")) return FlowStepComponentType.SERVICE;
+        if (target.contains("Repository") || target.contains("Repo")) return FlowStepComponentType.REPOSITORY;
+        if (target.contains("Client") || target.contains("Feign")) return FlowStepComponentType.EXTERNAL_CALL;
+        if (target.contains("Listener") || target.contains("Consumer")) return FlowStepComponentType.EVENT_PUBLISHER;
+        if (target.contains("Scheduler") || target.contains("Job")) return FlowStepComponentType.SCHEDULED_TASK;
+        return FlowStepComponentType.SERVICE;
     }
 
     private void addComponentStep(List<FlowStep> steps, CallGraphEdge edge,

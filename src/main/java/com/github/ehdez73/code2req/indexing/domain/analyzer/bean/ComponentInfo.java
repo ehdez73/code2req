@@ -6,5 +6,6 @@ public record ComponentInfo(
     String annotationType,
     String className,
     String packageName,
-    String filePath
+    String filePath,
+    boolean primary
 ) implements AnalysisFinding {}

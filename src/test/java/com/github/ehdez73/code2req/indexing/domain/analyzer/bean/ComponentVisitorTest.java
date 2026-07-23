@@ -131,4 +131,31 @@ class ComponentVisitorTest {
 
         assertEquals("/path/to/MyApi.java", result.findings(ComponentInfo.class).get(0).filePath());
     }
+
+    @Test
+    void detectsPrimary() {
+        AnalysisResult result = analyze("PrimaryService.java", """
+            package com.example;
+            import org.springframework.stereotype.Service;
+            import org.springframework.context.annotation.Primary;
+            @Service @Primary
+            public class PrimaryService {}
+            """);
+
+        assertEquals(1, result.findings(ComponentInfo.class).size());
+        assertTrue(result.findings(ComponentInfo.class).get(0).primary());
+    }
+
+    @Test
+    void nonPrimaryDefaultsToFalse() {
+        AnalysisResult result = analyze("RegularService.java", """
+            package com.example;
+            import org.springframework.stereotype.Service;
+            @Service
+            public class RegularService {}
+            """);
+
+        assertEquals(1, result.findings(ComponentInfo.class).size());
+        assertFalse(result.findings(ComponentInfo.class).get(0).primary());
+    }
 }

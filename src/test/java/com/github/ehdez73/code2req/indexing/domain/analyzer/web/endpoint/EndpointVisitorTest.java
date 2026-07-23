@@ -21,7 +21,7 @@ class EndpointVisitorTest {
         CompilationUnit cu = StaticJavaParser.parse(code);
         AnalysisResultBuilder builder = new AnalysisResultBuilder();
         // pre-populate with a controller component so EndpointVisitor doesn't short-circuit
-        builder.addFinding(new ComponentInfo("RestController", "MyController", "com.example", "test.java"));
+        builder.addFinding(new ComponentInfo("RestController", "MyController", "com.example", "test.java", false));
         visitor.analyze(cu, builder, new AnalysisContext("test.java"));
         return builder.build("test.java");
     }
@@ -196,7 +196,7 @@ class EndpointVisitorTest {
     private AnalysisResult analyzeWithController(String code) {
         CompilationUnit cu = StaticJavaParser.parse(code);
         AnalysisResultBuilder builder = new AnalysisResultBuilder();
-        builder.addFinding(new ComponentInfo("Controller", "MyController", "com.example", "test.java"));
+        builder.addFinding(new ComponentInfo("Controller", "MyController", "com.example", "test.java", false));
         visitor.analyze(cu, builder, new AnalysisContext("test.java"));
         return builder.build("test.java");
     }
@@ -284,7 +284,7 @@ class EndpointVisitorTest {
             }
             """);
         AnalysisResultBuilder builder = new AnalysisResultBuilder();
-        builder.addFinding(new ComponentInfo("Controller", "MyController", "com.example", "test.java"));
+        builder.addFinding(new ComponentInfo("Controller", "MyController", "com.example", "test.java", false));
         visitor.analyze(cu, builder, new AnalysisContext("test.java"));
         AnalysisResult result = builder.build("test.java");
 

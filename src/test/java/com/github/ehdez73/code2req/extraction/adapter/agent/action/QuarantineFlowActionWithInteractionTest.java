@@ -24,7 +24,7 @@ class QuarantineFlowActionWithInteractionTest {
     }
 
     @Test
-    void acceptOptionCreatesGapWithoutUserAnswer() {
+    void acceptOptionCreatesGapWithSelectedOption() {
         var uis = new UserInteractionService() {
             @Override public String ask(String p, String c) { return null; }
             @Override public boolean confirm(String m) { return false; }
@@ -41,6 +41,7 @@ class QuarantineFlowActionWithInteractionTest {
         assertEquals(1, result.gaps().size());
         assertFalse(result.gaps().get(0).userProvided());
         assertNull(result.gaps().get(0).userAnswer());
+        assertEquals(QuarantineUserAction.ACCEPT.label(), result.gaps().get(0).selectedOption());
         assertEquals(GapReason.LOW_CONFIDENCE, result.gaps().get(0).reason());
     }
 

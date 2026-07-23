@@ -59,6 +59,8 @@ public class ComponentVisitor implements AstAnalysisVisitor {
                 }
             }
 
+            boolean primary = n.getAnnotationByName("Primary").isPresent();
+
             String packageName = n.getFullyQualifiedName()
                 .map(fqn -> {
                     int lastDot = fqn.lastIndexOf('.');
@@ -67,7 +69,7 @@ public class ComponentVisitor implements AstAnalysisVisitor {
                 .orElse("");
 
             if (!"other".equals(annotationType)) {
-                collector.add(new ComponentInfo(annotationType, n.getNameAsString(), packageName, filePath));
+                collector.add(new ComponentInfo(annotationType, n.getNameAsString(), packageName, filePath, primary));
             }
             super.visit(n, collector);
         }

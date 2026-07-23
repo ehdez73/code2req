@@ -104,4 +104,76 @@ class GlobalDeclarationRegistryTest {
         registry.register(new DeclarationInfo("A", "bar", List.of(), "a.java"));
         assertTrue(registry.findMethods("A", "unknown").isEmpty());
     }
+
+    @Test
+    void registerSuperTypeAndGetSuperTypes() {
+        var registry = new GlobalDeclarationRegistry();
+        registry.registerSuperType("FixedNameService", "NameService", "com.example.NameService");
+        registry.registerSuperType("FixedNameService", "Serializable", "java.io.Serializable");
+
+        var supers = registry.getSuperTypes("FixedNameService");
+        assertEquals(2, supers.size());
+        assertTrue(supers.stream().anyMatch(s -> "NameService".equals(s.simpleName())));
+        assertTrue(supers.stream().anyMatch(s -> "java.io.Serializable".equals(s.fqn())));
+    }
+
+    @Test
+    void getSuperTypesReturnsEmptyForUnknownClass() {
+        var registry = new GlobalDeclarationRegistry();
+        assertTrue(registry.getSuperTypes("Unknown").isEmpty());
+    }
+
+    @Test
+    void findImplementationsReturnsAllConcreteClasses() {
+        var registry = new GlobalDeclarationRegistry();
+        registry.register(new DeclarationInfo("NameService", "getName", List.of(), "NameService.java"));
+        registry.register(new DeclarationInfo("FixedNameService", "getName", List.of(), "FixedNameService.java"));
+        registry.register(new DeclarationInfo("RandomNameService", "getName", List.of(), "RandomNameService.java"));
+        registry.registerSuperType("FixedNameService", "NameService", "com.example.NameService");
+        registry.registerSuperType("RandomNameService", "NameService", "com.example.NameService");
+
+        var impls = registry.findImplementations("NameService", "getName", 0);
+
+        assertEquals(2, impls.size());
+        assertTrue(impls.stream().anyMatch(d -> "FixedNameService".equals(d.className())));
+        assertTrue(impls.stream().anyMatch(d -> "RandomNameService".equals(d.className())));
+    }
+
+    @Test
+    void findImplementationsFiltersByMethodAndParamCount() {
+        var registry = new GlobalDeclarationRegistry();
+        registry.register(new DeclarationInfo("NameService", "getName", List.of(), "NameService.java"));
+        registry.register(new DeclarationInfo("NameService", "getName", List.of("String"), "NameService.java"));
+        registry.register(new DeclarationInfo("FixedNameService", "getName", List.of(), "FixedNameService.java"));
+        registry.register(new DeclarationInfo("FixedNameService", "getName", List.of("String"), "FixedNameService.java"));
+        registry.registerSuperType("FixedNameService", "NameService", "com.example.NameService");
+
+        var zeroParam = registry.findImplementations("NameService", "getName", 0);
+        assertEquals(1, zeroParam.size());
+        assertEquals("FixedNameService", zeroParam.getFirst().className());
+
+        var oneParam = registry.findImplementations("NameService", "getName", 1);
+        assertEquals(1, oneParam.size());
+    }
+
+    @Test
+    void findImplementationsReturnsEmptyForNoImplementations() {
+        var registry = new GlobalDeclarationRegistry();
+        registry.register(new DeclarationInfo("NameService", "getName", List.of(), "NameService.java"));
+        registry.register(new DeclarationInfo("UnrelatedService", "doStuff", List.of(), "UnrelatedService.java"));
+
+        var impls = registry.findImplementations("NameService", "getName", 0);
+
+        assertTrue(impls.isEmpty());
+    }
+
+    @Test
+    void findImplementationsReturnsEmptyForNoSupertypes() {
+        var registry = new GlobalDeclarationRegistry();
+        registry.register(new DeclarationInfo("NameService", "getName", List.of(), "NameService.java"));
+
+        var impls = registry.findImplementations("NameService", "getName", 0);
+
+        assertTrue(impls.isEmpty());
+    }
 }

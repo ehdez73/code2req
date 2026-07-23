@@ -79,4 +79,15 @@ public class GlobalDeclarationRegistry {
                 e -> List.copyOf(e.getValue())
             )));
     }
+
+    public List<DeclarationInfo> findImplementations(String interfaceName, String methodName, int paramCount) {
+        return byClassName.entrySet().stream()
+            .filter(entry -> {
+                var supers = superTypes.get(entry.getKey());
+                return supers != null && supers.stream().anyMatch(s -> s.simpleName().equals(interfaceName));
+            })
+            .flatMap(entry -> entry.getValue().stream())
+            .filter(d -> d.methodName().equals(methodName) && d.paramTypes().size() == paramCount)
+            .toList();
+    }
 }

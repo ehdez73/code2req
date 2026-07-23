@@ -21,6 +21,8 @@ import com.github.ehdez73.code2req.common.domain.Metric;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.QualifierInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.java.BeanMethodInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlBeanInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlJmsListenerInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlScheduledTaskInfo;
@@ -56,8 +58,10 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -307,6 +311,12 @@ public class ExtractionOrchestrator {
         List<XmlBeanInfo> xmlBeans = deserializeFindings(
             executionFindingStore.findAllByType(FindingType.XML_BEAN),
             XmlBeanInfo.class);
+        List<BeanMethodInfo> beanMethods = deserializeFindings(
+            executionFindingStore.findAllByType(FindingType.BEAN_METHOD),
+            BeanMethodInfo.class);
+        List<QualifierInfo> qualifiers = deserializeFindings(
+            executionFindingStore.findAllByType(FindingType.QUALIFIER),
+            QualifierInfo.class);
 
         Map<String, String> beanRegistry = new HashMap<>();
         for (XmlBeanInfo xb : xmlBeans) {
@@ -330,6 +340,134 @@ public class ExtractionOrchestrator {
         for (ComponentInfo ci : components) {
             if (ci.className() != null && ci.filePath() != null) {
                 classToFileMap.putIfAbsent(ci.className(), ci.filePath());
+            }
+        }
+
+        Set<String> knownBeanClasses = new HashSet<>();
+        Set<String> xmlBeanClassNames = new HashSet<>();
+        for (XmlBeanInfo xb : xmlBeans) {
+            if (xb.className() != null && !xb.className().isEmpty()) {
+                String simpleName = xb.className().contains(".")
+                    ? xb.className().substring(xb.className().lastIndexOf('.') + 1)
+                    : xb.className();
+                knownBeanClasses.add(simpleName);
+                xmlBeanClassNames.add(simpleName);
+            }
+        }
+        for (ComponentInfo ci : components) {
+            if (ci.className() != null && !ci.className().isEmpty()) {
+                knownBeanClasses.add(ci.className());
+            }
+        }
+        for (BeanMethodInfo bm : beanMethods) {
+            if (bm.returnType() != null && !bm.returnType().isEmpty()) {
+                knownBeanClasses.add(bm.returnType());
+            }
+        }
+
+        Map<String, String> wiringMap = new HashMap<>();
+
+        Set<String> primaryClasses = components.stream()
+            .filter(ComponentInfo::primary)
+            .map(ComponentInfo::className)
+            .collect(Collectors.toSet());
+
+        Map<String, String> qualifierClassMap = new HashMap<>();
+        Set<String> qualifierValues = new HashSet<>();
+        for (QualifierInfo q : qualifiers) {
+            String qv = q.qualifierValue();
+            qualifierValues.add(qv);
+            if (beanRegistry.containsKey(qv)) {
+                String fqn = beanRegistry.get(qv);
+                String simpleClass = fqn.contains(".")
+                    ? fqn.substring(fqn.lastIndexOf('.') + 1)
+                    : fqn;
+                qualifierClassMap.put(qv, simpleClass);
+            }
+        }
+
+        for (CallGraphEdge edge : edges) {
+            if (CallGraphEdge.STATUS_AMBIGUOUS.equals(edge.resolvedStatus())) {
+                String interfaceName = edge.targetClassName();
+                List<String> candidateClasses = edge.ambiguousCandidates().stream()
+                    .map(c -> c.contains(".") ? c.substring(0, c.indexOf('.')) : c)
+                    .toList();
+                String resolved = null;
+
+                for (String candidateClass : candidateClasses) {
+                    if (primaryClasses.contains(candidateClass)) {
+                        resolved = candidateClass;
+                        break;
+                    }
+                }
+                if (resolved != null) {
+                    log.info("Wiring: {} → {} [@Primary]", interfaceName, resolved);
+                }
+
+                if (resolved == null) {
+                    for (String candidateClass : candidateClasses) {
+                        if (qualifierClassMap.containsValue(candidateClass)) {
+                            resolved = candidateClass;
+                            break;
+                        }
+                    }
+                    if (resolved != null) {
+                        log.info("Wiring: {} → {} [@Qualifier resolved via bean registry]", interfaceName, resolved);
+                    }
+                }
+
+                if (resolved == null) {
+                    for (String candidateClass : candidateClasses) {
+                        String conventionName = Character.toLowerCase(candidateClass.charAt(0)) + candidateClass.substring(1);
+                        if (qualifierValues.contains(conventionName)) {
+                            resolved = candidateClass;
+                            break;
+                        }
+                    }
+                    if (resolved != null) {
+                        log.info("Wiring: {} → {} [@Qualifier convention match]", interfaceName, resolved);
+                    }
+                }
+
+                if (resolved == null) {
+                    String xmlBean = null;
+                    int xmlMatchCount = 0;
+                    for (String candidateClass : candidateClasses) {
+                        if (xmlBeanClassNames.contains(candidateClass)) {
+                            xmlBean = candidateClass;
+                            xmlMatchCount++;
+                        }
+                    }
+                    if (xmlMatchCount == 1) {
+                        resolved = xmlBean;
+                    }
+                    if (resolved != null) {
+                        log.info("Wiring: {} → {} [XML bean priority]", interfaceName, resolved);
+                    }
+                }
+
+                if (resolved == null) {
+                    String wiredBean = null;
+                    int matchCount = 0;
+                    for (String candidateClass : candidateClasses) {
+                        if (knownBeanClasses.contains(candidateClass)) {
+                            wiredBean = candidateClass;
+                            matchCount++;
+                        }
+                    }
+                    if (matchCount == 1) {
+                        resolved = wiredBean;
+                    }
+                    if (resolved != null) {
+                        log.info("Wiring: {} → {} [single bean match]", interfaceName, resolved);
+                    }
+                }
+
+                if (resolved != null) {
+                    wiringMap.put(interfaceName, resolved);
+                } else {
+                    log.info("Wiring: {} → unresolved ({} candidates: {})", interfaceName, candidateClasses.size(), String.join(", ", candidateClasses));
+                }
             }
         }
 
@@ -373,7 +511,8 @@ public class ExtractionOrchestrator {
         return new StructuralGraph(edges, endpoints, dbAccess, components,
             scheduledTasks, kafkaListeners, rabbitmqListeners,
             activemqListeners, eventListeners, xmlScheduledTasks, xmlJmsListeners,
-            new ArrayList<>(resolvedScheduled.values()), new ArrayList<>(resolvedJms.values()));
+            new ArrayList<>(resolvedScheduled.values()), new ArrayList<>(resolvedJms.values()),
+            wiringMap, classToFileMap);
     }
 
     private SemanticEnrichment buildSemanticEnrichment() {

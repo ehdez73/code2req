@@ -61,8 +61,8 @@ class CodebaseKnowledgeTest {
         var graph = new StructuralGraph(
             List.of(), List.of(), List.of(),
             List.of(
-                new ComponentInfo("@Service", "S1", "p", "/src/S1.java"),
-                new ComponentInfo("@Repository", "R1", "p", "/src/R1.java")));
+                new ComponentInfo("@Service", "S1", "p", "/src/S1.java", false),
+                new ComponentInfo("@Repository", "R1", "p", "/src/R1.java", false)));
         var knowledge = new CodebaseKnowledge(graph, new SemanticEnrichment(), new LinkRegistry());
 
         assertEquals(1, knowledge.getComponentsByType("@Service").size());

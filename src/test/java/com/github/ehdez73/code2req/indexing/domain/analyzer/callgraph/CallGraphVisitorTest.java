@@ -265,4 +265,61 @@ class CallGraphVisitorTest {
         assertEquals("execute", edge.targetMethodName());
         assertEquals(CallGraphEdge.STATUS_UNRESOLVED, edge.resolvedStatus());
     }
+
+    @Test
+    void interfaceWithMultipleImplementationsIsAmbiguous() {
+        registry = new GlobalDeclarationRegistry();
+        registry.register(new DeclarationInfo("NameService", "getName", List.of(), "/src/NameService.java"));
+        registry.register(new DeclarationInfo("FixedNameService", "getName", List.of(), "/src/FixedNameService.java"));
+        registry.register(new DeclarationInfo("RandomNameService", "getName", List.of(), "/src/RandomNameService.java"));
+        registry.registerSuperType("FixedNameService", "NameService", "com.example.NameService");
+        registry.registerSuperType("RandomNameService", "NameService", "com.example.NameService");
+        registry.register(new DeclarationInfo("FixedNameService", "<clinit>", List.of(), "/src/FixedNameService.java"));
+        registry.register(new DeclarationInfo("RandomNameService", "<clinit>", List.of(), "/src/RandomNameService.java"));
+        registry.freeze();
+
+        AnalysisResult result = analyze("Controller.java", """
+            public class Controller {
+                private NameService nameService;
+                public void execute() {
+                    nameService.getName();
+                }
+            }
+            """);
+
+        assertEquals(1, result.findings(CallGraphEdge.class).size());
+        CallGraphEdge edge = result.findings(CallGraphEdge.class).getFirst();
+        assertEquals("Controller", edge.sourceClassName());
+        assertEquals("NameService", edge.targetClassName());
+        assertEquals("getName", edge.targetMethodName());
+        assertEquals(CallGraphEdge.STATUS_AMBIGUOUS, edge.resolvedStatus());
+        assertEquals(2, edge.ambiguousCandidates().size());
+        assertTrue(edge.ambiguousCandidates().stream().anyMatch(c -> c.startsWith("FixedNameService")));
+        assertTrue(edge.ambiguousCandidates().stream().anyMatch(c -> c.startsWith("RandomNameService")));
+    }
+
+    @Test
+    void interfaceWithSingleImplementationIsResolved() {
+        registry = new GlobalDeclarationRegistry();
+        registry.register(new DeclarationInfo("NameService", "getName", List.of(), "/src/NameService.java"));
+        registry.register(new DeclarationInfo("FixedNameService", "getName", List.of(), "/src/FixedNameService.java"));
+        registry.registerSuperType("FixedNameService", "NameService", "com.example.NameService");
+        registry.register(new DeclarationInfo("FixedNameService", "<clinit>", List.of(), "/src/FixedNameService.java"));
+        registry.freeze();
+
+        AnalysisResult result = analyze("Controller.java", """
+            public class Controller {
+                private NameService nameService;
+                public void execute() {
+                    nameService.getName();
+                }
+            }
+            """);
+
+        assertEquals(1, result.findings(CallGraphEdge.class).size());
+        CallGraphEdge edge = result.findings(CallGraphEdge.class).getFirst();
+        assertEquals(CallGraphEdge.STATUS_RESOLVED, edge.resolvedStatus());
+        assertTrue(edge.targetFilePath().contains("FixedNameService"),
+            "Expected edge to resolve to FixedNameService.java");
+    }
 }

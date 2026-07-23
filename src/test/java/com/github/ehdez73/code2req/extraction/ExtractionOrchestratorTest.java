@@ -137,7 +137,7 @@ class ExtractionOrchestratorTest {
     void buildCodebaseKnowledgeWithComponents() throws JsonProcessingException {
         insertTask("task4", "/src/OrderService.java");
         saveFinding("task4", FindingType.COMPONENT,
-            new ComponentInfo("@Service", "OrderService", "com.acme", "/src/OrderService.java"));
+            new ComponentInfo("@Service", "OrderService", "com.acme", "/src/OrderService.java", false));
 
         CodebaseKnowledge knowledge = orchestrator.buildCodebaseKnowledge();
 
