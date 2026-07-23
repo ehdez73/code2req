@@ -7,5 +7,6 @@ public enum QualificationReason {
     BEAN_VALIDATION,
     TEST_ASSERTIONS_PRESENT,
     UNRESOLVED_FLOATING_LINK,
+    RESOLVED_PHASE1_DEPS,
     NONE
 }

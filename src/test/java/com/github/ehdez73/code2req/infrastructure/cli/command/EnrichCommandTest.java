@@ -15,13 +15,13 @@ import com.github.ehdez73.code2req.enrichment.EnrichmentOrchestrator;
 import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import com.github.ehdez73.code2req.enrichment.domain.planner.QualificationRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.CustomConstraintValidatorRule;
-
-
+import com.github.ehdez73.code2req.enrichment.domain.planner.rule.ResolvedPhase1DepsRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedFloatingLinkRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedSignaturesRule;
 import com.github.ehdez73.code2req.enrichment.domain.service.BeanDefinitionResolver;
+import com.github.ehdez73.code2req.enrichment.domain.service.StructuralContextAssembler;
 import com.github.ehdez73.code2req.infrastructure.file.FilePathResolver;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.FloatingLinkStore;
@@ -76,10 +76,10 @@ class EnrichCommandTest {
         List<QualificationRule> rules = List.of(
             new StoredProcedureCallRule(),
             new CustomConstraintValidatorRule(),
-
             new UnresolvedSignaturesRule(jdbc, 5),
             new UnresolvedFloatingLinkRule(floatingLinkStore),
-            new TestAssertionsPresentRule(tfm)
+            new TestAssertionsPresentRule(tfm),
+            new ResolvedPhase1DepsRule()
         );
 
         var planner = new EnrichmentPlanner(taskStore, jdbc, rules, findingStore);
@@ -91,9 +91,10 @@ class EnrichCommandTest {
         var per = new PairedExecutionResolver(
             new TestFileMatcher(indexingConfig));
         var beanDefinitionResolver = new BeanDefinitionResolver(findingStore);
+        var scAssembler = new StructuralContextAssembler(findingStore);
         var orchestrator = new EnrichmentOrchestrator(planner, executor, taskStore,
             metricsStore, indexingConfig, taskIdHasher, budgetCalculator,
-            new ManifestLoader(), new FilePathResolver(), per, findingStore, beanDefinitionResolver);
+            new ManifestLoader(), new FilePathResolver(), per, findingStore, beanDefinitionResolver, scAssembler);
 
         var manifestLoader = new ManifestLoader();
         var manifestValidator = new ManifestValidator(manifestLoader);
@@ -192,13 +193,21 @@ class EnrichCommandTest {
     }
 
     @Test
-    void enrichWithShowPlanAndNoQualifiedTasksShowsSuggestions() {
+    void enrichWithShowPlanAndAllTasksQualifiedShowsNothingToDo() {
         insertIndexedTask("t1", "/src/Foo.java");
         jdbc.update("INSERT INTO execution_findings (task_id, finding_type, finding_json, resolved) VALUES (?, ?, ?, ?)",
             "t1", "CALL_GRAPH_EDGE", "{}", 1);
 
         String result = command.enrich("project-manifest.yaml", true, true, false, null);
         assertTrue(result.contains("Plan Preview"));
+        assertTrue(result.contains("qualified"));
+    }
+
+    @Test
+    void enrichWithShowPlanAndNoFindingsShowsNoQualified() {
+        insertIndexedTask("t1", "/src/Foo.java");
+
+        String result = command.enrich("project-manifest.yaml", true, true, false, null);
         assertTrue(result.contains("No tasks qualified"));
         assertTrue(result.contains("lowering 'llm-unresolved-threshold'"));
     }

@@ -19,13 +19,13 @@ import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import com.github.ehdez73.code2req.enrichment.domain.planner.QualificationRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.CustomConstraintValidatorRule;
-
-
+import com.github.ehdez73.code2req.enrichment.domain.planner.rule.ResolvedPhase1DepsRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedFloatingLinkRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedSignaturesRule;
 import com.github.ehdez73.code2req.enrichment.domain.service.BeanDefinitionResolver;
+import com.github.ehdez73.code2req.enrichment.domain.service.StructuralContextAssembler;
 import com.github.ehdez73.code2req.infrastructure.file.FilePathResolver;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.FloatingLinkStore;
@@ -92,10 +92,10 @@ class EnrichmentOrchestratorTest {
         defaultRules = List.of(
             new StoredProcedureCallRule(),
             new CustomConstraintValidatorRule(),
-
             new UnresolvedSignaturesRule(jdbc, 5),
             new UnresolvedFloatingLinkRule(floatingLinkStore),
-            new TestAssertionsPresentRule(tfm)
+            new TestAssertionsPresentRule(tfm),
+            new ResolvedPhase1DepsRule()
         );
     }
 
@@ -111,8 +111,9 @@ class EnrichmentOrchestratorTest {
         var per = new PairedExecutionResolver(
             new TestFileMatcher(indexingConfig));
         var beanDefinitionResolver = new BeanDefinitionResolver(findingStore);
+        var scAssembler = new StructuralContextAssembler(findingStore);
         return new EnrichmentOrchestrator(planner, executor, taskStore, metricsStore, indexingConfig, taskIdHasher, budgetCalculator,
-            manifestLoader, filePathResolver, per, findingStore, beanDefinitionResolver);
+            manifestLoader, filePathResolver, per, findingStore, beanDefinitionResolver, scAssembler);
     }
 
     private void insertTask(String taskId, String filePath) {
@@ -214,10 +215,11 @@ class EnrichmentOrchestratorTest {
             var per = new PairedExecutionResolver(
                 new TestFileMatcher(indexingConfig));
             var beanDefResolver = new BeanDefinitionResolver(findingStore);
+            var scAssembler = new StructuralContextAssembler(findingStore);
             var orchestratorWithDeps = new EnrichmentOrchestrator(planner, executor, taskStore, metricsStore,
                 indexingConfig,
                 taskIdHasher, budgetCalculator, new ManifestLoader(),
-                new FilePathResolver(), per, findingStore, beanDefResolver);
+                new FilePathResolver(), per, findingStore, beanDefResolver, scAssembler);
 
             CompletionStatus status = orchestratorWithDeps.execute(manifestPath.toString(), true);
 
@@ -252,9 +254,10 @@ class EnrichmentOrchestratorTest {
             var per = new PairedExecutionResolver(
                 new TestFileMatcher(indexingConfig));
             var beanDefResolver = new BeanDefinitionResolver(findingStore);
+            var scAssembler = new StructuralContextAssembler(findingStore);
             var orchestratorWithDeps = new EnrichmentOrchestrator(planner, executor, taskStore,
                 metricsStore, indexingConfig, taskIdHasher, budgetCalculator,
-                new ManifestLoader(), new FilePathResolver(), per, findingStore, beanDefResolver);
+                new ManifestLoader(), new FilePathResolver(), per, findingStore, beanDefResolver, scAssembler);
 
             CompletionStatus status = orchestratorWithDeps.execute(manifestPath.toString(), true);
 

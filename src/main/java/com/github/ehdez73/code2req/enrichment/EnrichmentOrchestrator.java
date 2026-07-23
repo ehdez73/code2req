@@ -20,6 +20,7 @@ import com.github.ehdez73.code2req.enrichment.domain.planner.EnrichmentPlanner;
 import com.github.ehdez73.code2req.enrichment.domain.service.BeanDefinitionResolver;
 import com.github.ehdez73.code2req.enrichment.domain.service.BranchState;
 import com.github.ehdez73.code2req.enrichment.domain.service.EnrichmentDag;
+import com.github.ehdez73.code2req.enrichment.domain.service.StructuralContextAssembler;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestLoader;
 import com.github.ehdez73.code2req.infrastructure.file.FilePathResolver;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
@@ -64,6 +65,7 @@ public class EnrichmentOrchestrator {
     private final PairedExecutionResolver pairedExecutionResolver;
     private final ExecutionFindingStore executionFindingStore;
     private final BeanDefinitionResolver beanDefinitionResolver;
+    private final StructuralContextAssembler structuralContextAssembler;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public EnrichmentOrchestrator(EnrichmentPlanner planner, LlmEnrichmentService executor,
@@ -72,7 +74,8 @@ public class EnrichmentOrchestrator {
                                   ManifestLoader manifestLoader, FilePathResolver filePathResolver,
                                   PairedExecutionResolver per,
                                   ExecutionFindingStore executionFindingStore,
-                                  BeanDefinitionResolver beanDefinitionResolver) {
+                                  BeanDefinitionResolver beanDefinitionResolver,
+                                  StructuralContextAssembler structuralContextAssembler) {
         this.planner = planner;
         this.semanticExecutor = executor;
         this.taskStore = taskStore;
@@ -85,6 +88,7 @@ public class EnrichmentOrchestrator {
         this.pairedExecutionResolver = per;
         this.executionFindingStore = executionFindingStore;
         this.beanDefinitionResolver = beanDefinitionResolver;
+        this.structuralContextAssembler = structuralContextAssembler;
     }
 
     public CompletionStatus execute(String manifestPath, boolean dryRun) {
@@ -216,8 +220,9 @@ public class EnrichmentOrchestrator {
 
             String testContent = resolveTestContent(resolvedPath, decision);
 
+            String structuralContext = structuralContextAssembler.assemble(task.taskId());
             CompletableFuture<ExecutionFinding> future = semanticExecutor.enrich(
-                task, decision, sourceContent, testContent, null, dryRun);
+                task, decision, sourceContent, testContent, structuralContext, dryRun);
 
             batch.add(new SubmitEntry(decision, task, future));
         }

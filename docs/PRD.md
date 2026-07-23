@@ -189,6 +189,90 @@ Point-in-time snapshots of local state (SQLite database + JSON extraction cache)
 * **CLI subcommands:** Three shell commands: `snapshot create [--name <label>]`, `snapshot list`, `snapshot restore --name <label>`. The `--name` parameter is optional for create, required for restore. Errors report clear messages (missing snapshot, non-existent name).
 * **Lifecycle and configuration:** Snapshots are independent of the `clean` command — `clean` never touches the `snapshots/` directory. The snapshot root is configurable via `code2req.snapshot.dir` (default `./snapshots`) and is gitignored via the `snapshots/` pattern.
 
+#### 2.1.6 Phase 2: Per-File LLM Semantic Enrichment
+
+After Phase 1 (deterministic indexing) completes, the pipeline performs an optional per-file LLM enrichment pass to add semantic context — business purpose, validation rules, edge cases, test insights, and architectural connections — that is beyond the reach of static AST analysis. This enrichment is the input to Phase 3's GOAP agent.
+
+Phase 2 is broken into three sub-phases:
+
+1. **Qualification (Planner):** A rule engine selects which INDEXED files require LLM enrichment, skipping files without semantic gaps to conserve tokens.
+2. **Structural Context Assembly:** For each qualified file, Phase 1 findings (call graph edges, endpoints, event listeners, DB access, outbound HTTP calls) are queried from SQLite and assembled into a JSON payload.
+3. **Execution (Orchestrator + Executor):** Per-file enrichment is submitted to the LLM concurrently. The orchestrator manages batches, collects results, and handles dynamic re-planning when file-level enrichment discovers inter-file dependencies.
+
+##### Qualification Rules
+
+The `EnrichmentPlanner` evaluates every INDEXED task against a configurable set of `QualificationRule` components. A task qualifies when any rule returns true; matching rules do not short-circuit — all matching reasons are recorded for traceability.
+
+| Rule | Trigger | Purpose |
+|------|---------|---------|
+| `UnresolvedSignaturesRule` | File has >`llm-unresolved-threshold` (default: 5) unresolved `CALL_GRAPH_EDGE` findings | Files with many unknown call targets likely depend on external types whose role requires LLM interpretation |
+| `StoredProcedureCallRule` | File has a `DATABASE_PROCEDURE_CALL` finding | Stored procedures contain opaque business logic that static analysis cannot decode |
+| `CustomConstraintValidatorRule` | File has a `CONSTRAINT_VALIDATOR` finding | Custom validation annotations (`@ValidOrder` etc.) need LLM to explain the validation semantics |
+| `UnresolvedFloatingLinkRule` | File has `floating_links` with `resolved_status = 'PENDING'` | Outbound HTTP calls to unresolved external endpoints require human-like analysis to classify |
+| `TestAssertionsPresentRule` | File has a paired test file (naming convention match) | Tests encode hidden business expectations; the LLM enriches both source and test insights concurrently |
+| `DtoValidationRule` | File has `VALIDATOR` finding + one of `ENDPOINT`/`COMPONENT`/`DB_ACCESS` | DTOs with Bean Validation annotations in a non-trivial context benefit from semantic enrichment |
+| `ResolvedPhase1DepsRule` | File has any resolved Phase 1 finding (call graph edge, endpoint, component, DB access, event listener, etc.) | Catches all files where Phase 1 computed useful structural data — ensures no file with meaningful context is skipped |
+
+The last rule (`ResolvedPhase1DepsRule`) is the broadest and serves as a safety net: any task that the deterministic indexer found structural data for will be enriched. Together with the deficit-oriented rules, this ensures the initial batch includes all files with computable dependencies, maximizing parallelism within the batch.
+
+Rules are discovered automatically via Spring component scanning — adding a new rule requires only a `@Component` class implementing `QualificationRule`.
+
+##### Structural Context Assembly
+
+When `EnrichmentOrchestrator.buildSubmitBatch()` prepares a task for enrichment, it calls `StructuralContextAssembler.assemble(taskId)` instead of passing `null`. The assembler queries `execution_findings` by task ID, groups findings by type (excluding enrichment/flow types), and builds a JSON object where each finding type becomes a top-level key and the value is an array of the parsed `finding_json` objects:
+
+```
+{
+    "call_graph_edges": [{"source": "...", "target": "...", "resolved": true}],
+    "endpoints": [{"path": "/api/orders", "method": "GET"}],
+    "db_access": [{"operation": "query", "sql": "SELECT * FROM orders"}],
+    ...
+}
+```
+
+This payload is injected into the LLM prompt's `STRUCTURAL CONTEXT` section. The system prompt instructs the LLM to treat these as "already resolved — do not re-derive" and only report references outside this context as `discovered_dependencies`. This eliminates redundant LLM work and reduces token spend.
+
+##### Batch Parallelism & Concurrency Model
+
+The orchestrator submits enrichment futures in batches. All tasks within a batch are fired concurrently via `CompletableFuture` on a dedicated `orchestratorTaskExecutor` thread pool:
+
+```
+for each batch iteration:
+    for each decision in batch:
+        future = executor.enrich(task, decision, source, test, context)
+        // returns immediately — work is queued on thread pool
+    waitForAll(futures)  // blocks until ALL complete
+    processCompletedBatch(futures)  // may discover new dependencies
+```
+
+| Pool Parameter | Default | Configuration Key |
+|----------------|---------|-------------------|
+| Core pool size | 5 | `code2req.enrichment.max-concurrent-llm-calls` |
+| Max pool size | max(10, core) | — |
+| Queue capacity | 1000 | — |
+| Await termination | 30 seconds | — |
+
+Each task within a batch runs in parallel on the thread pool. The `waitForAll()` barrier (`CompletableFuture.allOf().join()`) prevents processing results until the entire batch completes — this is necessary because discovered dependencies from one file may affect how subsequent batches are built.
+
+Execution mode is controlled by `code2req.enrichment.execution-mode` (`async` / `sync`). In `async` mode (default), work is submitted to the thread pool. In `sync` mode, `doEnrich()` runs on the caller thread, forcing serial execution (useful for debugging with local LLMs).
+
+##### Dynamic Replanning
+
+When an LLM response contains `discovered_dependencies`, the orchestrator registers them as new `PlannerDecision` entries and creates a new batch iteration. These are inherently sequential — a parent file must complete before its discovered children can be enriched. The DAG ensures branch isolation: a slow parent only blocks its own branch, not unrelated branches.
+
+Discovered dependencies beyond `max-discovery-depth` (default: 3, via `code2req.indexing.max-discovery-depth`) are transitioned to `AWAITING_HUMAN_REVIEW`.
+
+##### Configuration Summary
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `code2req.enrichment.execution-mode` | `async` | `async` for thread-pool concurrency, `sync` for serial debugging |
+| `code2req.enrichment.max-concurrent-llm-calls` | 5 | Thread pool core size and concurrency degree |
+| `code2req.enrichment.llm-unresolved-threshold` | 5 | Unresolved signature count triggering `UnresolvedSignaturesRule` |
+| `code2req.enrichment.strict-response-format` | `true` | Enforce JSON Schema on LLM response format |
+| `code2req.enrichment.semantic-validation-sample-rate` | — | Fraction of enrichment results to validate (0.0–1.0, not yet implemented) |
+| `code2req.enrichment.max-tokens-per-run` | — | Aggregate token budget per enrichment session |
+
 ### 2.2 Phase 3: Agentic Extraction (Embabel GOAP)
 
 Phase 3 uses an **Embabel GOAP agent** to transform the indexed code graph (Phase 1) and optional per-file enrichment (Phase 2) into structured functional requirements. The agent discovers entry points, traces execution flows through the call graph, extracts business rules and edge cases, and groups related flows into features. Per ADR-006, Phase 3 is split into two CLI commands: `extract` (agentic analysis) and `generate` (pure-Java output synthesis). This section describes the agentic `extract` command; output generation is covered in §2.3.

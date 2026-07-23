@@ -6,7 +6,7 @@ import com.github.ehdez73.code2req.enrichment.domain.model.QualificationReason;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.CustomConstraintValidatorRule;
-
+import com.github.ehdez73.code2req.enrichment.domain.planner.rule.ResolvedPhase1DepsRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.StoredProcedureCallRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.TestAssertionsPresentRule;
 import com.github.ehdez73.code2req.enrichment.domain.planner.rule.UnresolvedFloatingLinkRule;
@@ -55,7 +55,8 @@ class EnrichmentPlannerTest {
             new CustomConstraintValidatorRule(),
             new UnresolvedSignaturesRule(jdbc, 5),
             new UnresolvedFloatingLinkRule(floatingLinkStore),
-            new TestAssertionsPresentRule(testFileMatcher)
+            new TestAssertionsPresentRule(testFileMatcher),
+            new ResolvedPhase1DepsRule()
         );
     }
 
@@ -87,9 +88,20 @@ class EnrichmentPlannerTest {
         }
 
         @Test
-        void noRulesMatch() {
+        void resolvedPhase1DepsQualifies() {
             insertTask("t1", "/src/Foo.java");
             insertFinding("t1", "CALL_GRAPH_EDGE", true);
+            var planner = createPlanner();
+            var decisions = planner.plan();
+            assertEquals(1, decisions.size());
+            assertTrue(decisions.get(0).qualified());
+            assertTrue(decisions.get(0).reasons().contains(QualificationReason.RESOLVED_PHASE1_DEPS));
+            assertEquals(TaskStatus.ENRICH_PENDING, taskStore.findById("t1").get().status());
+        }
+
+        @Test
+        void noPhase1FindingsDoesNotQualify() {
+            insertTask("t1", "/src/Foo.java");
             var planner = createPlanner();
             var decisions = planner.plan();
             assertEquals(1, decisions.size());
@@ -124,7 +136,8 @@ class EnrichmentPlannerTest {
             var planner = createPlanner();
             var decisions = planner.plan();
             assertEquals(1, decisions.size());
-            assertFalse(decisions.get(0).qualified());
+            assertTrue(decisions.get(0).qualified());
+            assertTrue(decisions.get(0).reasons().contains(QualificationReason.RESOLVED_PHASE1_DEPS));
         }
 
         @Test

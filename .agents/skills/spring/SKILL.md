@@ -113,6 +113,8 @@ Dependencies for OpenAI + Anthropic are in `pom.xml`. Spring AI BOM is imported.
 
 ## Testing
 
+**When you create or modify any production class, you MUST create or update its corresponding test class.** Unit tests go in `src/test/java/` mirroring the production package structure. Integration tests go in the same test tree.
+
 Test dependencies in `pom.xml`:
 
 ```xml

@@ -36,7 +36,7 @@ Before writing code, consult these sources for tech stack decisions and rational
 - Always try to follow coding best practices: SOLID, DRY, KISS, YAGNI, etc.
 
 
-IMPORTANT: After creating or modifying existing code, make sure all tests pass
+IMPORTANT: When you create or modify production code, you MUST create or update corresponding unit/integration tests (TDD). Follow the patterns in `.agents/skills/spring/SKILL.md`. Run `mvn clean test` to verify all tests pass before considering work complete.
 
 ## Project Structure
 
