@@ -22,7 +22,6 @@
 - Created `features/E005-F025-snapshot-restore.feature` — US053, US054 (8 scenarios)
 - Created `features/E004-F026-review-command.feature` — US055 (6 scenarios)
 - Created `features/E004-F027-domain-model-output-writers.feature` — US056 (4 scenarios)
-- Created `features/E004-F028-interactive-mode.feature` — US057 (6 scenarios)
 
 ## 2026-06-17 — Added Phase 2 orchestration (F016–F020)
 

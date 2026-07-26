@@ -720,8 +720,7 @@
         "Progressive disclosure: MINIMAL/STANDARD/FULL output based on complexity score",
         "Semantic clustering groups related flows into features using Phase 2 enrichment similarity",
         "Orphaned methods unreachable from any entry point are flagged",
-        "Guardrails: max-flow-depth (5), max-tokens-per-run (500000), ambiguity-confidence-threshold (0.7)",
-        "UserInteractionService SPI with NoOpUserInteractionService default; Interactive deferred"
+        "Guardrails: max-flow-depth (5), max-tokens-per-run (500000)"
       ],
       "user_stories": [
         { "id": "US051", "title": "Embabel agent extracts functional requirements", "priority": "must", "type": "story", "gherkin_file": "features/E004-F023-embabel-agent.feature" }
@@ -797,24 +796,7 @@
         { "id": "US056", "title": "Domain model and output writers", "priority": "must", "type": "story", "gherkin_file": "features/E004-F027-domain-model-output-writers.feature" }
       ]
     },
-    {
-      "id": "F028",
-      "epic_id": "E004",
-      "name": "Interactive Mode — Agent-User Clarification",
-      "description": "When the Embabel agent encounters ambiguity, it defers to the user via terminal prompts. A UserInteractionService SPI decouples the agent from I/O, enabling both headless (NoOp) and interactive (stdin/stdout) modes.",
-      "background": "Embabel agent actions (TraceFlow, AnalyzeFlow, CrossReferenceFlows) can encounter ambiguity.",
-      "business_rules": [
-        "UserInteractionService SPI defines ask/confirm/select methods — NoOpUserInteractionService is the default (headless)",
-        "InteractiveUserInteractionService uses stdin/stdout for terminal prompts",
-        "Agent calls UserInteractionService when confidence drops below ambiguity-confidence-threshold (0.7)",
-        "AmbiguityGap records are created for every ambiguity event for the audit trail",
-        "User responses are cached in a user_responses SQLite table",
-        "Interactive mode is opt-in via run --interactive flag"
-      ],
-      "user_stories": [
-        { "id": "US057", "title": "Interactive mode for agent-user clarification", "priority": "should", "type": "story", "gherkin_file": "features/E004-F028-interactive-mode.feature" }
-      ]
-    },
+
     {
       "id": "F029",
       "epic_id": "E001",
@@ -932,7 +914,6 @@
       "features/E005-F025-snapshot-restore.feature",
       "features/E004-F026-review-command.feature",
       "features/E004-F027-domain-model-output-writers.feature",
-      "features/E004-F028-interactive-mode.feature",
       "features/E001-F029-spring-xml-configuration-analysis.feature",
       "features/E001-F030-bean-method-detection.feature"
     ]

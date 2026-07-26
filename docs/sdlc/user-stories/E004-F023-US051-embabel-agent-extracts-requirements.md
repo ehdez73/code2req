@@ -27,8 +27,6 @@
 - [ ] GOAP dynamically chains actions based on goal completion — not a fixed pipeline
 - [ ] Output produces both Markdown spec (PRD §6.1 format) and semantic_manifest.json (PRD §6.2)
 - [ ] Phase 3 crash marker (`__phase3_marker__`) with lifecycle PENDING -> ENRICHING -> ENRICHED/FAILED
-- [ ] `UserInteractionService` SPI with `NoOpUserInteractionService` default; `InteractiveUserInteractionService` deferred
-
 ### INVEST Flags
 
 - integration

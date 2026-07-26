@@ -90,17 +90,8 @@ public class TaskStoreSchema {
                 recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """);
-        jdbc.execute("""
-            CREATE TABLE IF NOT EXISTS user_responses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id TEXT NOT NULL,
-                question TEXT NOT NULL,
-                answer TEXT,
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            )
-        """);
         migrateSchema();
-        log.info("Task store schema initialized with 6 tables");
+        log.info("Task store schema initialized with 5 tables");
     }
 
     private void migrateSchema() {
@@ -131,7 +122,6 @@ public class TaskStoreSchema {
         jdbc.execute("DROP TABLE IF EXISTS topic_links");
         jdbc.execute("DROP TABLE IF EXISTS floating_links");
         jdbc.execute("DROP TABLE IF EXISTS metrics");
-        jdbc.execute("DROP TABLE IF EXISTS user_responses");
         jdbc.execute("DROP TABLE IF EXISTS tasks");
     }
 

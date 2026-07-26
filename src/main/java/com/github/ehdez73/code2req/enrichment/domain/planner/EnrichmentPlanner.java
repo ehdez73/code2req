@@ -60,11 +60,11 @@ public class EnrichmentPlanner {
             PlannerDecision decision = evaluateTask(task, ctx);
             if (decision.qualified()) {
                 taskStore.updateStatus(task.taskId(), TaskStatus.ENRICH_PENDING);
-                log.debug("Planner: Transitioned task {} ({}) from INDEXED to ENRICH_PENDING",
-                    task.taskId(), task.filePath());
+                log.info("Planner: Transitioned task {} ({}) from INDEXED to ENRICH_PENDING — reasons: {}",
+                    task.taskId(), task.filePath(), decision.reasons());
             } else {
                 taskStore.updateStatus(task.taskId(), TaskStatus.SKIPPED);
-                log.debug("Planner: Transitioned task {} ({}) from INDEXED to SKIPPED",
+                log.info("Planner: Transitioned task {} ({}) from INDEXED to SKIPPED — no qualification rule matched",
                     task.taskId(), task.filePath());
             }
             decisions.add(decision);

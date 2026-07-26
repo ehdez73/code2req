@@ -42,8 +42,8 @@ class TaskStoreSchemaTest {
         var tables = jdbc.queryForList(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
         var names = tables.stream().map(m -> (String) m.get("name")).toList();
-        assertEquals(6, names.size(), "Expected 6 user tables, got: " + names);
-        assertTrue(names.containsAll(List.of("tasks", "execution_findings", "topic_links", "floating_links", "metrics", "user_responses")));
+        assertEquals(5, names.size(), "Expected 5 user tables, got: " + names);
+        assertTrue(names.containsAll(List.of("tasks", "execution_findings", "topic_links", "floating_links", "metrics")));
     }
 
     @Test
@@ -97,14 +97,6 @@ class TaskStoreSchemaTest {
         var columns = jdbc.queryForList("PRAGMA table_info(metrics)");
         var names = columns.stream().map(row -> (String) row.get("name")).toList();
         assertTrue(names.containsAll(List.of("id", "run_id", "phase", "tasks_total", "tasks_completed", "edges_resolved", "edges_unresolved", "topic_links_resolved", "floating_links_registered", "recorded_at")));
-    }
-
-    @Test
-    void userResponsesTableHasExpectedColumns() {
-        taskStoreSchema.createSchemaIfNotExists();
-        var columns = jdbc.queryForList("PRAGMA table_info(user_responses)");
-        var names = columns.stream().map(row -> (String) row.get("name")).toList();
-        assertTrue(names.containsAll(List.of("id", "session_id", "question", "answer", "created_at")));
     }
 
     @Test

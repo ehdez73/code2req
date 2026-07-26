@@ -38,9 +38,7 @@ public class ExtractCommand {
             @ShellOption(value = "--force", defaultValue = "false",
                          help = "Force re-execution even if no new enrichments") boolean force,
             @ShellOption(value = "--resume", defaultValue = "false",
-                         help = "Resume previous extraction: reuse cached per-flow LLM results") boolean resume,
-            @ShellOption(value = "--headless", defaultValue = "false",
-                         help = "Headless mode: suppress interactive prompts") boolean headless) {
+                         help = "Resume previous extraction: reuse cached per-flow LLM results") boolean resume) {
 
         var sb = new StringBuilder("=== Extract ===\n\n");
         var start = Instant.now();
@@ -62,11 +60,8 @@ public class ExtractCommand {
         if (resume) {
             sb.append("  Mode: RESUME (reusing cached flow analyses)\n");
         }
-        if (headless) {
-            sb.append("  Mode: HEADLESS (interactive prompts disabled)\n");
-        }
 
-        ExtractionResult result = extractionOrchestrator.execute(dryRun, force, resume, headless);
+        ExtractionResult result = extractionOrchestrator.execute(dryRun, force, resume);
         long p3Elapsed = Duration.between(phase3Start, Instant.now()).toSeconds();
 
         if (result.isBlocked()) {

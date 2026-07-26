@@ -2,7 +2,7 @@
 
 ## AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)
 
-> **Version 5.10** — Added §2.2 Phase 3: Agentic Extraction (Embabel GOAP agent architecture, 6 actions, guardrails). Added §2.2.2 Interactive Mode (US057 / F028) — `UserInteractionService` SPI (ask/confirm/select) with "Write your own answer" option for `select()` and LLM re-evaluation feedback loop; `InteractiveUserInteractionService` is the default mode (opt-out via `run --headless`); `AmbiguityGap` audit trail, `user_responses` SQLite table. Phase 2 enrichment is now optional. `INDEXED` tasks (Phase 1 only) proceed directly to Phase 3 — the LLM derives business rules, edge cases, and non-functional requirements from source code snippets. Phase 2 enrichment provides richer context (test insights, discovered dependencies) when available, but is no longer a mandatory gate. Removed 4 redundant qualification rules (Spring Data interfaces, @Scheduled tasks, native SQL/JPQL-HQL queries) — the Phase 3 LLM already receives their source code snippets and can derive the same semantics without a separate enrichment call.
+> **Version 5.12** — Narrowed Phase 2 enrichment scope from per-file to **entry-point-only**. New `EntryPointRule` replaces `ResolvedPhase1DepsRule` as the primary qualification gate. Non-entry-point files (services, repositories, domain classes) are no longer enriched individually — Phase 3's `AnalyzeFlow` sends their traced method bodies as inline source code snippets, deriving business rules and validations directly from the code alongside the entry-point enrichment context. Updated qualification rule table. Bumped from v5.11.
 
 ---
 
@@ -27,7 +27,7 @@ Crucially, the tool rejects direct test framework generation. Instead, it export
 
 ## 2. Core Architecture & Product Paradigms
 
-The CLI adopts a multi-phase pipeline that transitions from deterministic compilation (Phase 1) through optional per-file LLM enrichment (Phase 2) to an agentic extraction phase (Phase 3) and a pure-Java generation phase (Phase 4). When Phase 2 is skipped, Phase 3 derives business semantics directly from source code snippets.
+The CLI adopts a multi-phase pipeline that transitions from deterministic compilation (Phase 1) through optional entry-point-focused LLM enrichment (Phase 2) to an agentic extraction phase (Phase 3) and a pure-Java generation phase (Phase 4). When Phase 2 is skipped, Phase 3 derives business semantics directly from source code snippets.
 
 ```
 [scan] ──> [enrich] ──> [extract] ──> [generate]
@@ -37,7 +37,7 @@ The CLI adopts a multi-phase pipeline that transitions from deterministic compil
 ```
 
 - **`scan`** (Phase 1): Deterministic indexing — AST parsing, secret redaction, SQLite persistence. Zero network calls.
-- **`enrich`** (Phase 2): Qualification pass + per-file LLM enrichment via Spring AI `@Async`. Optional — skipped when no file qualifies.
+- **`enrich`** (Phase 2): Qualification pass + entry-point LLM enrichment via Spring AI `@Async`. Optional — skipped when no file qualifies.
 - **`extract`** (Phase 3): Embabel GOAP agent traces entry-point-driven flows and extracts functional requirements.
 - **`generate`** (Phase 4): Pure-Java output writers produce the Markdown specification and `semantic_manifest.json`.
 
@@ -53,7 +53,7 @@ To enable inter-file structural tracing without LLM dependencies, Phase 1 operat
 2. **Pass 2 — Resolution Analysis:** Each file is re-analysed with the full visitor suite. Resolution visitors (`CallGraphVisitor`, `DbAccessVisitor`, `OutboundHttpVisitor`) resolve method calls, database access patterns, and outbound HTTP calls against the registry built in Pass 1.
 3. **Post-Pass Link Resolution:** Once all files are processed, deterministic resolvers match event producers to consumers (`TopicLinkResolver`) and register outbound HTTP calls (`FloatingLinkResolver`).
 
-This design ensures that Controller → Service → Repository / Database / External System traces are resolved without LLM calls. The LLM is reserved for semantic enrichment — either via Phase 2 (per-file) or derived directly from source code snippets in Phase 3 (per-flow) when enrichment is skipped.
+This design ensures that Controller → Service → Repository / Database / External System traces are resolved without LLM calls. The LLM is reserved for semantic enrichment — either via Phase 2 (entry-point-level) or derived directly from source code snippets in Phase 3 (per-flow) when enrichment is skipped.
 
 #### 2.1.1 Pure-Java AST Structural Parsing
 
@@ -189,15 +189,17 @@ Point-in-time snapshots of local state (SQLite database + JSON extraction cache)
 * **CLI subcommands:** Three shell commands: `snapshot create [--name <label>]`, `snapshot list`, `snapshot restore --name <label>`. The `--name` parameter is optional for create, required for restore. Errors report clear messages (missing snapshot, non-existent name).
 * **Lifecycle and configuration:** Snapshots are independent of the `clean` command — `clean` never touches the `snapshots/` directory. The snapshot root is configurable via `code2req.snapshot.dir` (default `./snapshots`) and is gitignored via the `snapshots/` pattern.
 
-#### 2.1.6 Phase 2: Per-File LLM Semantic Enrichment
+#### 2.1.6 Phase 2: Entry-Point LLM Semantic Enrichment
 
-After Phase 1 (deterministic indexing) completes, the pipeline performs an optional per-file LLM enrichment pass to add semantic context — business purpose, validation rules, edge cases, test insights, and architectural connections — that is beyond the reach of static AST analysis. This enrichment is the input to Phase 3's GOAP agent.
+After Phase 1 (deterministic indexing) completes, the pipeline performs an optional LLM enrichment pass focused on **entry-point files** — controllers, scheduled tasks, event listeners, and message consumers. These files bear the business operations users interact with, making them the highest-value targets for semantic enrichment. The enrichment adds context (business purpose, validation rules, edge cases, test insights, architectural connections) that is beyond the reach of static AST analysis, and is consumed by Phase 3's per-flow analysis.
+
+**Non-entry-point files** (services, repositories, domain classes, etc.) are **not enriched individually**. Instead, Phase 3's flow analysis sends their source code as part of the flow-trace context — the LLM derives business rules, validations, and edge cases directly from the traced method bodies. This avoids redundant LLM calls: Phase 2 already captures the entry point's business context, while Phase 3's LLM receives the full traced flow with snippets of all participating files.
 
 Phase 2 is broken into three sub-phases:
 
-1. **Qualification (Planner):** A rule engine selects which INDEXED files require LLM enrichment, skipping files without semantic gaps to conserve tokens.
+1. **Qualification (Planner):** A rule engine selects which INDEXED files require LLM enrichment — only entry-point files (controllers, scheduled tasks, event listeners) qualify by default, with additional deficit-oriented rules for edge cases.
 2. **Structural Context Assembly:** For each qualified file, Phase 1 findings (call graph edges, endpoints, event listeners, DB access, outbound HTTP calls) are queried from SQLite and assembled into a JSON payload.
-3. **Execution (Orchestrator + Executor):** Per-file enrichment is submitted to the LLM concurrently. The orchestrator manages batches, collects results, and handles dynamic re-planning when file-level enrichment discovers inter-file dependencies.
+3. **Execution (Orchestrator + Executor):** Entry-point enrichment is submitted to the LLM concurrently. The orchestrator manages batches, collects results, and handles dynamic re-planning when file-level enrichment discovers inter-file dependencies.
 
 ##### Qualification Rules
 
@@ -211,9 +213,9 @@ The `EnrichmentPlanner` evaluates every INDEXED task against a configurable set 
 | `UnresolvedFloatingLinkRule` | File has `floating_links` with `resolved_status = 'PENDING'` | Outbound HTTP calls to unresolved external endpoints require human-like analysis to classify |
 | `TestAssertionsPresentRule` | File has a paired test file (naming convention match) | Tests encode hidden business expectations; the LLM enriches both source and test insights concurrently |
 | `DtoValidationRule` | File has `VALIDATOR` finding + one of `ENDPOINT`/`COMPONENT`/`DB_ACCESS` | DTOs with Bean Validation annotations in a non-trivial context benefit from semantic enrichment |
-| `ResolvedPhase1DepsRule` | File has any resolved Phase 1 finding (call graph edge, endpoint, component, DB access, event listener, etc.) | Catches all files where Phase 1 computed useful structural data — ensures no file with meaningful context is skipped |
+| `EntryPointRule` | File has an `ENDPOINT`, `SCHEDULED_TASK`, `KAFKA_LISTENER`, `RABBITMQ_LISTENER`, `ACTIVEMQ_LISTENER`, or `EVENT_LISTENER` finding (including XML-declared listeners) | Entry points define the business operations users interact with — their semantic context is the highest-value input for Phase 3's flow analysis |
 
-The last rule (`ResolvedPhase1DepsRule`) is the broadest and serves as a safety net: any task that the deterministic indexer found structural data for will be enriched. Together with the deficit-oriented rules, this ensures the initial batch includes all files with computable dependencies, maximizing parallelism within the batch.
+The first rule (`EntryPointRule`) is the primary gate: only files that Phase 1 identified as entry points qualify for enrichment. Non-entry-point classes (services, repositories, domain models) are handled by Phase 3, which sends their traced method bodies as inline source code snippets in the flow-analysis prompt. The remaining deficit-oriented rules run alongside the entry-point gate and may add additional qualification reasons where an entry-point file also has stored procedure calls, custom validators, unresolved floating links, etc.
 
 Rules are discovered automatically via Spring component scanning — adding a new rule requires only a `@Component` class implementing `QualificationRule`.
 
@@ -275,60 +277,25 @@ Discovered dependencies beyond `max-discovery-depth` (default: 3, via `code2req.
 
 ### 2.2 Phase 3: Agentic Extraction (Embabel GOAP)
 
-Phase 3 uses an **Embabel GOAP agent** to transform the indexed code graph (Phase 1) and optional per-file enrichment (Phase 2) into structured functional requirements. The agent discovers entry points, traces execution flows through the call graph, extracts business rules and edge cases, and groups related flows into features. Per ADR-006, Phase 3 is split into two CLI commands: `extract` (agentic analysis) and `generate` (pure-Java output synthesis). This section describes the agentic `extract` command; output generation is covered in §2.3.
+Phase 3 uses an **Embabel GOAP agent** to transform the indexed code graph (Phase 1) and optional entry-point enrichment (Phase 2) into structured functional requirements. The agent discovers entry points, traces execution flows through the call graph, extracts business rules and edge cases, and groups related flows into features. Per ADR-006, Phase 3 is split into two CLI commands: `extract` (agentic analysis) and `generate` (pure-Java output synthesis). This section describes the agentic `extract` command; output generation is covered in §2.3.
 
 The agent operates on a `CodebaseKnowledge` object built from the indexed SQLite store, which contains all endpoints, event listeners, scheduled tasks, method declarations, call graph edges, database access findings, and outbound HTTP calls discovered in Phase 1.
 
 #### 2.2.1 GOAP Agent Architecture
 
-The Embabel GOAP agent chains six actions based on goal completion rather than a fixed pipeline. Each action is a Spring `@Component` implementing a common action interface:
+The Embabel GOAP agent chains seven actions based on goal completion rather than a fixed pipeline. Each action is a Spring `@Component` implementing a common action interface:
 
 * **`DiscoverEntryPoints`:** Scans `CodebaseKnowledge` for all entry-point candidates — HTTP endpoints (`@RequestMapping`, servlet paths), event listeners (`@KafkaListener`, `@RabbitListener`, `@JmsListener`, `@EventListener`), and scheduled tasks (`@Scheduled`). Trivial endpoints (actuator, health, metrics, swagger) are filtered out. Each surviving entry point receives a priority score based on: Phase 2 enrichment availability, method complexity, user-facing heuristics, and presence of associated test files.
 * **`TraceFlow`:** Follows call graph edges from the highest-priority unscheduled entry point. Flow steps trace from the entry point through service layers to repositories, database calls, and external HTTP services with adaptive depth. Sub-chain caching reuses already-traced service chains when sibling entry points share same-service call paths. Unresolved calls (external services, third-party libraries) are recorded in the flow as external references.
-* **`AnalyzeFlow`:** Extracts functional requirements from each traced flow — a user story title, one or more Gherkin scenarios (given/when/then), business rules with provenance, edge cases, and non-functional requirements. Supports progressive disclosure: flows output MINIMAL, STANDARD, or FULL detail based on their complexity score, preventing trivial flows from drowning out complex ones.
-* **`GroupFlows`:** Clusters related flows into features using semantic similarity from Phase 2 enrichment data. Each group becomes a feature section in the final specification.
+* **`AnalyzeFlow`:** Extracts functional requirements from each traced flow — a user story title, one or more Gherkin scenarios (given/when/then), business rules with provenance, edge cases, and non-functional requirements. For each flow, it sends a single LLM prompt containing: (1) the entry point's Phase 2 enrichment context (validations, edge cases, test insights), (2) a structural flow summary (component type → class → method for each step), and (3) **source code snippets** — the class header (annotations + declaration) and traced method bodies for every file in the flow, extracted by line range from disk. Intermediate files (services, repositories, etc.) are provided as raw code snippets rather than pre-computed enrichment, since the LLM can derive business rules and validations directly from the traced method bodies. Supports progressive disclosure: flows output MINIMAL, STANDARD, or FULL detail based on their complexity score, preventing trivial flows from drowning out complex ones.
+* **`GroupFlows`:** Clusters related flows into features using semantic similarity — from entry-point enrichment data (where available) and structural graph proximity. Each group becomes a feature section in the final specification.
 * **`CrossReferenceFlows`:** Detects inter-flow dependencies by analyzing flow steps against each other. Produces typed edges: `DELEGATES_TO` (one flow explicitly calls another's entry point), `PUBLISHES_EVENT` (flow emits a message consumed by another flow), `CONSUMES_EVENT` (flow starts in response to a message produced by another flow). Orphaned methods — methods reachable from no entry point — are flagged as either dead code or missing entry points.
+* **`QuarantineFlow`:** When a flow exceeds any guardrail (depth limit, token budget, ambiguity threshold), it is tagged `AWAITING_HUMAN_REVIEW` with an `unresolved_reason` payload. Quarantined flows are preserved in the output (Section 5 of the spec) rather than silently dropped, ensuring visibility regardless of agent confidence.
 * **`QuarantineFlow`:** When a flow exceeds any guardrail (depth limit, token budget, ambiguity threshold), it is tagged `AWAITING_HUMAN_REVIEW` with an `unresolved_reason` payload. Quarantined flows are preserved in the output (Section 5 of the spec) rather than silently dropped, ensuring visibility regardless of agent confidence.
 
 **Guardrails** are configuration-driven via `application.properties`:
 * `max-flow-depth` (default: 5) — maximum call-chain depth before a flow is quarantined
 * `max-tokens-per-run` (default: 500000) — aggregate LLM token budget for a single `extract` session
-* `ambiguity-confidence-threshold` (default: 0.7) — minimum confidence below which the agent defers to the `UserInteractionService`
-
-#### 2.2.2 Interactive Mode (US057 / F028)
-
-When the agent encounters ambiguity it cannot resolve deterministically, it asks the user for clarification. A `UserInteractionService` SPI decouples the agent from I/O, enabling both interactive (default) and headless (opt-out via `run --headless`) modes.
-
-**SPI Definition:**
-
-The `UserInteractionService` interface defines three interaction methods:
-
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `ask` | `ask(prompt, context) → String` | Open-ended clarification — ambiguous business logic, undocumented external services, missing DTO contracts |
-| `confirm` | `confirm(message) → boolean` | Binary decision — fire-and-forget vs missing error handling, intentional dead code vs bug |
-| `select` | `select(options, prompt) → String` | Multiple-candidate choice — ambiguous bean wiring, overloaded method targets, profile-dependent beans |
-
-**Implementations:**
-
-* **`InteractiveUserInteractionService` (default):** Uses stdin/stdout for terminal prompts. When the agent encounters ambiguity below the `ambiguity-confidence-threshold` (0.7), it displays the question on stdout and reads the user's response from stdin. For `select`, available options are enumerated with numeric indices plus a final **"None of these — provide my own answer"** option. If chosen, the user is prompted for free-text input directly in the terminal. The structured context (candidate list, original ambiguity prompt, flow details) is bundled with the user's text and sent to the LLM for **re-evaluation** — the LLM may discover targets or rules not captured in the original candidates, or incorporate the user's business knowledge into its analysis. The return value is the free-text string rather than one of the predefined options.
-* **`NoOpUserInteractionService` (headless, opt-out):** Returns `null` for `ask`, `true` for `confirm`, `null` for `select`. Always creates an `AmbiguityGap` record for each unresolved ambiguity so the user can review quarantined flows in the spec's Section 5. No terminal interaction occurs. This is used when `run --headless` is specified — for non-interactive sessions where no terminal input is expected.
-
-**Integration Points:**
-
-Three agent actions call the `UserInteractionService` when their internal confidence drops below the threshold:
-* **`TraceFlow`:** Calls `select()` for ambiguous call targets (e.g., multiple implementations of the same interface, overloaded methods the linker could not discriminate).
-* **`AnalyzeFlow`:** Calls `ask()` for unclear business rules (e.g., complex arithmetic the agent cannot label, undocumented algorithm steps, opaque configuration-driven values). Calls `confirm()` for binary architectural patterns (e.g., stateless consumer vs missing error handling).
-* **`CrossReferenceFlows`:** Calls `confirm()` when inter-flow dependency type cannot be determined from AST analysis alone.
-
-**Audit Trail:**
-
-* **`AmbiguityGap` record:** Created for every ambiguity — whether answered or not. Records the gap reason (`AMBIGUOUS_CALL_TARGET`, `UNCLEAR_BUSINESS_RULE`, `UNRESOLVED_EXTERNAL_SERVICE`), the context payload, the user's response (if provided), and the confidence score at decision time. These records flow into the spec's Section 5 (Unresolved Dependencies) and are tagged with `review_required: true` for auditability.
-* **`user_responses` SQLite table:** When the user provides an answer in interactive mode, the Q&A pair is persisted with columns: `session_id` (UUID for the current run), `question` (the prompt text), `answer` (the user's response), and `created_at` (ISO-8601 timestamp). The same question asked in a sibling flow can be auto-resolved from cache without re-prompting.
-
-**CLI Flag:**
-
-Interactive mode is the default. `run --headless` forces headless mode with `NoOpUserInteractionService`, suppressing all terminal prompts and quarantining every ambiguity as an `AmbiguityGap` record instead.
 
 ### 2.3 Phase 4: Generation & Quality Audit
 

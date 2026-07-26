@@ -13,7 +13,7 @@
 The project's design intent is well-traceable (PRD → epics → features → stories → Gherkin is largely coherent for the catalogued scope), but **documentation has not kept pace with implementation**, and two whole phases documented as "future" are in fact substantially implemented. The codebase is ahead of several of its own documents.
 
 **Headline numbers:**
-- 28 documented features (F001–F028, incl. uncatalogued F025): **16 Correctly Implemented, 4 Partial, 7 Missing, 1 Implemented-but-Not-Documented-at-catalog-level (F025).**
+- 27 documented features (F001–F027, incl. uncatalogued F025): **16 Correctly Implemented, 4 Partial, 6 Missing, 1 Implemented-but-Not-Documented-at-catalog-level (F025).**
 - 222 Gherkin scenarios across 28 `.feature` files; **221 carry `@draft`** — only F014 is marked `# Implemented`. Implementation reality is far ahead of this status signal.
 - ~~6 ADRs; **ADR-006 is not referenced in `tech-stack.md`**.~~
 - ~~**76 test files exist** — `AGENTS.md`'s claim "No tests exist yet" is **false**~~.
@@ -24,7 +24,7 @@ The project's design intent is well-traceable (PRD → epics → features → st
 |--------|------|--------|--------|
 |    [x] | ~~R1~~ | ~~**Output contract drift (resolved).** `semantic_manifest.json` is now schema-conformant. The manifest is serialized from typed Java POJOs (`generation/domain/model/manifest/`) that mirror the schema via `@JsonNaming(SnakeCaseStrategy)`, guaranteeing structural conformance at compile time. Runtime schema validation is not needed.~~ | ~~Critical~~ | ~~`ManifestMapper`, `generation/domain/model/manifest/`~~ |
 |    [x] | ~~R2~~ | ~~**Quality audit (F024) — superseded by typed manifest POJOs.** The manifest schema is enforced at compile time via Java records annotated with `@JsonNaming(SnakeCaseStrategy)`, guaranteeing structural conformance to PRD §6.2 by construction. Runtime schema validation is not required. `SemanticManifestValidator` removed.~~ | ~~High~~ | ~~`generation/domain/model/manifest/` (16 records) + `ManifestMapper`~~ |
-|    [] | R3 | **F026 review command and F028 interactive mode entirely missing.** No `ReviewCommand`, no `UserInteractionService` SPI, no `user_responses` table, no `--interactive`/`--force-phase3` flags. PRD §5.5/§5.5a/§5.5b and US055/US057 + 12 Gherkin scenarios describe them in detail. | High | Absent from `infrastructure/cli/command/` and `extraction/` |
+|    [] | R3 | **F026 review command entirely missing.** No `ReviewCommand`, no `--force-phase3` flags. PRD and US055 + 6 Gherkin scenarios describe them in detail. | High | Absent from `infrastructure/cli/command/` |
 |    [] | R4 | **Parser SPI (F007/F008/F009) missing.** The "Language Extension Framework" epic E002 has stories, Gherkin, and no code. Java-only, hardcoded extension routing. | Medium | No `LanguageParser` interface |
 
 ### Areas with Highest Divergence (doc vs. code)
@@ -41,7 +41,7 @@ The project's design intent is well-traceable (PRD → epics → features → st
 - *User stories*: consistent format, good acceptance criteria; but **no `Status:` field on any of 54 files** — status only inferable from checkbox state (1 fully done, 1 partial, 52 unchecked).
 - *Gherkin*: strong coverage (222 scenarios, every scenario `@US`-tagged); but `@draft` is over-applied and `CHANGELOG.md` is stale (stops 2026-06-12, covers only F001–F009, wrong scenario counts).
 - ~~*ADRs*: clean and well-reasoned; but `tech-stack.md` missing ADR-006.~~
-- *Catalog (`sdlc-context.json`)*: internally contradictory (scope says Phase 2/3 out of scope while features[] lists F016–F028) and missing entire E005/F025 cluster.
+- *Catalog (`sdlc-context.json`)*: internally contradictory (scope says Phase 2/3 out of scope while features[] lists F016–F027) and missing entire E005/F025 cluster.
 
 ### Traceability Maturity Assessment — Low-to-Medium
 
@@ -73,16 +73,15 @@ Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin
 | Phase 2 Planner (F016) | §2.2 | US041/US042 + **~~US056 dup~~** | E003-F016 (12 scen) | — | `EnrichmentPlanner` + 11 rules | ✅ (+extra) |
 | ~~LLM Executor (F017)~~ | ~~§2.2/§4~~ | ~~US043/US044~~ | ~~E003-F017 (6 scen)~~ | ~~—~~ | ~~`LlmEnrichmentService` (manual executor, not `@Async`; spring-ai 1.1.1)~~ | ~~✅ ≢~~ |
 | Orchestrator (F018) | §3.5 | US045 | E003-F018 (7 scen) | ADR-006 | `EnrichmentOrchestrator`, `EnrichmentDag` | ✅ |
-| plan + run (F019) | §5.7/§3.5 | US046/US047 | E003-F019 (9 scen) | ADR-006 | `PlanCommand`, `RunCommand` (missing `--force-phase3`/`--interactive`/`--interactive-timeout`; no fail-stop guards) | ◑ |
+| plan + run (F019) | §5.7/§3.5 | US046/US047 | E003-F019 (9 scen) | ADR-006 | `PlanCommand`, `RunCommand` (missing `--force-phase3`; no fail-stop guards) | ◑ |
 | Test mining (F020) | §3.4 | US048 | E003-F020 (5 scen) | — | `TestFileMatcher`, `TestAssertionExtractor`, `PairedExecutionResolver` | ✅ |
 | Embabel setup (F021) | §2.3/§5.4 | US049 (4/7 [x]) | E004-F021 (3 scen) | — | Dep in `pom.xml`, embabel props, `AppConfig` beans | ✅? |
 | CodebaseKnowledge (F022) | §2.3 | US050 | E004-F022 (5 scen) | — | `CodebaseKnowledge`, `ExtractionOrchestrator.buildCodebaseKnowledge()` | ✅ |
-| Embabel agent (F023) | §2.3/§3.8 | US051 | E004-F023 (11 scen) | ADR-006 | `FunctionalRequirementAgent` + 6 actions + quarantine (UserInteractionService/NoOp MISSING; guardrails config-driven) | ◑ |
+| Embabel agent (F023) | §2.3/§3.8 | US051 | E004-F023 (11 scen) | ADR-006 | `FunctionalRequirementAgent` + 6 actions + quarantine (guardrails config-driven) | ◑ |
 | ~~Quality audit (F024)~~ | ~~§5.3/§6.2~~ | ~~US052~~ | ~~E004-F024 (2 scen)~~ | ~~—~~ | ~~**SUPERSEDED** — manifest schema enforced at compile time via typed POJOs in `generation/domain/model/manifest/`. Runtime validation not required. `SemanticManifestValidator` removed.~~ | ~~⚠ Superseded~~ |
 | Snapshot (F025) | §5.9 | US053/US054 (**uncatalogued**) | E005-F025 (8 scen, uncatalogued) | — | `SnapshotService`, `RefreshableDataSource`, `SnapshotCommand` | ⚠ ✅ |
 | Review command (F026) | §5.5/§5.5a | US055 | E004-F026 (6 scen) | — | **NONE** | ⊘ |
 | Domain model + writers (F027) | §6.1/§6.2 | ~~US056 (dup ID)~~ | E004-F027 (4 scen) | ADR-006 | records ✅ + manifest POJOs (16 records in `generation/domain/model/manifest/`) + `ManifestMapper` converts extraction domain → manifest POJOs, serialized by Jackson. Manifest now conforms to §6.2 schema. | ✅ |
-| Interactive mode (F028) | §5.5b | US057 | E004-F028 (6 scen) | — | **NONE** | ⊘ |
 | `resume` standalone command | §5.7 | — | — | — | **NONE** (only `--resume` flags on scan/enrich/run) | ⊘ |
 | ~~CLI commands `task-list`/`task-findings`/`task-set-status`~~ | ~~§5.7~~ | ~~—~~ | ~~—~~ | ~~—~~ | ~~`TaskCommands` (renamed `task list`/`findings`/`set-status`; adds `--from`/`--verbose`; `--delete-findings` defaults true)~~ | ~~≢~~ |
 | ~~`extract` / `generate` commands~~ | ~~(folded in `run`)~~ | ~~—~~ | ~~—~~ | ~~ADR-006~~ | ~~`ExtractCommand`, `GenerateCommand` (extras, not in PRD §5.7)~~ | ~~⚠~~ |
@@ -110,7 +109,7 @@ Traceability exists by *convention* (filenames encode `E00x-F0xx-US0xx`; Gherkin
 ### 3.2 PRD Requirements Missing from Features (Gherkin)
 
 - No `.feature` covers ~~web.xml discovery~~, ~~`@NamedQuery`, raw JDBC detection~~, ~~`NamedParameterJdbcTemplate`/`SimpleJdbcCall`~~, ~~view-returning `void` controllers with implicit view~~, or the Phase 3 marker lifecycle (all in PRD §2.1.2/§5.5).
-- No scenario covers `--force-phase3`, `--interactive`, `--interactive-timeout`, ~~error-feedback retry~~, or `validate` of `code-graph-index.json` (now removed — SQLite is canonical) (PRD §5.7 says `validate` should validate both manifest and index structure).
+- No scenario covers `--force-phase3`, ~~error-feedback retry~~, or `validate` of `code-graph-index.json` (now removed — SQLite is canonical) (PRD §5.7 says `validate` should validate both manifest and index structure).
 
 ### 3.3 User Stories Without PRD Coverage
 
@@ -133,8 +132,8 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 
 | # | Conflict | A | B | Impact |
 |---|---|---|---|---|
-| C1 | Phase 2/3 scope | `sdlc-context.json scope.out_of_scope` lists them as **out of scope** | Same file `epics[]` includes E003/E004, `features[]` lists F016–F028; PRD v5.4 documents them in-scope; code implements most | Onboarding confusion |
-| ~~C2~~ | ~~Phase status~~ | ~~`README.md` (Phase 2/3 "🔜 Future"), `AGENTS.md` ("Phase 2 (future)", "Phase 3 (future)")~~ | ~~PRD v5.4 + code implement Phase 2 (F016–F020) and Phase 3 (F021–F028) substantially~~ | ~~User/developer misinformed~~ |
+| C1 | Phase 2/3 scope | `sdlc-context.json scope.out_of_scope` lists them as **out of scope** | Same file `epics[]` includes E003/E004, `features[]` lists F016–F027; PRD v5.4 documents them in-scope; code implements most | Onboarding confusion |
+| ~~C2~~ | ~~Phase status~~ | ~~`README.md` (Phase 2/3 "🔜 Future"), `AGENTS.md` ("Phase 2 (future)", "Phase 3 (future)")~~ | ~~PRD v5.4 + code implement Phase 2 (F016–F020) and Phase 3 (F021–F027) substantially~~ | ~~User/developer misinformed~~ |
 | ~~C3~~ | ~~US056 identity~~ | ~~Catalog + `E004-F027-US056…md` = "Domain model and output writers"~~ | ~~`E003-F016-US056…md` = "Planner qualifies DTOs with bean validation" (orphan, not in catalog)~~ | ~~Duplicate ID; traceability broken~~ |
 | C4 | F006 stories | Feature header says "US015, US016, US017"; catalog says US015/US016 | Actual tagged scenarios: US015/US016/**US028** (clean); US017 belongs to F005 | Mapping broken |
 | C5 | F003 stories | Feature tags 5 `@US023` Kafka scenarios + header lists US023 | Catalog F003 `user_stories[]` omits US023 | Kafka story uncatalogued for F003 |
@@ -151,7 +150,7 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 ### 3.7 Ambiguous or Incomplete Documentation
 
 - **No `Status:` field on any of 54 user stories.** Status only inferable via checkboxes (US032 14/14 [x], US049 4/7 [x], all else unchecked). Unreliable.
-- ~~**`features/CHANGELOG.md` is stale**: stops 2026-06-12 14:30, covers only F001–F009, scenario counts wrong (F001 says 8 → actually 10; F003 says 14 → actually 26). F010–F028 and F025 unlogged~~.
+- ~~**`features/CHANGELOG.md` is stale**: stops 2026-06-12 14:30, covers only F001–F009, scenario counts wrong (F001 says 8 → actually 10; F003 says 14 → actually 26). F010–F027 and F025 unlogged~~.
 -~~ **F025 header** reads `# Phase 14 draft` — project has Phases 1–3. Likely a typo~~.
 - ~~**PRD §2.1.7 checklist** mixes `[ ]`/`[x]` inconsistently (e.g., `EndpointDetector` SPI marked `[x]` while many implemented items remain `[ ]`). Not a reliable progress indicator.~~
 - **`sdlc-context.json` `meta.phase = "3"`** vs `scope.out_of_scope` listing Phase 3 — internally ambiguous about current phase.
@@ -182,11 +181,11 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 | Item | Source | Evidence of Absence |
 |---|---|---|
 | **F026 review command** (`review list/show/accept/accept-all/reset/reset-all`) | PRD §5.5a; US055; E004-F026 (6 scen) | No `ReviewCommand` class; grep across `src/main/java` returns nothing; no `HUMAN_REVIEW_REASON` in `FindingType`. Quarantine gaps live only in `extraction-cache.json`, not as `execution_findings` rows (contradicts PRD §5.5a §3). |
-| **F028 Interactive mode** (`UserInteractionService`, `NoOpUserInteractionService`, `InteractiveUserInteractionService`, `UserResponseStore`, `user_responses` table, `--interactive`/`--interactive-timeout`) | PRD §5.5b; US057; E004-F028 (6 scen) | grep for `UserInteractionService`/`InteractiveUserInteraction`/`user_responses` in `src/main/java` → **zero matches**. PRD §5.5b states the SPI + NoOp ship in F023; they do not. |
+
 | ~~**F024 Quality audit** (semantic_manifest schema validation)~~ | ~~PRD §5.3/§6.2; US052; E004-F024 (2 scen)~~ | ~~**SUPERSEDED** — manifest schema enforced at compile time via typed POJOs in `generation/domain/model/manifest/`. `SemanticManifestValidator` removed — runtime validation not required.~~ |
 | **F007/F008/F009 Parser SPI** | E002; US018–US022; E002-F007/8/9 | No `LanguageParser` interface; `ScanCommand` hardcodes `.java`/`.jsp`/`.html`/`web.xml`. |
 | `resume` standalone command | PRD §5.7 | No `ResumeCommand`; only `--resume` flags on scan/enrich/run. |
-| `run --force-phase3`, `run --interactive`, `run --interactive-timeout` | PRD §5.7 | `RunCommand.java:29-39` has only `--manifest/--resume/--dry-run/--force/--llm-threshold`. |
+| `run --force-phase3` | PRD §5.7 | `RunCommand.java:29-39` has only `--manifest/--resume/--dry-run/--force/--llm-threshold`. |
 | Phase 3 marker task (`__phase3_marker__`) + `.tmp.` cleanup + `--force-phase3` semantics | PRD §5.5 §5-8 | No marker mechanism; Phase 3 completion inferred from task statuses + cache file existence. |
 | PRD §3.5 fail-stop guards on `run` (halt on FAILED after scan; halt if 0 qualified after plan; halt on ENRICH_FAILED after enrich) | PRD §3.5 | `RunCommand` chains outputs and strips suggestions; **no halt logic**. |
 | `validate` of `code-graph-index.json` structure | PRD §5.7 | `ValidateCommand.java:27` validates **manifest YAML only**. | **Resolved** — `code-graph-index.json` removed; SQLite is canonical. |
@@ -199,8 +198,8 @@ None. All six ADRs tie to clear business/architectural drivers. ADR-006 (Extract
 | Item | Implemented | Missing |
 |---|---|---|
 | ~~F002 Maven depgraph~~ | ~~**REMOVED** — `MavenDependencyResolver` was dead code (zero callers, never wired); class and tests deleted 2026-07-01~~ | ~~—~~ |
-| F019 plan + run | `plan` ✅; `run` chains scan→plan→enrich→extract→generate with `--dry-run/--resume/--llm-threshold/--force` | `--force-phase3`, `--interactive`, `--interactive-timeout`; PRD §3.5 fail-stop guards. |
-| F023 Embabel agent | 6 GOAP actions + quarantine; priority scoring; sub-chain cache; orphan detection; progressive disclosure | `SynthesizeSpec` not an agent action (per ADR-006 — intentional); `UserInteractionService`/`NoOp` missing; guardrails now config-driven (resolved). |
+| F019 plan + run | `plan` ✅; `run` chains scan→plan→enrich→extract→generate with `--dry-run/--resume/--llm-threshold/--force` | `--force-phase3`; PRD §3.5 fail-stop guards. |
+| F023 Embabel agent | 6 GOAP actions + quarantine; priority scoring; sub-chain cache; orphan detection; progressive disclosure | `SynthesizeSpec` not an agent action (per ADR-006 — intentional); guardrails now config-driven (resolved). |
 | F027 Domain model + writers | All PRD §2.3 records present (29 model files); `generate` command ✅; `spec.md` produced; 16 manifest POJOs in `generation/domain/model/manifest/`; `ManifestMapper` + Jackson serialization. | `semantic_manifest.json` **conforms to PRD §6.2** — entry_point is structured object, steps present, acceptance_criteria has given/when/then, traceability_graph/review_required/unresolved_reason/mermaid_diagram all present. Serialized from typed manifest POJOs, not hand-built JSON. |
 | F021 Embabel setup | pom dep ✅, embabel model props ✅, `AppConfig` ChatClient beans ✅ | US049's "Embabel initializes at startup" / "AgentPlatform available" unchecked — **[Requires Manual Validation]** at runtime. |
 
@@ -260,12 +259,12 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | F020 | 5 | ✅ | ✅ US048 | ✅ | — | — |
 | F021 | 3 | ✅ | ✅ US049 (4/7 [x]) | ✅ | Runtime init [Requires Manual Validation] | Story status stale |
 | F022 | 5 | ✅ | ✅ US050 | ✅ | — | — |
-| F023 | 11 | ✅ | ✅ US051 | ◑ | UserInteractionService/NoOp (PRD says in F023) | Guardrails config-driven (resolved); UserInteractionService open |
+| F023 | 11 | ✅ | ✅ US051 | ◑ | — | Guardrails config-driven (resolved) |
 | ~~F024~~ | ~~2~~ | ~~✅~~ | ~~✅ US052~~ | ~~⚠ Superseded~~ | ~~Both scenarios~~ | ~~Superseded — manifest schema enforced at compile time via typed POJOs~~ |
 | F025 | 8 | ✅ | ⚠ US053-54 uncatalogued | ✅ (missing git hash) | Git commit hash in metadata | Unregistered in catalog |
 | F026 | 6 | ✅ | ✅ US055 | ❌ | All | No `ReviewCommand` |
 | F027 | 4 | ✅ | ~~~~⚠ `@US056` dup~~~~ | ✅ | Manifest conforms to §6.2 — serialized from typed manifest POJOs | "valid semantic_manifest.json" criterion passes |
-| F028 | 6 | ✅ | ✅ US057 | ❌ | All | Entirely absent |
+
 
 ---
 
@@ -297,12 +296,12 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | US048 | F020 | ✅ | — |
 | US049 | F021 | ✅? (4/7 [x]) | Runtime init unchecked [**Requires Manual Validation**] |
 | US050 | F022 | ✅ | — |
-| US051 | F023 | ◑ | UserInteractionService/NoOp missing per PRD §5.5b |
+| US051 | F023 | ◑ | — |
 | ~~US052~~ | ~~F024~~ | ~~❌~~ | ~~—~~ |
 | US053-054 | F025 | ⚠ | Unregistered in catalog; US053 AC omits git commit hash required by PRD §5.9 |
 | US055 | F026 | ❌ | — |
 | **US056 (F027)** | F027 | ✅ | "Writer produces valid semantic_manifest.json" — now conforms via typed manifest POJOs enforcing the schema at compile time. |
-| US057 | F028 | ❌ | — |
+
 
 ### Missing story IDs
 - ~~**US036** — in catalog + Gherkin (6 scenarios), **no story file**.~~
@@ -326,9 +325,9 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 
 ## 8. Traceability Gaps
 
-- **Requirements with no User Story:** ~~web.xml discovery~~, ~~@NamedQuery/raw JDBC detection~~, NamedParameterJdbcTemplate/SimpleJdbcCall, CLI Visual Telemetry (§5.6), Phase 3 marker lifecycle, error-feedback retry (§5.4), `--force-phase3`/`--interactive` semantics.
+- **Requirements with no User Story:** ~~web.xml discovery~~, ~~@NamedQuery/raw JDBC detection~~, NamedParameterJdbcTemplate/SimpleJdbcCall, CLI Visual Telemetry (§5.6), Phase 3 marker lifecycle, error-feedback retry (§5.4), `--force-phase3` semantics.
 - **User Stories with no Feature file:** none.
-- **Features with no implementation:** F007, F008, F009, ~~F024~~, F026, F028 (6 features).
+- **Features with no implementation:** F007, F008, F009, ~~F024~~, F026 (5 features).
 - **Code with no documented origin:** ~~WebXmlAnalyzer~~, ~~NamedQueryDetector~~, ~~RawJdbcDetector~~, `DtoValidationRule`, ~~CommandSuggestionAspect~~/~~SuggestionService~~, `common/port/*Repository` (unused), ~~`synthesis/` test package~~, `spring-ai-client-chat`/`-autoconfigure-model-chat-client` deps, 3 Maven profiles.
 - **ADRs with no implementation evidence:** none.
 - **Broken links:**
@@ -359,7 +358,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | 11 | PRD §2.3/§3.8 | Update `SynthesizeSpec` as non-agent-action per ADR-006 | Medium | Architecture accuracy | Architecture |
 | 12 | PRD §2.1.6 | Reconcile `tasks`/`floating_links` schemas (C7) | Medium | Schema accuracy | Engineering |
 | 13 | PRD §3.2 | Document 4-tier confidence (1.0/0.8/0.6/0.4) | Low | Spec accuracy | Engineering |
-| 14 | `features/CHANGELOG.md` | Add entries for F010–F028 + F025; correct scenario counts | Low | History | Product |
+| 14 | `features/CHANGELOG.md` | Add entries for F010–F027 + F025; correct scenario counts | Low | History | Product |
 | 15 | ~~`application.properties:72`~~ | ~~Fix concatenated-line config bug~~ | ~~High~~ | ~~Correctness~~ | ~~Engineering~~ |
 | 16 | F006 `.feature` header | Fix "US017" → "US028"; catalog F006 add US028 | Low | Traceability | Product |
 | 17 | F003 catalog entry | Add US023 to F003 story list | Low | Traceability | Product |
@@ -377,14 +376,14 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 | ~~1~~ | ~~F024/US052/PRD §5.3,§6.2~~ | ~~**RESOLVED — manifest schema enforced at compile time via typed POJOs.** 16 manifest records in `generation/domain/model/manifest/` mirror the schema; `ManifestMapper` converts extraction domain → typed manifest POJOs; Jackson serialization guarantees structural conformance. `SemanticManifestValidator` removed.~~ | ~~High~~ | ~~Medium~~ | ~~—~~ | ~~**Resolved — compile-time enforcement via typed manifest POJOs**~~ |
 | 2 | F027/US056/PRD §6.2 | **Done — `semantic_manifest.json` now conforms to §6.2 schema.** `entry_point` is object, `steps` present, `acceptance_criteria` has `given/when/then`, `traceability_graph`/`review_required`/`unresolved_reason`/`mermaid_diagram` all present. | — | — | — | **Resolved.** |
 | 3 | F026/US055/PRD §5.5a | **Review command**: `review list/show/accept/accept-all/reset/reset-all`; persist quarantine as `HUMAN_REVIEW_REASON` `execution_findings` | High | Medium | F023 (exists) | Add `ReviewCommand` + `FindingType` |
-| 4 | F028/US057/PRD §5.5b | **Interactive mode**: `UserInteractionService` SPI + `NoOpUserInteractionService` + `InteractiveUserInteractionService` + `UserResponseStore` + `user_responses` table + `--interactive`/`--interactive-timeout` | Medium | Medium | #3 | Add SPI + NoOp first (unblocks F023 conformance) |
+
 | 5 | F007-009/US018-022 | **Parser SPI**: `LanguageParser` interface, extension→parser registry, routing, shared pipeline integration | Medium | High | — | Define SPI; refactor `ScanCommand` routing |
 | ~~6~~ | ~~F002/US004-005/PRD §2.1.1~~ | ~~**`MavenDependencyResolver` removed** — was dead code, deleted 2026-07-01~~ | ~~—~~ | ~~—~~ | ~~—~~ | ~~Done (removed)~~ |
 | 7 | PRD §5.7 | **`resume` standalone command** | Low | Low | — | Add `ResumeCommand` |
 | 8 | PRD §5.7/§3.5 | **`run --force-phase3`** + Phase 3 marker task (`__phase3_marker__`) + `.tmp.` cleanup + fail-stop guards | High | Medium | #1 (marker FAILED) | Add marker + flag + guards |
 | ~~9~~ | ~~PRD §5.7~~ | ~~**`validate` should validate `code-graph-index.json`**~~ | ~~Low~~ | ~~Low~~ | ~~—~~ | ~~**Closed** — `code-graph-index.json` removed; SQLite is canonical.~~ |
 | 10 | ~~F023/PRD §2.3 §9~~ | ~~**Read guardrails from config** instead of hardcoding `MAX_DEPTH=5`/`LOW_CONFIDENCE_THRESHOLD=0.3` (should be 0.7)~~ | ~~Medium~~ | ~~Low~~ | ~~—~~ | ~~Inject `@Value` into actions~~ |
-| 11 | F023/PRD §5.5b | **Add `UserInteractionService` + `NoOpUserInteractionService`** (PRD says in F023) | Medium | Low | #4 | Add SPI + NoOp |
+
 | 12 | F025/PRD §5.9 §5 | **Add git commit hash to `snapshot.json`** | Low | Low | — | `git rev-parse HEAD` in `SnapshotService` |
 | 13 | ~~PRD §2.1.6~~ | ~~**Add `tasks.json_payload` column**~~ | ~~Low~~ | ~~Low~~ | ~~—~~ | ~~Migration in `TaskStoreSchema`~~ |
 | 14 | ~~PRD §Appendix~~ | ~~**Reconcile `application.properties`** (datasource, prefix, base-url `/v1`, env-overridable model)~~ | ~~Low~~ | ~~Low~~ | ~~—~~ | ~~Decide canonical values; update code or PRD~~ |
@@ -398,7 +397,7 @@ Aggregate: 28 files, 222 scenarios (1 `Scenario Outline`), 221 `@draft`, 0 tagge
 
 1. **Treat the `semantic_manifest.json` contract as P0.** The product's stated purpose is a "machine-readable Semantic Manifest JSON" for downstream consumption (PRD §1.1). Output is now schema-conformant AND structurally guaranteed by typed manifest POJOs (compile-time enforcement). Runtime schema validation is not required. Backlog #1 resolved.
 2. **Reconcile the catalog before adding features.** Fix `sdlc-context.json` (E005/F025, ~~US056 dup~~, US036, US023/US028 mislinks) and the Phase scope contradiction (Update Plan #1-4).
-3. **Decide intentionally on each documented-but-unimplemented feature.** ~~F024~~/F026/F028 are detailed in PRD + US + Gherkin but absent in code. Either implement (Backlog #3-4) or explicitly descope and update docs.
+3. **Decide intentionally on each documented-but-unimplemented feature.** ~~F024~~/F026 are detailed in PRD + US + Gherkin but absent in code. Either implement (Backlog #3) or explicitly descope and update docs.
 
 ### Improve Traceability
 

@@ -34,16 +34,14 @@ public class RunCommand {
             @ShellOption(value = "--force", defaultValue = "false",
                          help = "Force re-execution for Phase 3 extraction") boolean force,
             @ShellOption(value = "--llm-threshold", defaultValue = ShellOption.NULL,
-                         help = "Override LLM threshold for enrichment") Integer llmThreshold,
-            @ShellOption(value = "--headless", defaultValue = "false",
-                         help = "Headless mode: suppress interactive prompts") boolean headless) {
+                         help = "Override LLM threshold for enrichment") Integer llmThreshold) {
 
         var sb = new StringBuilder();
         sb.append("=== Full Pipeline Run ===\n\n");
 
         sb.append(stripSuggestions(scanCommand.executeScan(manifestPath, resume))).append("\n");
         sb.append(stripSuggestions(enrichCommand.enrich(manifestPath, false, dryRun, resume, llmThreshold))).append("\n");
-        sb.append(stripSuggestions(extractCommand.extract(manifestPath, dryRun, force, resume, headless))).append("\n");
+        sb.append(stripSuggestions(extractCommand.extract(manifestPath, dryRun, force, resume))).append("\n");
         sb.append(stripSuggestions(generateCommand.generate())).append("\n");
 
         sb.append("=== Full Pipeline Complete ===");
