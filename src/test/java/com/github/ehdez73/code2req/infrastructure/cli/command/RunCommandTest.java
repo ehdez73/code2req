@@ -10,18 +10,15 @@ class RunCommandTest {
     @Test
     void pipelineChainsAllCommandsInOrder() {
         var scan = mock(ScanCommand.class, CALLS_REAL_METHODS);
-        var enrich = mock(EnrichCommand.class);
         var extract = mock(ExtractCommand.class);
         var generate = mock(GenerateCommand.class);
 
-        when(enrich.enrich(any(), anyBoolean(), anyBoolean(), anyBoolean(), any())).thenReturn("enrich ok");
         when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn("extract ok");
         when(generate.generate()).thenReturn("generate ok");
 
-        var run = new RunCommand(scan, enrich, extract, generate);
-        var result = run.run("manifest.yaml", false, false, false, null);
+        var run = new RunCommand(scan, extract, generate);
+        var result = run.run("manifest.yaml", false, false, false);
 
-        verify(enrich).enrich(eq("manifest.yaml"), eq(false), eq(false), eq(false), isNull());
         verify(extract).extract("manifest.yaml", false, false, false);
         verify(generate).generate();
         assertTrue(result.contains("Pipeline Complete"));
@@ -30,33 +27,29 @@ class RunCommandTest {
     @Test
     void resumeFlagForwardsToScan() {
         var scan = mock(ScanCommand.class, CALLS_REAL_METHODS);
-        var enrich = mock(EnrichCommand.class);
         var extract = mock(ExtractCommand.class);
         var generate = mock(GenerateCommand.class);
 
-        when(enrich.enrich(any(), anyBoolean(), anyBoolean(), anyBoolean(), any())).thenReturn("enrich ok");
         when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn("extract ok");
         when(generate.generate()).thenReturn("generate ok");
 
-        var run = new RunCommand(scan, enrich, extract, generate);
-        run.run("manifest.yaml", true, false, false, 3);
+        var run = new RunCommand(scan, extract, generate);
+        run.run("manifest.yaml", true, false, false);
 
-        verify(enrich).enrich(eq("manifest.yaml"), eq(false), eq(false), eq(true), eq(3));
+        verify(extract).extract("manifest.yaml", false, false, true);
     }
 
     @Test
     void dryRunModeChainsAllCommands() {
         var scan = mock(ScanCommand.class, CALLS_REAL_METHODS);
-        var enrich = mock(EnrichCommand.class);
         var extract = mock(ExtractCommand.class);
         var generate = mock(GenerateCommand.class);
 
-        when(enrich.enrich(any(), anyBoolean(), anyBoolean(), anyBoolean(), any())).thenReturn("enrich dry");
         when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn("extract dry");
         when(generate.generate()).thenReturn("generate dry");
 
-        var run = new RunCommand(scan, enrich, extract, generate);
-        var result = run.run("m.yaml", false, true, true, 0);
+        var run = new RunCommand(scan, extract, generate);
+        var result = run.run("m.yaml", false, true, true);
 
         assertTrue(result.contains("Pipeline Complete"));
     }

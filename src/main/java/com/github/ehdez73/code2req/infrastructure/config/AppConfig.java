@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.github.ehdez73.code2req.enrichment.domain.model.EnrichmentConfig;
+import com.github.ehdez73.code2req.extraction.domain.model.EnrichmentConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.QuarantineConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.indexing.domain.model.AllowedLibrariesConfig;

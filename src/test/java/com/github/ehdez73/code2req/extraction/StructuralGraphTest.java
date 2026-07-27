@@ -10,7 +10,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.event.listener.Event
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.listener.MethodCallInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.scheduledtask.ScheduledTaskInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPointType;
 import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;
@@ -281,7 +281,7 @@ class StructuralGraphTest {
         var ep = graph.getEntryPoints().get(0);
         double priority = graph.getEntryPointPriority(ep, enrichment, Map.of());
 
-        assertEquals(0.5, priority, 1e-9);
+        assertEquals(0.3, priority, 1e-9);
     }
 
     @Test
@@ -297,7 +297,7 @@ class StructuralGraphTest {
         var ep = graph.getEntryPoints().get(0);
         double priority = graph.getEntryPointPriority(ep, enrichment, Map.of());
 
-        assertEquals(0.26, priority, 1e-9);
+        assertEquals(0.38, priority, 1e-9);
     }
 
     @Test
@@ -332,7 +332,7 @@ class StructuralGraphTest {
         double withTest = graph.getEntryPointPriority(ep, enrichment, Map.of("/src/C.java", "/src/CTest.java"));
         double withoutTest = graph.getEntryPointPriority(ep, enrichment, Map.of());
 
-        assertEquals(0.2, withTest - withoutTest, 1e-9);
+        assertEquals(0.3, withTest - withoutTest, 1e-9);
     }
 
     @Test

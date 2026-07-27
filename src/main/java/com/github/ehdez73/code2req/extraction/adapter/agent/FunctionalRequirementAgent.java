@@ -7,6 +7,10 @@ import com.embabel.agent.api.common.OperationContext;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.github.ehdez73.code2req.extraction.adapter.llm.LlmEnrichmentService;
+import com.github.ehdez73.code2req.extraction.adapter.llm.TestFileMatcher;
+import com.github.ehdez73.code2req.extraction.domain.model.EnrichmentConfig;
+import com.github.ehdez73.code2req.extraction.domain.service.StructuralContextAssembler;
 import com.github.ehdez73.code2req.extraction.ExtractionCache;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.QuarantineConfig;
@@ -15,7 +19,10 @@ import com.github.ehdez73.code2req.extraction.adapter.agent.action.*;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.*;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
+import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;
+import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
+import com.github.ehdez73.code2req.infrastructure.persistence.TaskStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,12 +41,27 @@ public class FunctionalRequirementAgent {
 
     private final ExecutionFindingStore executionFindingStore;
     private final AllowedLibrariesConfig allowedLibrariesConfig;
+    private final LlmEnrichmentService enrichmentService;
+    private final EnrichmentConfig enrichmentConfig;
+    private final TestFileMatcher testFileMatcher;
+    private final TaskStore taskStore;
+    private final StructuralContextAssembler structuralContextAssembler;
     private final ObjectMapper objectMapper;
 
     public FunctionalRequirementAgent(ExecutionFindingStore executionFindingStore,
-                                      AllowedLibrariesConfig allowedLibrariesConfig) {
+                                      AllowedLibrariesConfig allowedLibrariesConfig,
+                                      LlmEnrichmentService enrichmentService,
+                                      EnrichmentConfig enrichmentConfig,
+                                      TestFileMatcher testFileMatcher,
+                                      TaskStore taskStore,
+                                      StructuralContextAssembler structuralContextAssembler) {
         this.executionFindingStore = executionFindingStore;
         this.allowedLibrariesConfig = allowedLibrariesConfig;
+        this.enrichmentService = enrichmentService;
+        this.enrichmentConfig = enrichmentConfig;
+        this.testFileMatcher = testFileMatcher;
+        this.taskStore = taskStore;
+        this.structuralContextAssembler = structuralContextAssembler;
         this.objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
@@ -96,16 +118,42 @@ public class FunctionalRequirementAgent {
     }
 
     @Action
-    public AnalyzedFlowResult analyzeFlows(TracedFlowResult tracedResult, OperationContext context) {
-        log.info("GOAP Action: AnalyzeFlow ({} traced flows)", tracedResult.flows().size());
+    public EnrichedFlowResult enrichFlows(TracedFlowResult tracedResult, OperationContext context) {
+        log.info("GOAP Action: EnrichFlow ({} traced flows)", tracedResult.flows().size());
         CodebaseKnowledge knowledge = (CodebaseKnowledge) context.get("knowledge");
         WorldState ws = (WorldState) context.get("worldState");
+
         if (tracedResult.flows().isEmpty()) {
+            ws.setFlowEnriched(true);
+            return new EnrichedFlowResult(tracedResult.flows());
+        }
+
+        LinkRegistry linkReg = knowledge.linkRegistry();
+        EnrichFlowAction action = new EnrichFlowAction(
+            enrichmentService, enrichmentConfig, executionFindingStore,
+            testFileMatcher, linkReg, taskStore, structuralContextAssembler, objectMapper);
+        EnrichedFlowResult result = action.enrich(tracedResult.flows(), knowledge);
+
+        CodebaseKnowledge updated = rebuildKnowledge(knowledge);
+        context.set("codebaseKnowledge", updated);
+        context.set("knowledge", updated);
+
+        ws.setFlowEnriched(true);
+        return result;
+    }
+
+    @Action
+    public AnalyzedFlowResult analyzeFlows(EnrichedFlowResult enrichedResult, OperationContext context) {
+        log.info("GOAP Action: AnalyzeFlow ({} flows)", enrichedResult.flows().size());
+        CodebaseKnowledge knowledge = (CodebaseKnowledge) context.get("knowledge");
+        WorldState ws = (WorldState) context.get("worldState");
+        if (enrichedResult.flows().isEmpty()) {
             ws.setFlowAnalyzed(true);
             return new AnalyzedFlowResult(List.of());
         }
         Boolean resumeFlag = (Boolean) context.get("resume");
         boolean resume = resumeFlag != null && resumeFlag;
+        TracedFlowResult tracedResult = new TracedFlowResult(enrichedResult.flows(), List.of());
         AnalyzeFlowAction action = new AnalyzeFlowAction(knowledge, executionFindingStore, objectMapper, resume);
         AnalyzedFlowResult result = action.analyze(tracedResult, context);
         ws.setFlowAnalyzed(true);
@@ -176,6 +224,11 @@ public class FunctionalRequirementAgent {
             discoveryResult.orphanedMethods().size(), ws.getQuarantineGaps().size());
         ws.setSpecSynthesized(true);
         return cache;
+    }
+
+    private CodebaseKnowledge rebuildKnowledge(CodebaseKnowledge original) {
+        SemanticEnrichment updated = SemanticEnrichment.reloadFrom(executionFindingStore, objectMapper);
+        return new CodebaseKnowledge(original.structuralGraph(), updated, original.linkRegistry());
     }
 
     public record KnowledgeLoaded(CodebaseKnowledge knowledge) {}

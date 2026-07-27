@@ -12,6 +12,7 @@ public class WorldState {
     private boolean entryPointsDiscovered;
     private boolean flowTraced;
     private boolean flowAnalyzed;
+    private boolean flowEnriched;
     private boolean allFlowsTraced;
     private boolean flowsGrouped;
     private boolean crossRefsResolved;
@@ -30,6 +31,9 @@ public class WorldState {
 
     public boolean isFlowAnalyzed() { return flowAnalyzed; }
     public void setFlowAnalyzed(boolean v) { this.flowAnalyzed = v; }
+
+    public boolean isFlowEnriched() { return flowEnriched; }
+    public void setFlowEnriched(boolean v) { this.flowEnriched = v; }
 
     public boolean isAllFlowsTraced() { return allFlowsTraced; }
     public void setAllFlowsTraced(boolean v) { this.allFlowsTraced = v; }
@@ -54,6 +58,7 @@ public class WorldState {
         this.entryPointsDiscovered = false;
         this.flowTraced = false;
         this.flowAnalyzed = false;
+        this.flowEnriched = false;
         this.allFlowsTraced = false;
         this.flowsGrouped = false;
         this.crossRefsResolved = false;

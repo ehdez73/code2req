@@ -6,7 +6,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.scheduledtask.ScheduledTaskInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPointType;
 import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;

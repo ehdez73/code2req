@@ -9,13 +9,15 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.Endpoin
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.detector.SpringEndpointDetector;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLinkResolver;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkResolver;
+import com.github.ehdez73.code2req.indexing.domain.linker.AspectLinkResolver;
+import com.github.ehdez73.code2req.indexing.domain.linker.ValidatorLinkResolver;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlBeanAnalyzer;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.WebXmlAnalyzer;
 import com.github.ehdez73.code2req.indexing.domain.service.ExcludeFilter;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestLoader;
 import com.github.ehdez73.code2req.infrastructure.config.ManifestValidator;
 import com.github.ehdez73.code2req.indexing.domain.service.SecretRedactor;
-import com.github.ehdez73.code2req.enrichment.domain.service.OrphanRecovery;
+import com.github.ehdez73.code2req.indexing.domain.service.OrphanRecovery;
 import com.github.ehdez73.code2req.indexing.IndexingOrchestrator;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.template.TemplateAnalyzer;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.template.TemplateLinkResolver;
@@ -102,6 +104,7 @@ class ScanCommandTest {
             new AllowedLibrariesConfig(null, null));
         var pipeline = new IndexingOrchestrator(pass1Collector, testImportIndex, astAnalyzer, secretRedactor, taskStore, taskIdHasher,
             topicLinkResolver, new FloatingLinkResolver(),
+            new ValidatorLinkResolver(executionFindingStore), new AspectLinkResolver(executionFindingStore),
             executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore, txTemplate);
 
         var templateAnalyzer = new TemplateAnalyzer(List.of(new com.github.ehdez73.code2req.indexing.domain.analyzer.web.template.JspTemplateParser(), new com.github.ehdez73.code2req.indexing.domain.analyzer.web.template.ThymeleafTemplateParser()));

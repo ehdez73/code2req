@@ -10,37 +10,32 @@ public class RunCommand {
     private static final String SUGGESTED_NEXT = "\n=== Suggested Next ===";
 
     private final ScanCommand scanCommand;
-    private final EnrichCommand enrichCommand;
     private final ExtractCommand extractCommand;
     private final GenerateCommand generateCommand;
 
     public RunCommand(ScanCommand scanCommand,
-                     EnrichCommand enrichCommand, ExtractCommand extractCommand,
+                     ExtractCommand extractCommand,
                      GenerateCommand generateCommand) {
         this.scanCommand = scanCommand;
-        this.enrichCommand = enrichCommand;
         this.extractCommand = extractCommand;
         this.generateCommand = generateCommand;
     }
 
-    @ShellMethod(key = "run", value = "Execute the full pipeline: scan -> enrich -> extract -> generate")
+    @ShellMethod(key = "run", value = "Execute the full pipeline: scan -> extract -> generate")
     public String run(
             @ShellOption(value = "--manifest", defaultValue = "project-manifest.yaml",
                          help = "Path to the project manifest YAML file") String manifestPath,
             @ShellOption(value = "--resume", defaultValue = "false",
-                         help = "Resume mode for scan, enrich, and extract") boolean resume,
+                         help = "Resume mode for scan and extract") boolean resume,
             @ShellOption(value = "--dry-run", defaultValue = "false",
-                         help = "Dry-run mode for enrich and extract") boolean dryRun,
+                         help = "Dry-run mode for extract") boolean dryRun,
             @ShellOption(value = "--force", defaultValue = "false",
-                         help = "Force re-execution for Phase 3 extraction") boolean force,
-            @ShellOption(value = "--llm-threshold", defaultValue = ShellOption.NULL,
-                         help = "Override LLM threshold for enrichment") Integer llmThreshold) {
+                         help = "Force re-execution for Phase 3 extraction") boolean force) {
 
         var sb = new StringBuilder();
         sb.append("=== Full Pipeline Run ===\n\n");
 
         sb.append(stripSuggestions(scanCommand.executeScan(manifestPath, resume))).append("\n");
-        sb.append(stripSuggestions(enrichCommand.enrich(manifestPath, false, dryRun, resume, llmThreshold))).append("\n");
         sb.append(stripSuggestions(extractCommand.extract(manifestPath, dryRun, force, resume))).append("\n");
         sb.append(stripSuggestions(generateCommand.generate())).append("\n");
 

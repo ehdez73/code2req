@@ -4,7 +4,7 @@ import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
@@ -134,11 +134,6 @@ public class ExtractionOrchestrator {
             return result;
         }
 
-        boolean gateOk = resume || force;
-        if (!requireAllTasksTerminal(gateOk)) {
-            return ExtractionResult.blocked("All tasks must be SKIPPED, ENRICHED, or INDEXED before Phase 3. Run 'enrich --resume' first.");
-        }
-
         if (force) {
             executionFindingStore.deleteAllByType(FindingType.FLOW_ANALYSIS);
             log.info("Force mode: deleted all cached FLOW_ANALYSIS findings");
@@ -218,25 +213,6 @@ public class ExtractionOrchestrator {
         return knowledge.findUnresolvedLinks().isEmpty()
             && knowledge.findUnresolvedTopicLinks().isEmpty()
             && knowledge.getEntryPoints().isEmpty();
-    }
-
-    boolean requireAllTasksTerminal(boolean force) {
-        if (force) return true;
-        List<Task> allTasks = taskStore.findAll();
-        List<Task> nonTerminal = allTasks.stream()
-            .filter(t -> t.status() != TaskStatus.SKIPPED
-                && t.status() != TaskStatus.ENRICHED
-                && t.status() != TaskStatus.INDEXED)
-            .toList();
-        if (!nonTerminal.isEmpty()) {
-            String reportLine = nonTerminal.stream()
-                .map(t -> "  " + t.taskId() + " (" + t.filePath() + ") — " + t.status().name())
-                .collect(Collectors.joining("\n"));
-            log.warn("Phase 3 blocked: {} task(s) not in SKIPPED, ENRICHED, or INDEXED:\n{}\n" +
-                "Run 'enrich --resume' first.", nonTerminal.size(), reportLine);
-            return false;
-        }
-        return true;
     }
 
     public CodebaseKnowledge buildCodebaseKnowledge() {

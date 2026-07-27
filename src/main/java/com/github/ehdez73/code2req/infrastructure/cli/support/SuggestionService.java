@@ -53,20 +53,18 @@ public class SuggestionService {
             if (pendingCount > 0) detail.append("PENDING=").append(pendingCount);
             if (!detail.isEmpty()) detail.setLength(detail.length() - 2);
             sb.append("  Tasks need recovery (").append(detail).append("):\n");
-            sb.append("    enrich --resume\n");
+            sb.append("    extract\n");
             hasActionable = true;
         }
 
-        if (indexedCount > 0) {
-            sb.append("  ").append(indexedCount).append(" INDEXED task(s) ready for enrichment (qualification happens automatically):\n");
-            sb.append("    enrich\n");
-            sb.append("    enrich --show-plan  (preview qualification decisions first)\n");
-            hasActionable = true;
-        }
-
-        if (enrichPendingCount > 0 && enrichingCount == 0 && pendingCount == 0 && enrichFailedCount == 0) {
-            sb.append("  ").append(enrichPendingCount).append(" task(s) waiting for enrichment:\n");
-            sb.append("    enrich\n");
+        if (indexedCount > 0 || enrichPendingCount > 0) {
+            int readyCount = indexedCount + enrichPendingCount;
+            sb.append("  ").append(readyCount).append(" task(s) ready for extraction");
+            if (indexedCount > 0) {
+                sb.append(" (enrichment happens automatically during flow analysis)");
+            }
+            sb.append(":\n");
+            sb.append("    extract\n");
             hasActionable = true;
         }
 
@@ -74,19 +72,18 @@ public class SuggestionService {
             && failedCount == 0 && enrichFailedCount == 0 && enrichingCount == 0
             && pendingCount == 0 && skippedCount > 0;
         if (onlySkipped) {
-            sb.append("  All tasks evaluated — none qualified for enrichment.\n");
-            sb.append("    enrich --show-plan --llm-threshold <N>  (re-qualify with lower threshold)\n");
-            sb.append("    extract  (proceed without enrichment)\n");
+            sb.append("  All tasks skipped — no files required enrichment. Proceed directly:\n");
+            sb.append("    extract\n");
             hasActionable = true;
         }
 
-        boolean allEnriched = failedCount == 0 && enrichFailedCount == 0 && enrichingCount == 0
+        boolean allProcessed = failedCount == 0 && enrichFailedCount == 0 && enrichingCount == 0
             && pendingCount == 0 && indexedCount == 0 && enrichPendingCount == 0 && enrichedCount > 0;
-        if (allEnriched && p3 == null) {
-            sb.append("  All tasks enriched. Proceed to Phase 3 extraction:\n");
+        if (allProcessed && p3 == null) {
+            sb.append("  All tasks processed. Proceed to extraction:\n");
             sb.append("    extract\n");
             hasActionable = true;
-        } else if (allEnriched && p3 != null) {
+        } else if (allProcessed && p3 != null) {
             sb.append("  Pipeline complete. Next steps:\n");
             sb.append("    generate\n");
             sb.append("    clean  (reset for a fresh scan)\n");

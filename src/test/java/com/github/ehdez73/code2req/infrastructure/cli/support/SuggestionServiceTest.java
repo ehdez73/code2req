@@ -62,7 +62,7 @@ class SuggestionServiceTest {
 
         String result = suggestionService.suggest();
         assertTrue(result.contains("ENRICH_FAILED"));
-        assertTrue(result.contains("enrich --resume"));
+        assertTrue(result.contains("extract"));
     }
 
     @Test
@@ -71,7 +71,7 @@ class SuggestionServiceTest {
 
         String result = suggestionService.suggest();
         assertTrue(result.contains("ENRICHING"));
-        assertTrue(result.contains("enrich --resume"));
+        assertTrue(result.contains("extract"));
     }
 
     @Test
@@ -80,7 +80,7 @@ class SuggestionServiceTest {
 
         String result = suggestionService.suggest();
         assertTrue(result.contains("PENDING"));
-        assertTrue(result.contains("enrich --resume"));
+        assertTrue(result.contains("extract"));
     }
 
     @Test
@@ -88,8 +88,8 @@ class SuggestionServiceTest {
         taskStore.save(new Task("t1", "/src/Ready.java", TaskStatus.INDEXED, "java", "h1", "test"));
 
         String result = suggestionService.suggest();
-        assertTrue(result.contains("1 INDEXED"));
-        assertTrue(result.contains("plan"));
+        assertTrue(result.contains("1 task(s) ready"));
+        assertTrue(result.contains("extract"));
     }
 
     @Test
@@ -97,8 +97,8 @@ class SuggestionServiceTest {
         taskStore.save(new Task("t1", "/src/EnrichPending.java", TaskStatus.ENRICH_PENDING, "java", "h1", "test"));
 
         String result = suggestionService.suggest();
-        assertTrue(result.contains("1 task(s) waiting"));
-        assertTrue(result.contains("enrich"));
+        assertTrue(result.contains("1 task(s)"));
+        assertTrue(result.contains("extract"));
     }
 
     @Test
@@ -106,8 +106,7 @@ class SuggestionServiceTest {
         taskStore.save(new Task("t1", "/src/Done.java", TaskStatus.ENRICHED, "java", "h1", "test"));
 
         String result = suggestionService.suggest();
-        assertTrue(result.contains("All tasks enriched"));
-        assertTrue(result.contains("Phase 3"));
+        assertTrue(result.contains("All tasks processed"));
         assertTrue(result.contains("extract"));
     }
 
@@ -132,8 +131,8 @@ class SuggestionServiceTest {
         String result = suggestionService.suggest();
         assertTrue(result.contains("1 FAILED"));
         assertTrue(result.contains("scan --resume"));
-        assertTrue(result.contains("2 INDEXED"));
-        assertTrue(result.contains("plan"));
+        assertTrue(result.contains("2 task(s) ready"));
+        assertTrue(result.contains("extract"));
     }
 
     @Test
@@ -143,8 +142,8 @@ class SuggestionServiceTest {
 
         String result = suggestionService.suggest();
         assertTrue(result.contains("ENRICHING"));
-        assertTrue(result.contains("enrich --resume"));
-        assertFalse(result.contains("waiting for enrichment"));
+        assertTrue(result.contains("extract"));
+        assertFalse(result.contains("waiting for"));
     }
 
     @Test

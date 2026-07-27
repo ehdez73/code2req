@@ -275,18 +275,15 @@ public class StructuralGraph {
             Map<String, String> testFileMapping) {
         double score = 0.0;
 
-        boolean hasEnrichment = enrichment.findByFilePath(entryPoint.filePath()).isPresent();
-        score += 0.3 * (hasEnrichment ? 1.0 : 0.0);
-
         long downstreamCount = callGraphEdges.stream()
             .filter(e -> entryPoint.filePath().equals(e.sourceFilePath()))
             .count();
-        score += 0.3 * Math.min(downstreamCount / 10.0, 1.0);
+        score += 0.4 * Math.min(downstreamCount / 10.0, 1.0);
 
-        score += 0.2 * (entryPoint instanceof HttpEntryPoint ? 1.0 : 0.5);
+        score += 0.3 * (entryPoint instanceof HttpEntryPoint ? 1.0 : 0.5);
 
         boolean hasTestFile = testFileMapping.containsKey(entryPoint.filePath());
-        score += 0.2 * (hasTestFile ? 1.0 : 0.0);
+        score += 0.3 * (hasTestFile ? 1.0 : 0.0);
 
         return score;
     }

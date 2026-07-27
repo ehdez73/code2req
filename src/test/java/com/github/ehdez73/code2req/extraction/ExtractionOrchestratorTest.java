@@ -9,7 +9,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
 import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;
@@ -267,21 +267,7 @@ class ExtractionOrchestratorTest {
     }
 
     @Test
-    void executeWithPendingTaskBlocksPhase3() {
-        insertTask("pending-task", "/src/PendingFile.java", TaskStatus.PENDING);
-        floatingLinkStore.saveAll(List.of(
-            new FloatingLinkInfo("GET", "http://external/api", false, "RestTemplate",
-                "src/Client.java", "callExternal", null, 0.0, "PENDING")));
-
-        ExtractionResult result = orchestrator.execute();
-
-        assertTrue(result.isBlocked());
-        assertEquals("All tasks must be SKIPPED, ENRICHED, or INDEXED before Phase 3. Run 'enrich --resume' first.",
-            result.blockedReason());
-    }
-
-    @Test
-    void executeWithAllTerminalTasksProceeds() {
+    void executeProceedsWithIndexedTasks() {
         insertTask("task-enriched", "/src/EnrichedFile.java", TaskStatus.ENRICHED);
         insertTask("task-skipped", "/src/SkippedFile.java", TaskStatus.SKIPPED);
         floatingLinkStore.saveAll(List.of(

@@ -1,6 +1,6 @@
 # ADR-006: Pipeline Orchestration — Extract/Generate Command Split
 
-**Status:** Accepted
+**Status:** Amended — 2026-07-27
 **Date:** 2026-06-30
 **Author:** Solo Developer
 
@@ -44,11 +44,15 @@ Reads `spec-output/extraction-cache.json`, deserializes the three result sets, a
 This step is pure Java, makes zero agent/LLM calls, and is idempotent.
 
 ### Full Pipeline
-The `run` command now orchestrates five phases:
+The `run` command orchestrates three phases:
 
 ```
-scan → plan → enrich → extract → generate
+scan → extract → generate
 ```
+
+There is no standalone `plan` or `enrich` phase:
+- **No `plan` phase**: The `plan` step (which would bulk-transition INDEXED tasks to SKIPPED or ENRICH_PENDING) was deferred. Its absence is a known gap: files not reachable from any entry point remain INDEXED indefinitely, causing the `SuggestionService` to suggest re-running `extract` on them.
+- **No `enrich` phase**: Enrichment is not a separate pipeline step. It happens on-demand inside `extract`, embedded in the GOAP agent's `EnrichFlowAction` — only files that appear in traced execution flows AND pass qualification criteria (DB access, external HTTP calls, paired tests, entry-point with STANDARD/FULL complexity) get LLM enrichment.
 
 ### Cache Storage Rationale
 
@@ -70,7 +74,7 @@ Chose a JSON file over SQLite for the cache because:
 ### Negative
 - **Cache invalidation**: if the codebase changes between `extract` and `generate`, the cache is stale — user must re-run `extract`
 - **Extra disk artifact**: `extraction-cache.json` is a new output file that must be cleaned up
-- **One extra step in `run`**: the pipeline adds a fifth command call
+- **Embedded enrichment is opaque**: enrichment runs on-demand inside `extract` with no user visibility into why a file was enriched or skipped
 
 ### Neutral
 - The `generate` command reads but does not require the `--manifest` flag — it operates entirely from the cache
@@ -83,7 +87,7 @@ Chose a JSON file over SQLite for the cache because:
 
 ## Related
 
-- F019 — CLI Commands — plan and run (run pipeline updated to include generate)
+- F019 — CLI Commands — scan, extract, generate (run pipeline orchestrates three phases)
 - F023 — Embabel Agent — Entry-Point-Driven Extraction (agent no longer produces spec files)
 - F027 — Domain Model + Output Writers (SynthesizeSpecAction now invoked by generate command)
 - US047 — Developer runs full Phase 2 + Phase 3 pipeline

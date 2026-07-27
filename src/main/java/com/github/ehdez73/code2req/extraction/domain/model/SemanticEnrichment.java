@@ -1,6 +1,9 @@
 package com.github.ehdez73.code2req.extraction.domain.model;
 
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
+import com.github.ehdez73.code2req.infrastructure.persistence.FindingType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,6 +47,22 @@ public class SemanticEnrichment {
                 .map(ExecutionFinding.TestInsight::testFilePath)
                 .filter(Objects::nonNull)
                 .findFirst());
+    }
+
+    public static SemanticEnrichment reloadFrom(ExecutionFindingStore store, ObjectMapper mapper) {
+        Map<String, ExecutionFinding> byPath = new HashMap<>();
+        var rows = store.findAllByType(FindingType.SEMANTIC_ENRICHMENT);
+        for (var row : rows) {
+            String json = (String) row.get("finding_json");
+            if (json == null) continue;
+            try {
+                ExecutionFinding ef = mapper.readValue(json, ExecutionFinding.class);
+                if (ef.metadata() != null && ef.metadata().filePath() != null) {
+                    byPath.put(ef.metadata().filePath(), ef);
+                }
+            } catch (Exception ignored) {}
+        }
+        return new SemanticEnrichment(byPath);
     }
 
     public Map<String, String> getAllTestFilePaths() {

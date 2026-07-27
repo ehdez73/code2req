@@ -5,7 +5,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphE
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 
 import java.util.List;

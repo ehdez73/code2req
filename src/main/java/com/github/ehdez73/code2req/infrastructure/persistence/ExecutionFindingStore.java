@@ -102,6 +102,15 @@ public class ExecutionFindingStore implements ExecutionFindingRepository {
         """, taskId, findingType);
     }
 
+    public boolean existsByFilePathAndType(String filePath, String findingType) {
+        Integer count = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM execution_findings ef
+            JOIN tasks t ON t.task_id = ef.task_id
+            WHERE t.file_path = ? AND ef.finding_type = ?
+        """, Integer.class, filePath, findingType);
+        return count != null && count > 0;
+    }
+
     public List<Map<String, Object>> findAllByType(String findingType) {
         return jdbc.queryForList("""
             SELECT id, task_id, finding_type, finding_json, resolved, schema_version, created_at

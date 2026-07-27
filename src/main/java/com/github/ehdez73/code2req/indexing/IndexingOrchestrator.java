@@ -34,6 +34,10 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingL
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.OutboundHttpCallInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.scheduledtask.ScheduledTaskInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.validator.ValidatorInfo;
+import com.github.ehdez73.code2req.indexing.domain.linker.AopAdviceLinkInfo;
+import com.github.ehdez73.code2req.indexing.domain.linker.AspectLinkResolver;
+import com.github.ehdez73.code2req.indexing.domain.linker.ValidatorLinkInfo;
+import com.github.ehdez73.code2req.indexing.domain.linker.ValidatorLinkResolver;
 import com.github.ehdez73.code2req.indexing.domain.model.ScanPipelineResult;
 import com.github.ehdez73.code2req.indexing.domain.service.JavaVersionMapper;
 import com.github.ehdez73.code2req.indexing.domain.service.SecretRedactor;
@@ -79,6 +83,8 @@ public class IndexingOrchestrator {
     private final TaskIdHasher taskIdHasher;
     private final TopicLinkResolver topicLinkResolver;
     private final FloatingLinkResolver floatingLinkResolver;
+    private final ValidatorLinkResolver validatorLinkResolver;
+    private final AspectLinkResolver aspectLinkResolver;
     private final ExecutionFindingStore executionFindingStore;
     private final TopicLinkStore topicLinkStore;
     private final FloatingLinkStore floatingLinkStore;
@@ -90,6 +96,7 @@ public class IndexingOrchestrator {
                                 JavaAstAnalyzer astAnalyzer,
                                 SecretRedactor secretRedactor, TaskStore taskStore, TaskIdHasher taskIdHasher,
                                 TopicLinkResolver topicLinkResolver, FloatingLinkResolver floatingLinkResolver,
+                                ValidatorLinkResolver validatorLinkResolver, AspectLinkResolver aspectLinkResolver,
                                 ExecutionFindingStore executionFindingStore, TopicLinkStore topicLinkStore,
                                 FloatingLinkStore floatingLinkStore, MetricsStore metricsStore,
                                 TransactionTemplate txTemplate) {
@@ -101,6 +108,8 @@ public class IndexingOrchestrator {
         this.taskIdHasher = taskIdHasher;
         this.topicLinkResolver = topicLinkResolver;
         this.floatingLinkResolver = floatingLinkResolver;
+        this.validatorLinkResolver = validatorLinkResolver;
+        this.aspectLinkResolver = aspectLinkResolver;
         this.executionFindingStore = executionFindingStore;
         this.topicLinkStore = topicLinkStore;
         this.floatingLinkStore = floatingLinkStore;
@@ -146,6 +155,11 @@ public class IndexingOrchestrator {
         long floatResolved = floatingLinks.stream().filter(l -> FloatingLinkInfo.STATUS_RESOLVED.equals(l.resolvedStatus())).count();
         long floatPending = floatingLinks.size() - floatResolved;
 
+        List<ValidatorLinkInfo> validatorLinks = validatorLinkResolver.resolve(allFiles);
+        saveLinkFindings(validatorLinks, allFiles, targets, FindingType.VALIDATOR_LINK);
+        List<AopAdviceLinkInfo> aopLinks = aspectLinkResolver.resolve(allFiles);
+        saveLinkFindings(aopLinks, allFiles, targets, FindingType.AOP_ADVICE_LINK);
+
         int totalEdges = executionFindingStore.countByType(FindingType.CALL_GRAPH_EDGE);
         int totalDbAccess = executionFindingStore.countByType(FindingType.DB_ACCESS);
         int totalHttpCalls = executionFindingStore.countByType(FindingType.OUTBOUND_HTTP_CALL);
@@ -166,6 +180,10 @@ public class IndexingOrchestrator {
             "  Post-Pass (Topic Link Resolution): %d RESOLVED, %d PENDING%n", topicResolved, topicPending));
         report.append(String.format(
             "  Post-Pass (Floating Link Resolution): %d RESOLVED, %d PENDING%n", floatResolved, floatPending));
+        report.append(String.format(
+            "  Post-Pass (Validator Link Resolution): %d link(s)%n", validatorLinks.size()));
+        report.append(String.format(
+            "  Post-Pass (AOP Advice Link Resolution): %d link(s)%n", aopLinks.size()));
         report.append(String.format(
             "  Persistence: %d execution finding(s), %d topic link(s), %d floating link(s), 1 metric row(s)%n",
             executionFindingStore.count(), topicLinkStore.count(), floatingLinkStore.count()));
@@ -314,6 +332,24 @@ public class IndexingOrchestrator {
             return java.util.HexFormat.of().formatHex(hash);
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 not available", e);
+        }
+    }
+
+    private <T extends AnalysisFinding> void saveLinkFindings(List<T> links, List<Path> allFiles,
+                                                               List<ScanTarget> targets, String findingType) {
+        if (links.isEmpty()) return;
+        for (T link : links) {
+            String sourceFile = link.filePath();
+            if (sourceFile == null) continue;
+            String targetName = targetNameForFile(Path.of(sourceFile), targets);
+            try {
+                String content = Files.readString(Path.of(sourceFile), StandardCharsets.UTF_8);
+                String contentHash = sha256Hex(content);
+                String taskId = taskIdHasher.hash(sourceFile, contentHash, targetName);
+                saveGranularFinding(taskId, link, findingType);
+            } catch (Exception e) {
+                log.warn("Failed to persist {} for {}: {}", findingType, sourceFile, e.getMessage());
+            }
         }
     }
 

@@ -7,8 +7,8 @@ import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingSt
 import com.github.ehdez73.code2req.infrastructure.persistence.FloatingLinkStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.TaskStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.TaskStoreSchema;
-import com.github.ehdez73.code2req.enrichment.domain.model.OrphanRecoveryResult;
-import com.github.ehdez73.code2req.enrichment.domain.service.OrphanRecovery;
+import com.github.ehdez73.code2req.indexing.domain.service.OrphanRecoveryResult;
+import com.github.ehdez73.code2req.indexing.domain.service.OrphanRecovery;
 import com.github.ehdez73.code2req.infrastructure.persistence.TopicLinkStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

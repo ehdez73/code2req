@@ -2,6 +2,7 @@ package com.github.ehdez73.code2req.infrastructure.persistence;
 
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisFinding;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.aspect.AspectInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.QualifierInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.java.BeanMethodInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlAopConfigInfo;
@@ -71,6 +72,11 @@ public final class FindingType {
     public static final String JPQL_HQL_QUERY = "JPQL_HQL_QUERY";
     public static final String QUALIFIER = "QUALIFIER";
 
+    // Phase 1 link resolvers
+    public static final String ASPECT_ADVICE = "ASPECT_ADVICE";
+    public static final String AOP_ADVICE_LINK = "AOP_ADVICE_LINK";
+    public static final String VALIDATOR_LINK = "VALIDATOR_LINK";
+
     public static final Map<Class<? extends AnalysisFinding>, String> FINDING_TYPE_MAP = Map.ofEntries(
         Map.entry(ComponentInfo.class, COMPONENT),
         Map.entry(EndpointInfo.class, ENDPOINT),
@@ -94,7 +100,8 @@ public final class FindingType {
         Map.entry(XmlJmsListenerInfo.class, XML_JMS_LISTENER),
         Map.entry(CallGraphEdge.class, CALL_GRAPH_EDGE),
         Map.entry(OutboundHttpCallInfo.class, OUTBOUND_HTTP_CALL),
-        Map.entry(QualifierInfo.class, QUALIFIER)
+        Map.entry(QualifierInfo.class, QUALIFIER),
+        Map.entry(AspectInfo.class, ASPECT_ADVICE)
     );
 
     private FindingType() {}

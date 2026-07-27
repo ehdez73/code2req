@@ -16,7 +16,7 @@ import com.github.ehdez73.code2req.common.domain.ProjectManifest;
 import com.github.ehdez73.code2req.common.domain.ScanTarget;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
-import com.github.ehdez73.code2req.enrichment.domain.service.OrphanRecovery;
+import com.github.ehdez73.code2req.indexing.domain.service.OrphanRecovery;
 import com.github.ehdez73.code2req.indexing.IndexingOrchestrator;
 import com.github.ehdez73.code2req.indexing.domain.model.ScanPipelineResult;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;

@@ -121,6 +121,12 @@ public class TaskStore implements TaskRepository {
             rowMapper, input + "%");
     }
 
+    public Optional<Task> findByFilePath(String filePath) {
+        List<Task> tasks = jdbc.query("SELECT * FROM tasks WHERE file_path = ? ORDER BY created_at DESC LIMIT 1",
+            rowMapper, filePath);
+        return tasks.isEmpty() ? Optional.empty() : Optional.of(tasks.get(0));
+    }
+
     public void deleteAll() {
         jdbc.execute("DELETE FROM tasks");
     }

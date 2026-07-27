@@ -3,7 +3,7 @@ package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 import com.embabel.agent.api.common.OperationContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.ehdez73.code2req.enrichment.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.AnalyzedFlowResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.TracedFlowResult;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;

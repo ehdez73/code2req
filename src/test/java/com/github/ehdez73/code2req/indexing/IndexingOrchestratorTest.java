@@ -9,6 +9,8 @@ import com.github.ehdez73.code2req.indexing.domain.model.AllowedLibrariesConfig;
 import com.github.ehdez73.code2req.indexing.domain.model.IndexingConfig;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLinkResolver;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingLinkResolver;
+import com.github.ehdez73.code2req.indexing.domain.linker.AspectLinkResolver;
+import com.github.ehdez73.code2req.indexing.domain.linker.ValidatorLinkResolver;
 import com.github.ehdez73.code2req.indexing.domain.service.SecretRedactor;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.FloatingLinkStore;
@@ -68,6 +70,7 @@ class IndexingOrchestratorTest {
             new AllowedLibrariesConfig(null, null));
         pipeline = new IndexingOrchestrator(pass1Collector, testImportIndex, astAnalyzer, secretRedactor, taskStore, taskIdHasher,
             new TopicLinkResolver(), new FloatingLinkResolver(),
+            new ValidatorLinkResolver(executionFindingStore), new AspectLinkResolver(executionFindingStore),
             executionFindingStore, topicLinkStore, floatingLinkStore, metricsStore, txTemplate);
     }
 

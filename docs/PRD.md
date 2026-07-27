@@ -2,7 +2,7 @@
 
 ## AI-Driven Reverse Engineering CLI for Spec-Driven Development (SDD)
 
-> **Version 5.12** — Narrowed Phase 2 enrichment scope from per-file to **entry-point-only**. New `EntryPointRule` replaces `ResolvedPhase1DepsRule` as the primary qualification gate. Non-entry-point files (services, repositories, domain classes) are no longer enriched individually — Phase 3's `AnalyzeFlow` sends their traced method bodies as inline source code snippets, deriving business rules and validations directly from the code alongside the entry-point enrichment context. Updated qualification rule table. Bumped from v5.11.
+> **Version 5.13** — Eliminated Phase 2 as a standalone phase. Enrichment is now flow-driven inside Phase 3 — the new `EnrichFlowAction` (GOAP action between `TraceFlow` and `AnalyzeFlow`) inspects each traced flow and enriches only files with enrichment-worthy characteristics (stored procedures, custom validators, complex SQL, unresolved HTTP calls, linked validators/aspects, test files, or complex entry points). Non-enriched files are handled directly from source code snippets. Phase 1 extended with `AspectVisitor` (AOP detection), `ValidatorLinkResolver`, and `AspectLinkResolver` for annotation-to-processor linking. Pipeline simplified to `scan → extract → generate`. Bumped from v5.12.
 
 ---
 
@@ -30,15 +30,15 @@ Crucially, the tool rejects direct test framework generation. Instead, it export
 The CLI adopts a multi-phase pipeline that transitions from deterministic compilation (Phase 1) through optional entry-point-focused LLM enrichment (Phase 2) to an agentic extraction phase (Phase 3) and a pure-Java generation phase (Phase 4). When Phase 2 is skipped, Phase 3 derives business semantics directly from source code snippets.
 
 ```
-[scan] ──> [enrich] ──> [extract] ──> [generate]
-  (P1)       (P2)          (P3)           (P4)
-              │
-              └── (optional, skip via INDEXED)
+[scan] ──> [extract] ──> [generate]
+  (P1)       (P3)         (P4)
+              ↑
+       enrichment is flow-driven,
+       cached across flows
 ```
 
 - **`scan`** (Phase 1): Deterministic indexing — AST parsing, secret redaction, SQLite persistence. Zero network calls.
-- **`enrich`** (Phase 2): Qualification pass + entry-point LLM enrichment via Spring AI `@Async`. Optional — skipped when no file qualifies.
-- **`extract`** (Phase 3): Embabel GOAP agent traces entry-point-driven flows and extracts functional requirements.
+- **`extract`** (Phase 3): Embabel GOAP agent traces entry-point-driven flows. The new `EnrichFlowAction` enriches flow-relevant files on-demand, then `AnalyzeFlow` extracts functional requirements using both enrichment and source code snippets.
 - **`generate`** (Phase 4): Pure-Java output writers produce the Markdown specification and `semantic_manifest.json`.
 
 > **Note:** A Language Extension Framework (SPI for non-Java language parsers) was originally planned as E002 but is **formally postponed**. The current implementation is Java/Spring-only via JavaParser. The SPI, parser registry, and routing components described in stories US018-US022 (F007-F009) are de-scoped and retained for future reference.
