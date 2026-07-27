@@ -3,6 +3,8 @@ package com.github.ehdez73.code2req.extraction;
 import com.embabel.agent.core.AgentPlatform;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentInfo;
 import static org.mockito.Mockito.when;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlBeanInfo;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.xml.XmlScheduledTaskInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphEdge;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.db.DbAccessInfo;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.event.link.TopicLink;
@@ -10,6 +12,7 @@ import com.github.ehdez73.code2req.indexing.domain.analyzer.httpclient.FloatingL
 import com.github.ehdez73.code2req.indexing.domain.analyzer.web.endpoint.EndpointInfo;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.domain.model.ScheduledEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.LinkRegistry;
 import com.github.ehdez73.code2req.extraction.domain.model.SemanticEnrichment;
@@ -305,6 +308,97 @@ class ExtractionOrchestratorTest {
         ExtractionResult result = orchestrator.execute(false, true);
 
         assertFalse(result.isBlocked());
+    }
+
+    @Test
+    void decapitalizeWithSimpleName() {
+        assertEquals("messageService", ExtractionOrchestrator.decapitalize("MessageService"));
+    }
+
+    @Test
+    void decapitalizeWithAllCapsPrefixPreserves() {
+        assertEquals("URLParser", ExtractionOrchestrator.decapitalize("URLParser"));
+    }
+
+    @Test
+    void decapitalizeWithSingleChar() {
+        assertEquals("a", ExtractionOrchestrator.decapitalize("A"));
+    }
+
+    @Test
+    void decapitalizeWithNullReturnsNull() {
+        assertNull(ExtractionOrchestrator.decapitalize(null));
+    }
+
+    @Test
+    void decapitalizeWithEmptyString() {
+        assertEquals("", ExtractionOrchestrator.decapitalize(""));
+    }
+
+    @Test
+    void decapitalizeWithFirstLetterLowerCase() {
+        assertEquals("lower", ExtractionOrchestrator.decapitalize("lower"));
+    }
+
+    @Test
+    void xmlScheduledTaskWithComponentBeanResolvesToJavaFile() throws JsonProcessingException {
+        insertTask("sched-task", "/cron-context.xml");
+
+        saveFinding("sched-task", FindingType.XML_SCHEDULED_TASK,
+            new XmlScheduledTaskInfo("messageService", "getMessage", null, 10000L, null, "scheduled", "/cron-context.xml", 10));
+
+        saveFinding("sched-task", FindingType.COMPONENT,
+            new ComponentInfo("Service", "MessageService", "com.example", "/src/MessageService.java", false));
+
+        saveFinding("sched-task", FindingType.CALL_GRAPH_EDGE,
+            CallGraphEdge.resolved("MessageService", "getMessage", "/src/MessageService.java",
+                "NameService", "getName", "/src/NameService.java", 0));
+
+        CodebaseKnowledge knowledge = orchestrator.buildCodebaseKnowledge();
+
+        List<ScheduledEntryPoint> resolved = knowledge.structuralGraph().resolvedXmlScheduledTasks();
+        assertEquals(1, resolved.size());
+        ScheduledEntryPoint entry = resolved.getFirst();
+        assertEquals("MessageService", entry.className());
+        assertEquals("/src/MessageService.java", entry.filePath());
+    }
+
+    @Test
+    void xmlScheduledTaskWithUnresolvedBeanFallsBackToXmlPath() throws JsonProcessingException {
+        insertTask("sched-task2", "/cron-context.xml");
+
+        saveFinding("sched-task2", FindingType.XML_SCHEDULED_TASK,
+            new XmlScheduledTaskInfo("unknownBean", "doSomething", null, null, 5000L, "scheduled", "/cron-context.xml", 15));
+
+        CodebaseKnowledge knowledge = orchestrator.buildCodebaseKnowledge();
+
+        List<ScheduledEntryPoint> resolved = knowledge.structuralGraph().resolvedXmlScheduledTasks();
+        assertEquals(1, resolved.size());
+        ScheduledEntryPoint entry = resolved.getFirst();
+        assertEquals("unknownBean", entry.className());
+        assertEquals("/cron-context.xml", entry.filePath());
+    }
+
+    @Test
+    void xmlScheduledTaskWithXmlBeanRegistryTakesPriority() throws JsonProcessingException {
+        insertTask("sched-task3", "/cron-context.xml");
+
+        saveFinding("sched-task3", FindingType.XML_BEAN,
+            new XmlBeanInfo("messageService", "com.legacy.MessageService", "singleton", null, "/cron-context.xml", 5));
+
+        saveFinding("sched-task3", FindingType.COMPONENT,
+            new ComponentInfo("Service", "MessageService", "com.example", "/src/MessageService.java", false));
+
+        saveFinding("sched-task3", FindingType.XML_SCHEDULED_TASK,
+            new XmlScheduledTaskInfo("messageService", "getMessage", null, 10000L, null, "scheduled", "/cron-context.xml", 10));
+
+        CodebaseKnowledge knowledge = orchestrator.buildCodebaseKnowledge();
+
+        List<ScheduledEntryPoint> resolved = knowledge.structuralGraph().resolvedXmlScheduledTasks();
+        assertEquals(1, resolved.size());
+        ScheduledEntryPoint entry = resolved.getFirst();
+        assertEquals("MessageService", entry.className());
+        assertEquals("/src/MessageService.java", entry.filePath());
     }
 
     private void insertTask(String taskId, String filePath) {

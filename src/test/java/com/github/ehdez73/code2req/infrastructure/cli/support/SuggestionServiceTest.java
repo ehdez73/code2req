@@ -90,6 +90,7 @@ class SuggestionServiceTest {
         String result = suggestionService.suggest();
         assertTrue(result.contains("1 task(s) ready"));
         assertTrue(result.contains("extract"));
+        assertFalse(result.contains("not reached by any traced flow"));
     }
 
     @Test
@@ -99,6 +100,41 @@ class SuggestionServiceTest {
         String result = suggestionService.suggest();
         assertTrue(result.contains("1 task(s)"));
         assertTrue(result.contains("extract"));
+        assertFalse(result.contains("not reached by any traced flow"));
+    }
+
+    @Test
+    void suggestIndexedTasksAfterExtract() {
+        taskStore.save(new Task("t1", "/src/NotReached.java", TaskStatus.INDEXED, "java", "h1", "test"));
+        metricsStore.save(new Metric(UUID.randomUUID().toString(), 3,
+            1, 1, 0, 0, 0, 0, 100, 0.0, LocalDateTime.now().toString()));
+
+        String result = suggestionService.suggest();
+        assertTrue(result.contains("not reached by any traced flow"));
+        assertFalse(result.contains("extract"));
+    }
+
+    @Test
+    void suggestEnrichPendingAfterExtract() {
+        taskStore.save(new Task("t1", "/src/EnrichPending.java", TaskStatus.ENRICH_PENDING, "java", "h1", "test"));
+        metricsStore.save(new Metric(UUID.randomUUID().toString(), 3,
+            1, 1, 0, 0, 0, 0, 100, 0.0, LocalDateTime.now().toString()));
+
+        String result = suggestionService.suggest();
+        assertTrue(result.contains("not reached by any traced flow"));
+        assertFalse(result.contains("extract"));
+    }
+
+    @Test
+    void suggestMixedIndexedAndEnrichPendingAfterExtract() {
+        taskStore.save(new Task("t1", "/src/NotReached.java", TaskStatus.INDEXED, "java", "h1", "test"));
+        taskStore.save(new Task("t2", "/src/NotReached2.java", TaskStatus.ENRICH_PENDING, "java", "h2", "test"));
+        metricsStore.save(new Metric(UUID.randomUUID().toString(), 3,
+            1, 1, 0, 0, 0, 0, 100, 0.0, LocalDateTime.now().toString()));
+
+        String result = suggestionService.suggest();
+        assertTrue(result.contains("2 task(s) were not reached"));
+        assertFalse(result.contains("extract"));
     }
 
     @Test

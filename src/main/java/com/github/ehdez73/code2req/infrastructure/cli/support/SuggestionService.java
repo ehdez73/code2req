@@ -59,12 +59,17 @@ public class SuggestionService {
 
         if (indexedCount > 0 || enrichPendingCount > 0) {
             int readyCount = indexedCount + enrichPendingCount;
-            sb.append("  ").append(readyCount).append(" task(s) ready for extraction");
-            if (indexedCount > 0) {
-                sb.append(" (enrichment happens automatically during flow analysis)");
+            if (p3 != null) {
+                sb.append("  ").append(readyCount).append(" task(s) were not reached by any traced flow (INDEXED without enrichment).");
+                sb.append(" To include them, verify they are reachable from an entry point.\n");
+            } else {
+                sb.append("  ").append(readyCount).append(" task(s) ready for extraction");
+                if (indexedCount > 0) {
+                    sb.append(" (enrichment happens automatically during flow analysis)");
+                }
+                sb.append(":\n");
+                sb.append("    extract\n");
             }
-            sb.append(":\n");
-            sb.append("    extract\n");
             hasActionable = true;
         }
 

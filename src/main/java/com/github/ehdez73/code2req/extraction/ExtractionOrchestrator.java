@@ -419,6 +419,13 @@ public class ExtractionOrchestrator {
             }
         }
 
+        Map<String, String> componentBeanNames = new HashMap<>();
+        for (ComponentInfo ci : components) {
+            if (ci.className() != null && !ci.className().isEmpty()) {
+                componentBeanNames.putIfAbsent(decapitalize(ci.className()), ci.className());
+            }
+        }
+
         Map<String, ScheduledEntryPoint> resolvedScheduled = new HashMap<>();
         for (XmlScheduledTaskInfo xst : xmlScheduledTasks) {
             String schedule = xst.cron() != null ? xst.cron()
@@ -428,6 +435,10 @@ public class ExtractionOrchestrator {
             String simpleClassName = resolvedClassName.contains(".")
                 ? resolvedClassName.substring(resolvedClassName.lastIndexOf('.') + 1)
                 : resolvedClassName;
+            if (simpleClassName.equals(xst.className()) && componentBeanNames.containsKey(xst.className())) {
+                resolvedClassName = componentBeanNames.get(xst.className());
+                simpleClassName = resolvedClassName;
+            }
             String xmlFilePath = xst.filePath();
             String javaFilePath = classToFileMap.get(simpleClassName);
             String filePath = javaFilePath != null ? javaFilePath : xmlFilePath;
@@ -583,6 +594,18 @@ public class ExtractionOrchestrator {
             log.warn("Could not scan {} for method {}: {}", filePath, methodName, e.getMessage());
         }
         return null;
+    }
+
+    static String decapitalize(String str) {
+        if (str == null || str.isEmpty()) return str;
+        char first = str.charAt(0);
+        if (Character.isUpperCase(first)) {
+            if (str.length() > 1 && Character.isUpperCase(str.charAt(1))) {
+                return str;
+            }
+            return Character.toLowerCase(first) + str.substring(1);
+        }
+        return str;
     }
 
     private void persistMetrics(ExtractionResult result, boolean dryRun) {
