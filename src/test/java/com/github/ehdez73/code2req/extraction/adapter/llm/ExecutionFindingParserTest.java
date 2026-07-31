@@ -171,6 +171,64 @@ class ExecutionFindingParserTest {
         assertTrue(result.contains("\"discovery_depth\""));
     }
 
+    @Test
+    void sanitizeWrapsMissingOpeningBraceWithSingleQuotes() {
+        String input = "'metadata': {'task_id': 'abc'}";
+        String result = parser.sanitize(input);
+        assertTrue(result.startsWith("{"), "should prepend {");
+        assertTrue(result.endsWith("}"), "should end with }");
+        assertTrue(result.contains("\"metadata\""), "should normalize property quotes: " + result);
+    }
+
+    @Test
+    void sanitizeWrapsMissingOpeningBraceWithMixedQuotes() {
+        String input = "'metadata\": {\"task_id\": \"abc\"}";
+        String result = parser.sanitize(input);
+        assertTrue(result.startsWith("{"), "should prepend {");
+        assertTrue(result.endsWith("}"), "should end with }");
+        assertTrue(result.contains("\"metadata\""), "should normalize mixed property quotes: " + result);
+    }
+
+    @Test
+    void sanitizeExtractsJsonFromTrailingText() {
+        String input = "{\"key\": \"value\"} ```json {";
+        String result = parser.sanitize(input);
+        assertEquals("{\"key\": \"value\"}", result);
+    }
+
+    @Test
+    void sanitizeExtractsJsonFromLeadingProse() {
+        String input = "Here is the result: {\"key\": \"value\"}";
+        String result = parser.sanitize(input);
+        assertEquals("{\"key\": \"value\"}", result);
+    }
+
+    @Test
+    void sanitizePassesValidJsonThroughUnchanged() {
+        String input = "{\"metadata\": {\"task_id\": \"t1\"}}";
+        String result = parser.sanitize(input);
+        assertTrue(result.startsWith("{"), "should keep opening brace");
+        assertTrue(result.endsWith("}"), "should keep closing brace");
+        assertTrue(result.contains("\"metadata\""), "should preserve content");
+    }
+
+    @Test
+    void sanitizeHandlesPropertyPrefixWithTrailingCruft() {
+        String input = "'metadata\": {\"task_id\": \"abc\"} ```json {";
+        String result = parser.sanitize(input);
+        assertTrue(result.startsWith("{"), "should start with brace");
+        assertTrue(result.contains("\"metadata\""), "should preserve property name: " + result);
+        assertTrue(result.contains("\"task_id\""), "should preserve inner content: " + result);
+        assertFalse(result.contains("```"), "should remove trailing cruft: " + result);
+    }
+
+    @Test
+    void sanitizeExtractsJsonWithTrailingMarkdown() {
+        String input = "{\"key\": \"value\"} ```json {";
+        String result = parser.sanitize(input);
+        assertEquals("{\"key\": \"value\"}", result);
+    }
+
     private static int countChar(String s, char c) {
         return (int) s.chars().filter(ch -> ch == c).count();
     }

@@ -41,6 +41,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -59,16 +61,30 @@ public class AnalyzeFlowAction {
     private final ExecutionFindingStore executionFindingStore;
     private final ObjectMapper objectMapper;
     private final boolean resume;
+    private final Executor analysisExecutor;
 
     public AnalyzeFlowAction(CodebaseKnowledge knowledge, ExecutionFindingStore executionFindingStore,
                              ObjectMapper objectMapper, boolean resume) {
+        this(knowledge, executionFindingStore, objectMapper, resume, null);
+    }
+
+    public AnalyzeFlowAction(CodebaseKnowledge knowledge, ExecutionFindingStore executionFindingStore,
+                             ObjectMapper objectMapper, boolean resume, Executor analysisExecutor) {
         this.knowledge = knowledge;
         this.executionFindingStore = executionFindingStore;
         this.objectMapper = objectMapper;
         this.resume = resume;
+        this.analysisExecutor = analysisExecutor;
     }
 
     public AnalyzedFlowResult analyze(TracedFlowResult tracedResult, OperationContext context) {
+        if (analysisExecutor == null) {
+            return analyzeSequential(tracedResult, context);
+        }
+        return analyzeParallel(tracedResult, context);
+    }
+
+    private AnalyzedFlowResult analyzeSequential(TracedFlowResult tracedResult, OperationContext context) {
         List<FunctionalFlow> analyzedFlows = new ArrayList<>();
 
         for (ExecutionFlow flow : tracedResult.flows()) {
@@ -79,6 +95,40 @@ public class AnalyzeFlowAction {
         }
 
         log.info("Analyzed {} flows", analyzedFlows.size());
+        return new AnalyzedFlowResult(analyzedFlows);
+    }
+
+    private AnalyzedFlowResult analyzeParallel(TracedFlowResult tracedResult, OperationContext context) {
+        List<CompletableFuture<FunctionalFlow>> futures = new ArrayList<>();
+
+        for (ExecutionFlow flow : tracedResult.flows()) {
+            if (flow.status() == FlowStatus.QUARANTINED) continue;
+
+            futures.add(CompletableFuture.supplyAsync(() -> {
+                try {
+                    return analyzeFlow(flow, context);
+                } catch (Exception e) {
+                    log.warn("Flow analysis failed for {}: {}",
+                        deterministicFlowKey(flow.entryPoint()), e.getMessage());
+                    return null;
+                }
+            }, analysisExecutor));
+        }
+
+        List<FunctionalFlow> analyzedFlows = new ArrayList<>();
+        for (var future : futures) {
+            try {
+                FunctionalFlow result = future.join();
+                if (result != null) {
+                    analyzedFlows.add(result);
+                }
+            } catch (Exception e) {
+                log.warn("Unexpected error joining analysis future: {}", e.getMessage());
+            }
+        }
+
+        log.info("Analyzed {} flows ({} failed)", analyzedFlows.size(),
+            futures.size() - analyzedFlows.size());
         return new AnalyzedFlowResult(analyzedFlows);
     }
 

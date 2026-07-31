@@ -20,9 +20,23 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class AnalyzeFlowActionTest {
 
@@ -223,5 +237,161 @@ class AnalyzeFlowActionTest {
 
         assertEquals("flow-1", analyzed.flowId());
         assertNotNull(analyzed.complexity());
+    }
+
+    @Test
+    void parallelSingleThreadProducesIdenticalResultsToSequential() {
+        var executor = Executors.newSingleThreadExecutor();
+        var sequentialAction = new AnalyzeFlowAction(
+            new CodebaseKnowledge(new StructuralGraph(), new SemanticEnrichment(), new LinkRegistry()),
+            mock(ExecutionFindingStore.class), new ObjectMapper(), false);
+        var parallelAction = new AnalyzeFlowAction(
+            new CodebaseKnowledge(new StructuralGraph(), new SemanticEnrichment(), new LinkRegistry()),
+            mock(ExecutionFindingStore.class), new ObjectMapper(), false, executor);
+
+        var entryPoint = new HttpEntryPoint("GET /test", "TestController", "handle", SAMPLE_CONTROLLER,
+            0.5, false, "GET", "/test", List.of(), List.of(), 9, 11);
+        var steps = List.of(new FlowStep(0, FlowStepComponentType.REST_ENDPOINT, "TestController", "handle",
+            null, SAMPLE_CONTROLLER, 9, 11, List.of()));
+        var flow = flow(FlowStatus.TRACED, steps, entryPoint);
+
+        var ctxSeq = FakeOperationContext.create();
+        ctxSeq.expectResponse(new AnalyzeFlowAction.FlowAnalysisResponse(
+            "As a user, I want to test the endpoint.", List.of(), List.of(), List.of(), List.of()));
+
+        var ctxPar = FakeOperationContext.create();
+        ctxPar.expectResponse(new AnalyzeFlowAction.FlowAnalysisResponse(
+            "As a user, I want to test the endpoint.", List.of(), List.of(), List.of(), List.of()));
+
+        var traced = new TracedFlowResult(List.of(flow), List.of());
+        var sequentialResult = sequentialAction.analyze(traced, ctxSeq);
+        var parallelResult = parallelAction.analyze(traced, ctxPar);
+
+        assertEquals(sequentialResult.flows().size(), parallelResult.flows().size());
+        assertEquals(sequentialResult.flows().get(0).name(), parallelResult.flows().get(0).name());
+        assertEquals(sequentialResult.flows().get(0).userStory(), parallelResult.flows().get(0).userStory());
+        executor.shutdown();
+    }
+
+    @Test
+    void concurrentExecutorProcessesAllFlowsWithCorrectCount() throws Exception {
+        var executor = Executors.newFixedThreadPool(3);
+        var latch = new CountDownLatch(3);
+        var executions = new AtomicInteger(0);
+
+        var entryPoint = new HttpEntryPoint("GET /test", "TestController", "handle", SAMPLE_CONTROLLER,
+            0.5, false, "GET", "/test", List.of(), List.of(), 9, 11);
+        var steps = List.of(new FlowStep(0, FlowStepComponentType.REST_ENDPOINT, "TestController", "handle",
+            null, SAMPLE_CONTROLLER, 9, 11, List.of()));
+
+        var flows = List.of(
+            flow(FlowStatus.TRACED, steps, entryPoint),
+            flow(FlowStatus.TRACED, steps, entryPoint),
+            flow(FlowStatus.TRACED, steps, entryPoint)
+        );
+
+        var action = new AnalyzeFlowAction(
+            new CodebaseKnowledge(new StructuralGraph(), new SemanticEnrichment(), new LinkRegistry()),
+            mock(ExecutionFindingStore.class), new ObjectMapper(), false, executor);
+
+        var ctx = FakeOperationContext.create();
+        ctx.expectResponse(new AnalyzeFlowAction.FlowAnalysisResponse(
+            "User story", List.of(), List.of(), List.of(), List.of()));
+        ctx.expectResponse(new AnalyzeFlowAction.FlowAnalysisResponse(
+            "User story", List.of(), List.of(), List.of(), List.of()));
+        ctx.expectResponse(new AnalyzeFlowAction.FlowAnalysisResponse(
+            "User story", List.of(), List.of(), List.of(), List.of()));
+
+        var traced = new TracedFlowResult(flows, List.of());
+        var result = action.analyze(traced, ctx);
+
+        assertEquals(3, result.flows().size(), "All flows should be analyzed");
+        executor.shutdown();
+    }
+
+    @Test
+    void singleFlowFailureDoesNotAbortRemainingFlows() {
+        var executor = Executors.newFixedThreadPool(2);
+
+        var entryPoint = new HttpEntryPoint("GET /test", "TestController", "handle", SAMPLE_CONTROLLER,
+            0.5, false, "GET", "/test", List.of(), List.of(), 9, 11);
+        var steps = List.of(new FlowStep(0, FlowStepComponentType.REST_ENDPOINT, "TestController", "handle",
+            null, SAMPLE_CONTROLLER, 9, 11, List.of()));
+
+        var flows = List.of(
+            flow(FlowStatus.TRACED, steps, entryPoint),
+            flow(FlowStatus.TRACED, steps, entryPoint)
+        );
+
+        var action = new AnalyzeFlowAction(
+            new CodebaseKnowledge(new StructuralGraph(), new SemanticEnrichment(), new LinkRegistry()),
+            mock(ExecutionFindingStore.class), new ObjectMapper(), false, executor);
+
+        var ctx = FakeOperationContext.create();
+        ctx.expectResponse(new AnalyzeFlowAction.FlowAnalysisResponse(
+            "Successful flow", List.of(), List.of(), List.of(), List.of()));
+
+        var traced = new TracedFlowResult(flows, List.of());
+        var result = action.analyze(traced, ctx);
+
+        assertEquals(1, result.flows().size(), "Should have exactly one successful flow");
+        assertEquals("Successful flow", result.flows().get(0).userStory());
+        executor.shutdown();
+    }
+
+    @Test
+    void cachedFlowAnalysesAreReusedUnderConcurrentExecution() {
+        var executor = Executors.newFixedThreadPool(2);
+        var findingStore = mock(ExecutionFindingStore.class);
+        var objectMapper = new ObjectMapper();
+
+        var cachedResponse = new AnalyzeFlowAction.FlowAnalysisResponse(
+            "Cached user story", List.of(), List.of(), List.of(), List.of());
+        var cachedJson = "{\"userStory\":\"Cached user story\",\"gherkinScenarios\":[],\"businessRules\":[],\"edgeCases\":[],\"nonFunctionalRequirements\":[]}";
+        when(findingStore.findByTaskIdAndType(anyString(), eq(com.github.ehdez73.code2req.infrastructure.persistence.FindingType.FLOW_ANALYSIS)))
+            .thenReturn(List.of(Map.of("finding_json", (Object) cachedJson)));
+
+        var entryPoint = new HttpEntryPoint("GET /test", "TestController", "handle", SAMPLE_CONTROLLER,
+            0.5, false, "GET", "/test", List.of(), List.of(), 9, 11);
+        var steps = List.of(new FlowStep(0, FlowStepComponentType.REST_ENDPOINT, "TestController", "handle",
+            null, SAMPLE_CONTROLLER, 9, 11, List.of()));
+        var flow = flow(FlowStatus.TRACED, steps, entryPoint);
+
+        var action = new AnalyzeFlowAction(
+            new CodebaseKnowledge(new StructuralGraph(), new SemanticEnrichment(), new LinkRegistry()),
+            findingStore, objectMapper, true, executor);
+
+        var ctx = FakeOperationContext.create();
+
+        var traced = new TracedFlowResult(List.of(flow), List.of());
+        var result = action.analyze(traced, ctx);
+
+        assertEquals(1, result.flows().size());
+        assertEquals("Cached user story", result.flows().get(0).userStory(),
+            "Should reuse cached analysis instead of calling LLM");
+        executor.shutdown();
+    }
+
+    @Test
+    void nullExecutorFallsBackToSequentialLoop() {
+        var entryPoint = new HttpEntryPoint("GET /test", "TestController", "handle", SAMPLE_CONTROLLER,
+            0.5, false, "GET", "/test", List.of(), List.of(), 9, 11);
+        var steps = List.of(new FlowStep(0, FlowStepComponentType.REST_ENDPOINT, "TestController", "handle",
+            null, SAMPLE_CONTROLLER, 9, 11, List.of()));
+        var flow = flow(FlowStatus.TRACED, steps, entryPoint);
+
+        var action = new AnalyzeFlowAction(
+            new CodebaseKnowledge(new StructuralGraph(), new SemanticEnrichment(), new LinkRegistry()),
+            mock(ExecutionFindingStore.class), new ObjectMapper(), false);
+
+        var ctx = FakeOperationContext.create();
+        ctx.expectResponse(new AnalyzeFlowAction.FlowAnalysisResponse(
+            "Sequential result", List.of(), List.of(), List.of(), List.of()));
+
+        var traced = new TracedFlowResult(List.of(flow), List.of());
+        var result = action.analyze(traced, ctx);
+
+        assertEquals(1, result.flows().size());
+        assertEquals("Sequential result", result.flows().get(0).userStory());
     }
 }

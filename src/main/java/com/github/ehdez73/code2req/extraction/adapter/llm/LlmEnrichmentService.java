@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -149,7 +150,7 @@ public CompletableFuture<ExecutionFinding> enrich(Task task,
         return finding;
     }
 
-    private ExecutionFinding callLlm(Task task, String sourceContent, String testContent, String structuralContextJson) {
+    ExecutionFinding callLlm(Task task, String sourceContent, String testContent, String structuralContextJson) {
         String systemPrompt = buildSystemPrompt();
         String userPrompt = buildUserPrompt(task, sourceContent, testContent, structuralContextJson);
 
@@ -189,12 +190,7 @@ public CompletableFuture<ExecutionFinding> enrich(Task task,
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                response = chatClient.prompt()
-                    .system(systemPrompt)
-                    .user(userPrompt)
-                    .options(options)
-                    .call()
-                    .content();
+                response = invokeLlm(systemPrompt, userPrompt, options);
 
                 if (response == null || response.isBlank()) {
                     throw new RuntimeException("LLM returned empty response");
@@ -231,31 +227,68 @@ public CompletableFuture<ExecutionFinding> enrich(Task task,
                 boolean isRateLimit = e.getMessage() != null && e.getMessage().contains("429");
                 long backoffMs = isRateLimit ? delayMs : 1000L;
                 if (attempt < maxRetries) {
-                    if (!isRateLimit && response != null) {
-                        userPrompt = buildErrorFeedbackPrompt(
-                            task, sourceContent, testContent, structuralContextJson,
-                            response, e.getMessage());
-                        log.warn("Recoverable error (attempt {}/{}), feeding back to LLM for task {}: {}",
-                            attempt, maxRetries, task.taskId(), e.getMessage());
-                    } else {
-                        log.warn("Recoverable error (attempt {}/{}), retrying in {}ms for task {}: {}",
-                            attempt, maxRetries, backoffMs, task.taskId(), e.getMessage());
-                    }
-                    try {
-                        Thread.sleep(backoffMs);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException("Retry interrupted", ie);
-                    }
                     if (isRateLimit) {
+                        try {
+                            Thread.sleep(backoffMs);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("Retry interrupted", ie);
+                        }
                         delayMs = (long) Math.min(delayMs * (long) multiplier, capMs);
+                        log.warn("Rate limit (attempt {}/{}), retrying in {}ms for task {}",
+                            attempt, maxRetries, backoffMs, task.taskId());
+                    } else {
+                        log.warn("Parse failure (attempt {}/{}), retrying with original prompt for task {}: {}",
+                            attempt, maxRetries, task.taskId(), e.getMessage());
+                        try {
+                            Thread.sleep(backoffMs);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("Retry interrupted", ie);
+                        }
                     }
                 } else {
-                    throw new RuntimeException("LLM call failed after " + attempt + " attempt(s)", e);
+                    if (isRateLimit) {
+                        throw new RuntimeException("LLM call failed after " + attempt + " rate-limit attempt(s)", e);
+                    }
+                    log.warn("LLM call failed after {} attempts for task {}, returning minimal stub",
+                        maxRetries, task.taskId());
+                    return buildMinimalFinding(task);
                 }
             }
         }
         throw new RuntimeException("LLM call failed after " + maxRetries + " retries");
+    }
+
+    String invokeLlm(String systemPrompt, String userPrompt, OpenAiChatOptions options) {
+        if (chatClient == null) {
+            throw new IllegalStateException(
+                "ChatClient not available: configure spring.ai.openai.* properties or use --dry-run");
+        }
+        return chatClient.prompt()
+            .system(systemPrompt)
+            .user(userPrompt)
+            .options(options)
+            .call()
+            .content();
+    }
+
+    private ExecutionFinding buildMinimalFinding(Task task) {
+        var meta = new ExecutionFinding.Metadata(
+            task.taskId(),
+            task.targetName(),
+            task.filePath(),
+            "business_semantics",
+            task.contentType(),
+            java.time.LocalDateTime.now().toString());
+        return new ExecutionFinding(
+            meta,
+            new ExecutionFinding.BusinessRulesAndGuardrails(List.of(), List.of()),
+            List.of(),
+            new ExecutionFinding.ArchitecturalConnections(
+                new ExecutionFinding.Inbound(List.of(), List.of(), List.of()),
+                new ExecutionFinding.Outbound(List.of(), List.of())),
+            List.of());
     }
 
 private String buildSystemPrompt() {

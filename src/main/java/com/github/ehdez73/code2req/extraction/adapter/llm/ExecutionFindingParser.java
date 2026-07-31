@@ -22,6 +22,16 @@ public class ExecutionFindingParser {
     public String sanitize(String response) {
         String s = response.trim();
 
+        s = extractJsonSpan(s);
+
+        if (!s.isEmpty() && s.charAt(0) != '{') {
+            if (s.matches("^['\"]?\\w+['\"]?\\s*:.*")) {
+                s = "{" + s + "}";
+            }
+        }
+
+        s = normalizePropertyQuotes(s);
+
         if (s.startsWith("```")) {
             int start = s.indexOf('\n');
             int end = s.lastIndexOf("```");
@@ -71,6 +81,60 @@ public class ExecutionFindingParser {
         } catch (Exception e) {
             throw new RuntimeException("Lenient JSON parsing also failed", e);
         }
+    }
+
+    private String extractJsonSpan(String s) {
+        int firstBrace = -1;
+        int lastClose = -1;
+        int depth = 0;
+        boolean inString = false;
+        char stringChar = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (inString) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == stringChar || (c == '"' || c == '\'')) {
+                    inString = false;
+                    stringChar = 0;
+                }
+            } else {
+                if (c == '"' || c == '\'') {
+                    inString = true;
+                    stringChar = c;
+                } else if (c == '{') {
+                    if (firstBrace < 0) {
+                        firstBrace = i;
+                    }
+                    depth++;
+                } else if (c == '}') {
+                    if (firstBrace >= 0) {
+                        depth--;
+                        if (depth == 0) {
+                            lastClose = i;
+                        }
+                    }
+                }
+            }
+        }
+        if (firstBrace >= 0 && lastClose >= 0) {
+            String prefix = s.substring(0, firstBrace).trim();
+            if (!prefix.isEmpty() && prefix.matches("^['\"]?\\w+['\"]?\\s*:$")) {
+                firstBrace = s.indexOf(prefix);
+            }
+            return s.substring(firstBrace, lastClose + 1);
+        }
+        if (firstBrace >= 0 && depth > 0) {
+            String span = s.substring(firstBrace);
+            return span + "\n" + "}".repeat(depth);
+        }
+        return s;
+    }
+
+    private String normalizePropertyQuotes(String json) {
+        String result = json.replaceAll("'(\\w+)'(\\s*:)", "\"$1\"$2");
+        result = result.replaceAll("'(\\w+)\"(\\s*:)", "\"$1\"$2");
+        return result;
     }
 
     private String fixBraceBalance(String json) {

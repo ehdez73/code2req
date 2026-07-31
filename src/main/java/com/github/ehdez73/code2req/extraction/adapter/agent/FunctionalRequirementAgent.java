@@ -25,11 +25,13 @@ import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingSt
 import com.github.ehdez73.code2req.infrastructure.persistence.TaskStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 @Agent(
     name = "functional-requirement-extractor",
@@ -47,6 +49,7 @@ public class FunctionalRequirementAgent {
     private final TaskStore taskStore;
     private final StructuralContextAssembler structuralContextAssembler;
     private final ObjectMapper objectMapper;
+    private final Executor orchestratorTaskExecutor;
 
     public FunctionalRequirementAgent(ExecutionFindingStore executionFindingStore,
                                       AllowedLibrariesConfig allowedLibrariesConfig,
@@ -54,7 +57,8 @@ public class FunctionalRequirementAgent {
                                       EnrichmentConfig enrichmentConfig,
                                       TestFileMatcher testFileMatcher,
                                       TaskStore taskStore,
-                                      StructuralContextAssembler structuralContextAssembler) {
+                                      StructuralContextAssembler structuralContextAssembler,
+                                      @Qualifier("orchestratorTaskExecutor") Executor orchestratorTaskExecutor) {
         this.executionFindingStore = executionFindingStore;
         this.allowedLibrariesConfig = allowedLibrariesConfig;
         this.enrichmentService = enrichmentService;
@@ -62,6 +66,7 @@ public class FunctionalRequirementAgent {
         this.testFileMatcher = testFileMatcher;
         this.taskStore = taskStore;
         this.structuralContextAssembler = structuralContextAssembler;
+        this.orchestratorTaskExecutor = orchestratorTaskExecutor;
         this.objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
@@ -154,7 +159,7 @@ public class FunctionalRequirementAgent {
         Boolean resumeFlag = (Boolean) context.get("resume");
         boolean resume = resumeFlag != null && resumeFlag;
         TracedFlowResult tracedResult = new TracedFlowResult(enrichedResult.flows(), List.of());
-        AnalyzeFlowAction action = new AnalyzeFlowAction(knowledge, executionFindingStore, objectMapper, resume);
+        AnalyzeFlowAction action = new AnalyzeFlowAction(knowledge, executionFindingStore, objectMapper, resume, orchestratorTaskExecutor);
         AnalyzedFlowResult result = action.analyze(tracedResult, context);
         ws.setFlowAnalyzed(true);
         return result;
