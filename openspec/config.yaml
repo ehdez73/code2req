@@ -1,0 +1,81 @@
+schema: spec-driven
+
+# Project context — shown to AI when creating artifacts.
+context: |
+  ## code2req — AI Reverse Engineering CLI
+
+  **Tech stack:** Java 21, Spring Boot 3.4.x, Spring Shell, Maven, SQLite
+  **Key libraries:** Spring JDBC (JdbcTemplate) — no ORM, JavaParser (AST analysis), Embabel GOAP (agentic extraction, Phase 3)
+
+  ### Architecture (3-Phase Pipeline)
+  - Phase 1: deterministic indexing — JavaParser AST parsing, in-memory secret redaction, SQLite task store, JSON code graph export (zero network/LLM calls)
+  - Phase 2: LLM-powered per-file semantic enrichment via Spring AI + OpenRouter, `CompletableFuture` orchestration on a dedicated executor pool
+  - Phase 3: Embabel GOAP agent — entry-point-driven functional requirement extraction with dynamic flow tracing and spec synthesis
+
+  ### Key Constraints
+  - No ORM — Spring JDBC with SQLite (WAL mode + `busy_timeout=5000`)
+  - JavaParser AST traversal with annotation-driven fallback when type resolution fails
+  - Secret redaction is in-memory only (`[REDACTED:type]` placeholders) — files on disk never modified
+  - Maven depgraph resolution is optional / non-blocking — graceful degrade if Maven unavailable
+  - Task IDs are deterministic SHA-256 hashes of `file_path | sha256(content) | sha256(test_content) | sha256(model_id) | sha256(prompt_version)`
+  - Single-file failures never block the full scan
+
+  ### Build & Test
+  ```
+  mvn clean compile          # build only
+  mvn clean test             # execute tests
+  mvn spring-boot:run        # run interactive shell
+  ```
+
+  ### Coding Standards
+  - SOLID, DRY, KISS, YAGNI
+  - TDD required: every production code change must have corresponding unit/integration tests
+  - Run `mvn clean test` to verify all tests pass before considering work complete
+  - Canonical references: `docs/sdlc/tech-stack.md`, `docs/sdlc/adrs/*.md`, `.agents/skills/spring/SKILL.md`
+
+  ### Project Structure
+  ```
+  src/main/java/com/github/ehdez73/code2req/
+      Application.java        # @SpringBootApplication entrypoint
+      shell/                   # Spring Shell commands
+  ```
+  - `project-manifest.yaml` defines scan targets for external repos
+  - `docs/sdlc/sdlc-context.json` is the canonical record of scope, stories, and architecture decisions
+
+  ### JVM Quirks
+  - `spring.main.web-application-type=none` — CLI, not a web app
+  - Async pool: core=5, max=10, queue=1000, prefix=`c2r-executor-`, 30s shutdown await
+
+# Per-artifact rules
+rules:
+  proposal:
+    - Read relevant ADRs in `docs/sdlc/adrs/` before proposing any feature that touches the affected area
+    - Keep proposals scoped and referenced to specific epics/features in `docs/sdlc/sdlc-context.json`
+    - Always include a "Non-goals" section
+    - Reference existing Gherkin feature files in `docs/sdlc/features/` when applicable
+  specs:
+    - Use Gherkin format matching existing patterns in `docs/sdlc/features/`
+    - Reference the SDLC context structure from `docs/sdlc/sdlc-context.json`
+    - Each spec must include: Background, Business Rules, and User Stories with acceptance criteria
+    - Tag specs with the epic ID (E001–E005) and feature ID (F001–F030)
+  tasks:
+    - TDD required: create or update corresponding unit/integration tests with every production code change
+    - Follow patterns in `.agents/skills/spring/SKILL.md` for testing
+    - Break tasks into chunks of max 2 hours
+    - Reference task IDs as deterministic SHA-256 hashes (see ADR-004)
+    - Run `mvn clean test` to verify all tests pass before marking tasks complete
+
+# Per-operation guidance
+operations:
+  apply:
+    guidance:
+      - Keep test summaries concise
+      - Verify with `mvn clean test` after implementation
+      - Follow SOLID, DRY, KISS, YAGNI principles
+      - Never modify source files on disk (read-only operation)
+      - Always use `[REDACTED:type]` for any credentials or secrets in prompts
+  archive:
+    guidance:
+      - Summarize the archive outcome before finishing
+      - Note which ADRs or epics were affected
+      - Confirm `mvn clean test` passes before archiving
