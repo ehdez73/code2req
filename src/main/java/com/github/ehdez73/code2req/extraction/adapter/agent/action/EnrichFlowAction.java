@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 
 public class EnrichFlowAction {
@@ -50,6 +51,7 @@ public class EnrichFlowAction {
     private final TaskStore taskStore;
     private final StructuralContextAssembler structuralContextAssembler;
     private final ObjectMapper objectMapper;
+    private final Map<String, CompletableFuture<Void>> enrichmentCache = new ConcurrentHashMap<>();
 
     public EnrichFlowAction(LlmEnrichmentService enrichmentService,
                             EnrichmentConfig enrichmentConfig,
@@ -88,6 +90,7 @@ public class EnrichFlowAction {
         }
 
         log.info("EnrichFlowAction: completed enrichment for {} flow(s)", flows.size());
+        enrichmentCache.clear();
         return new EnrichedFlowResult(flows);
     }
 
@@ -138,13 +141,15 @@ public class EnrichFlowAction {
             enrichmentConfig.resolvedMaxConcurrentLlmCalls());
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (String filePath : toEnrich) {
-            futures.add(CompletableFuture.runAsync(() -> {
-                try {
-                    enrichFile(filePath);
-                } catch (Exception e) {
-                    log.warn("EnrichFlowAction: enrichment failed for {}: {}", filePath, e.getMessage());
-                }
-            }, executor));
+            var cf = enrichmentCache.computeIfAbsent(filePath,
+                k -> CompletableFuture.runAsync(() -> {
+                    try {
+                        enrichFile(k);
+                    } catch (Exception e) {
+                        log.warn("EnrichFlowAction: enrichment failed for {}: {}", k, e.getMessage());
+                    }
+                }, executor));
+            futures.add(cf);
         }
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         executor.shutdown();
