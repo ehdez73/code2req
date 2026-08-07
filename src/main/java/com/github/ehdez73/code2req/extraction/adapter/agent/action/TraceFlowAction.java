@@ -56,7 +56,7 @@ public class TraceFlowAction {
         this.knowledge = knowledge;
         this.subChainCache = new HashMap<>();
         this.componentTypeLookup = buildComponentTypeLookup();
-        this.maxDepth = config != null ? config.resolvedMaxInvestigationStepsPerFlow() : 5;
+        this.maxDepth = config != null ? config.resolvedMaxInvestigationStepsPerFlow() : 8;
         this.frameworkPrefixes = frameworkPrefixes != null ? frameworkPrefixes : List.of();
     }
 
