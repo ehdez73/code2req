@@ -1,4 +1,5 @@
 # US063 — System retries LLM enrichment with error-feedback
+**Implementation Status:** implemented  
 
 **Epic:** E003 — Phase 2 LLM Enrichment Orchestration
 **Feature:** F017 — LLM Executor

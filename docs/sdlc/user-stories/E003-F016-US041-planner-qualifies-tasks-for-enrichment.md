@@ -1,4 +1,5 @@
 # US041 — Planner qualifies tasks for LLM enrichment
+**Implementation Status:** deferred  
 
 **Epic:** E003 — Semantic Enrichment
 **Feature:** F016 — Planner

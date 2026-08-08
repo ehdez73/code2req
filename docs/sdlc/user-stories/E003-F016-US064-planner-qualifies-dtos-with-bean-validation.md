@@ -1,4 +1,5 @@
 # US064 — Planner qualifies DTOs/records with bean validation annotations
+**Implementation Status:** deferred  
 
 **Epic:** E003 — Semantic Enrichment
 **Feature:** F016 — Planner

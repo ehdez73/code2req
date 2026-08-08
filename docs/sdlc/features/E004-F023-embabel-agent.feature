@@ -8,7 +8,7 @@ Feature: Embabel Agent — Entry-Point-Driven Extraction
   The Embabel agent discovers entry points from CodebaseKnowledge, traces execution flows through the call graph, extracts business semantics (user stories, Gherkin scenarios, business rules), groups related flows into features, and produces the final specification.
 
   Background:
-    Given CodebaseKnowledge is built with Phase 1 and Phase 2 data
+    Given CodebaseKnowledge is built with Phase 1 findings and enrichment data
     And the Embabel agent is invoked with initial blackboard state
 
   Rule: The agent traces execution flows from entry points and extracts functional requirements
@@ -47,7 +47,7 @@ Feature: Embabel Agent — Entry-Point-Driven Extraction
         - Gherkin scenarios (Given/When/Then)
         - Business rules with preconditions, postconditions, and error behavior
         - Edge cases with business consequences
-      And Phase 2 enrichment is used as context where available
+      And enrichment context is used where available
       And raw source files are read for gaps not covered by enrichment
 
     @US051 @E004 @F023 @must @final
@@ -62,7 +62,7 @@ Feature: Embabel Agent — Entry-Point-Driven Extraction
     Scenario: Agent groups related flows into features using semantic clustering
       Given multiple FunctionalFlow objects exist on the blackboard
       When the GroupFlows action executes
-      Then flows are clustered by semantic similarity from Phase 2 enrichment
+      Then flows are clustered by semantic similarity from enrichment data
       And related flows are merged into FunctionalFeature objects (e.g., GET/POST /orders = "Order Management")
       And features are assigned descriptive names and descriptions
 
@@ -98,13 +98,3 @@ Feature: Embabel Agent — Entry-Point-Driven Extraction
       Then the cache contains CrossReferencedResult, orphaned methods, and quarantine gaps
       And the cache is written to spec-output/extraction-cache.json
       And no spec files are written by the agent
-
-    @US051 @E004 @F023 @must @final
-    Scenario: Phase 3 crash marker prevents redundant re-execution
-      Given Phase 3 has completed successfully with marker set to ENRICHED
-      When the run command starts Phase 3 without --force-phase3
-      Then Phase 3 is skipped
-      And the output shows "use --force-phase3 to re-run"
-      When --force-phase3 is set
-      Then the marker is reset to PENDING
-      And Phase 3 executes from scratch

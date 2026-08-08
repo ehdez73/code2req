@@ -306,8 +306,8 @@
     },
     {
       "id": "E003",
-      "name": "Semantic Enrichment (Spring AI + @Async)",
-      "description": "Phase 2 of the pipeline: per-file LLM-powered semantic enrichment using Spring AI ChatClient and Spring @Async executors. A Planner qualifies files, an Executor enriches each file with business semantics, and an Orchestrator manages the DAG with a synchronization barrier before Phase 3.",
+      "name": "Semantic Enrichment (Embedded in extract)",
+      "description": "Per ADR-006, enrichment is not a standalone Phase 2 — it runs as a GOAP action (EnrichFlowAction) inside the extract command. LlmEnrichmentService handles LLM calls with StructuralContextAssembler providing Phase 1 context. No separate plan/enrich CLI commands exist.",
       "priority": "must"
     },
     {
@@ -580,78 +580,72 @@
     {
       "id": "F016",
       "epic_id": "E003",
-      "name": "Phase 2 Planner — Task Qualification for LLM Enrichment",
-      "description": "Reads the SQLite task store after Phase 1 and determines which tasks qualify for LLM enrichment based on configurable rules: unresolved signatures threshold, Spring Data interfaces, stored procedures, custom validators, test file pairing.",
+      "name": "Flow-Driven Enrichment Qualification",
+      "description": "EnrichFlowAction.shouldEnrich() evaluates whether files in a traced flow need LLM enrichment using inline qualification checks: stored procedures, custom validators, complex SQL, unresolved HTTP calls, test file pairing, AOP advice links, and complex entry points. No standalone Planner or rule-engine plugin architecture was built.",
       "background": "Phase 1 indexing completed with tasks and findings in SQLite.",
       "business_rules": [
-        "A task qualifies if it exceeds llm-unresolved-threshold (default: 5) unresolved signatures",
-        "A task qualifies if it is a Spring Data interface (CrudRepository, JpaRepository)",
-        "A task qualifies if it contains a stored procedure call flagged for LLM interpretation",
-        "A task qualifies if it is a custom ConstraintValidator with an isValid body",
-        "A task qualifies if it has a paired test file with assertions",
-        "The planner makes zero LLM calls — pure query + rule engine"
+        "A file qualifies if it contains a DATABASE_PROCEDURE_CALL, CONSTRAINT_VALIDATOR, NATIVE_SQL_QUERY, or JPQL_HQL_QUERY finding",
+        "A file qualifies if it has unresolved floating links (PENDING status)",
+        "A file qualifies if it has a paired test file or AOP advice links",
+        "A file qualifies if it is an entry point with ComplexityLevel >= STANDARD",
+        "Qualification runs inside extract, not as a standalone step"
       ],
       "user_stories": [
-        { "id": "US041", "title": "Planner qualifies tasks for LLM enrichment", "priority": "must", "type": "story", "gherkin_file": "features/E003-F016-planner.feature" },
-        { "id": "US042", "title": "Planner supports dry-run DAG view", "priority": "should", "type": "story", "gherkin_file": "features/E003-F016-planner.feature" }
-      ],
-        { "id": "US064", "title": "Planner qualifies DTOs/records with bean validation annotations", "priority": "should", "type": "story", "gherkin_file": "features/E003-F016-planner.feature" }
+        { "id": "US041", "title": "Planner qualifies tasks for LLM enrichment", "priority": "must", "type": "story", "gherkin_file": "features/E003-F016-enrichment-qualification.feature", "actual_status": "deferred" },
+        { "id": "US042", "title": "Planner supports dry-run DAG view", "priority": "should", "type": "story", "gherkin_file": "features/E003-F016-enrichment-qualification.feature", "actual_status": "deferred" },
+        { "id": "US064", "title": "Planner qualifies DTOs/records with bean validation annotations", "priority": "should", "type": "story", "gherkin_file": "features/E003-F016-enrichment-qualification.feature", "actual_status": "deferred" }
       ]
     },
     {
       "id": "F017",
       "epic_id": "E003",
       "name": "LLM Executor Framework — Per-file Semantic Enrichment",
-      "description": "Individual file enrichment workers. Each executor receives pre-resolved structural context from Phase 1 plus raw source file content, calls Spring AI ChatClient, validates output against §4 JSON Schema, and persists ExecutionFinding to SQLite.",
-      "background": "Planner has qualified tasks for enrichment. @Async pool configured.",
+      "description": "Individual file enrichment workers (LlmEnrichmentService). Each executor receives structural context from Phase 1 (via StructuralContextAssembler) plus raw source file content, calls Spring AI ChatClient, validates output against JSON Schema, and persists ExecutionFinding to SQLite. Called from within EnrichFlowAction during extract.",
+      "background": "EnrichFlowAction has determined files need enrichment. @Async pool configured.",
       "business_rules": [
         "Executor receives structural context (call graph edges, endpoints, database access, link registrations)",
         "LLM prompt instructs model NOT to resolve structural dependencies — focus on business semantics only",
-        "Output must validate against §4 JSON Schema before task transitions to SUCCESS",
-        "Invalid output transitions task to FAILED with structural error classification",
+        "Output must validate against JSON Schema before task transitions to ENRICHED",
+        "Invalid output transitions task to ENRICH_FAILED with structural error classification",
         "On HTTP 429, exponential backoff: 2s initial, 2.0 multiplier, 60s cap, 3 max retries",
-        "Discovered dependencies are registered in SQLite as PENDING for re-planning",
         "Context budget: if combined tokens exceed 80% of model window, pre-summarize companion logic"
       ],
       "user_stories": [
-        { "id": "US043", "title": "Executor enriches a single file with LLM", "priority": "must", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" },
-        { "id": "US044", "title": "Executor supports dry-run simulation mode", "priority": "should", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" },
-        { "id": "US063", "title": "System retries LLM enrichment with error-feedback", "priority": "should", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature" }
+        { "id": "US043", "title": "Executor enriches a single file with LLM", "priority": "must", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature", "actual_status": "implemented" },
+        { "id": "US044", "title": "Executor supports dry-run simulation mode", "priority": "should", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature", "actual_status": "implemented" },
+        { "id": "US063", "title": "System retries LLM enrichment with error-feedback", "priority": "should", "type": "story", "gherkin_file": "features/E003-F017-llm-executor.feature", "actual_status": "implemented" }
       ]
     },
     {
       "id": "F018",
       "epic_id": "E003",
-      "name": "Orchestrator — Enrichment DAG Management",
-      "description": "Manages the enrichment DAG, submits tasks asynchronously via @Async, tracks progress via CompletableFuture, handles dynamic re-planning with branch isolation, and enforces the Phase 2→3 synchronization barrier.",
-      "background": "Planner decisions available. @Async pool configured.",
+      "name": "Embedded Enrichment in Extract",
+      "description": "EnrichFlowAction manages enrichment concurrency within the extract command using a dedicated thread pool. It fires CompletableFuture for each qualifying file, joins results before AnalyzeFlow runs, and uses a ConcurrentHashMap cache to avoid duplicating enrichment across flows. No standalone Orchestrator or dynamic re-planning was built.",
+      "background": "EnrichFlowAction invoked during extract. Thread pool configured.",
       "business_rules": [
-        "Tasks are submitted via @Async(\"orchestratorTaskExecutor\") returning CompletableFuture<ExecutionFinding>",
-        "Phase 2→3 barrier uses CompletableFuture.allOf() — blocks Phase 3 until ALL tasks complete",
-        "Discovered dependencies trigger branch isolation: only the affected branch pauses",
-        "Max hop depth (default: 3) — exceeded tasks set to AWAITING_HUMAN_REVIEW",
-        "Visited registry: thread-safe set of hashes prevents redundant evaluation"
+        "Files are enriched concurrently via CompletableFuture on a dedicated thread pool",
+        "CompletableFuture.allOf().join() blocks until all files in the flow are enriched",
+        "Enrichment cache (ConcurrentHashMap) avoids enriching the same file across multiple flows",
+        "No dynamic re-planning — discovered_dependencies are parsed and logged but not re-batched"
       ],
       "user_stories": [
-        { "id": "US045", "title": "Orchestrator manages enrichment DAG", "priority": "must", "type": "story", "gherkin_file": "features/E003-F018-orchestrator.feature" }
+        { "id": "US045", "title": "Orchestrator manages enrichment DAG", "priority": "must", "type": "story", "gherkin_file": "features/E003-F018-embedded-enrichment.feature", "actual_status": "deferred" }
       ]
     },
     {
       "id": "F019",
       "epic_id": "E003",
-      "name": "CLI Commands — plan and run",
-      "description": "The plan command displays the execution DAG without running. The run command orchestrates Phase 2 then Phase 3 (extract + generate) with configurable thresholds and dry-run mode. Status command extended with Phase 2+3 counters.",
-      "background": "All Phase 2 components implemented.",
+      "name": "CLI Commands — run",
+      "description": "The run command orchestrates scan → extract → generate end-to-end. Status command provides task counts and flow extraction metrics. No standalone plan/enrich commands exist — enrichment is embedded in extract via EnrichFlowAction.",
+      "background": "All pipeline components implemented.",
       "business_rules": [
-        "plan makes zero LLM calls and zero SQLite mutations — read-only DAG view",
-        "run --manifest path orchestrates Phase 2 then Phase 3 end-to-end",
-        "run --llm-threshold 0 skips Phase 2 entirely",
+        "run --manifest path orchestrates scan → extract → generate",
         "run --dry-run uses deterministic stubs with zero API spend",
-        "status shows enriched task count, tokens consumed, cost, flow extraction rate, ambiguity gaps"
+        "status shows task counts by status and flow extraction metrics"
       ],
       "user_stories": [
-        { "id": "US046", "title": "Developer views execution DAG with plan command", "priority": "must", "type": "story", "gherkin_file": "features/E003-F019-cli-run-command.feature" },
-        { "id": "US047", "title": "Developer runs full Phase 2 + Phase 3 pipeline", "priority": "must", "type": "story", "gherkin_file": "features/E003-F019-cli-run-command.feature" }
+        { "id": "US046", "title": "Developer views execution DAG with plan command", "priority": "must", "type": "story", "gherkin_file": "features/E003-F019-run-command.feature", "actual_status": "deferred" },
+        { "id": "US047", "title": "Developer runs full pipeline", "priority": "must", "type": "story", "gherkin_file": "features/E003-F019-run-command.feature", "actual_status": "implemented (modified: scan→extract→generate)" }
       ]
     },
     {
@@ -667,7 +661,7 @@
         "Extracted insights populate the test_insights array in ExecutionFinding JSON"
       ],
       "user_stories": [
-        { "id": "US048", "title": "Developer mines test files for assertion insights", "priority": "should", "type": "story", "gherkin_file": "features/E003-F020-test-suite-mining.feature" }
+        { "id": "US048", "title": "Developer mines test files for assertion insights", "priority": "should", "type": "story", "gherkin_file": "features/E003-F020-test-suite-mining.feature", "actual_status": "implemented (embedded in EnrichFlowAction)" }
       ]
     },
     {
@@ -691,10 +685,10 @@
       "id": "F022",
       "epic_id": "E004",
       "name": "CodebaseKnowledge Builder + Phase 3 Orchestrator",
-      "description": "Pure-Java services that aggregate Phase 1 and Phase 2 data into CodebaseKnowledge with query methods for entry points, call graph traversal, component discovery, and orphaned method detection. Phase3Orchestrator assembles the model, passes it to the Embabel agent, and handles output after completion.",
-      "background": "Phase 2 enriched data in SQLite. Embabel framework configured.",
+      "description": "Pure-Java services that aggregate Phase 1 findings and enrichment data into CodebaseKnowledge with query methods for entry points, call graph traversal, component discovery, and orphaned method detection. ExtractionOrchestrator builds the model, passes it to the Embabel agent, and handles output after completion.",
+      "background": "Enrichment findings in SQLite. Embabel framework configured.",
       "business_rules": [
-        "Phase3Orchestrator queries SQLite for ALL Phase 1 and Phase 2 data before agent invocation",
+        "ExtractionOrchestrator queries SQLite for ALL Phase 1 and enrichment data before agent invocation",
         "CodebaseKnowledge contains StructuralGraph, SemanticEnrichment, and LinkRegistry sub-models",
         "Query methods: getEntryPoints(), getCallersOf(), getCalleesOf(), getComponentsByType(), getAllKnownMethods(), findUnresolvedLinks()",
         "getEntryPoints() returns all entry point types (HTTP, SCHEDULED, KAFKA, RABBITMQ, ACTIVEMQ, EVENT_LISTENER)",
@@ -713,14 +707,14 @@
       "description": "The Embabel agent discovers entry points (HTTP, scheduled, Kafka, RabbitMQ, ActiveMQ, EventListener), traces execution flows through the call graph, extracts business semantics (user stories, Gherkin scenarios, business rules, edge cases), groups related flows into features using semantic clustering, resolves cross-flow dependencies, and produces Markdown + JSON output. Supports sub-chain caching, orphaned method detection, and progressive disclosure.",
       "background": "CodebaseKnowledge available. Embabel framework configured.",
       "business_rules": [
-        "Entry points are scored by priority (Phase 2 enrichment + complexity + user-facing + test file)",
+        "Entry points are scored by priority (enrichment availability + complexity + user-facing + test file)",
         "Trivial endpoints (actuator, health, metrics) are filtered out",
         "Flow tracing uses sub-chain caching to avoid redundant service chain analysis",
-        "Adaptive depth: max-flow-depth (default: 5) caps call chain exploration",
+        "Adaptive depth: max-flow-depth (default: 8) caps call chain exploration",
         "Progressive disclosure: MINIMAL/STANDARD/FULL output based on complexity score",
-        "Semantic clustering groups related flows into features using Phase 2 enrichment similarity",
+        "Semantic clustering groups related flows into features using enrichment similarity where available",
         "Orphaned methods unreachable from any entry point are flagged",
-        "Guardrails: max-flow-depth (5), max-tokens-per-run (500000)"
+        "Guardrails: max-flow-depth (8), max-tokens-per-run (500000)"
       ],
       "user_stories": [
         { "id": "US051", "title": "Embabel agent extracts functional requirements", "priority": "must", "type": "story", "gherkin_file": "features/E004-F023-embabel-agent.feature" }
@@ -904,8 +898,8 @@
       "features/E001-F015-template-form-detection.feature",
       "features/E003-F016-planner.feature",
       "features/E003-F017-llm-executor.feature",
-      "features/E003-F018-orchestrator.feature",
-      "features/E003-F019-cli-run-command.feature",
+      "features/E003-F018-embedded-enrichment.feature",
+      "features/E003-F019-run-command.feature",
       "features/E003-F020-test-suite-mining.feature",
       "features/E004-F021-embabel-setup.feature",
       "features/E004-F022-codebase-knowledge.feature",

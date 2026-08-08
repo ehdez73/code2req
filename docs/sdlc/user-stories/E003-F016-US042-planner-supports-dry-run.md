@@ -1,4 +1,5 @@
 # US042 — Planner supports dry-run DAG view
+**Implementation Status:** deferred  
 
 **Epic:** E003 — Semantic Enrichment
 **Feature:** F016 — Planner

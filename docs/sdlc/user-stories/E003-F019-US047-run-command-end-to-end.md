@@ -1,4 +1,5 @@
 # US047 — Developer runs full Phase 2 + Phase 3 pipeline
+**Implementation Status:** modified-scan-extract-generate  
 
 **Epic:** E003 — Semantic Enrichment
 **Feature:** F019 — CLI Commands

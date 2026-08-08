@@ -1,4 +1,5 @@
 # US044 — Executor supports dry-run simulation mode
+**Implementation Status:** implemented  
 
 **Epic:** E003 — Semantic Enrichment
 **Feature:** F017 — LLM Executor Framework

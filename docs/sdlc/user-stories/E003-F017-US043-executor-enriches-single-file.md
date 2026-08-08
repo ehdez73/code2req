@@ -1,4 +1,5 @@
 # US043 — Executor enriches a single file with LLM
+**Implementation Status:** implemented  
 
 **Epic:** E003 — Semantic Enrichment
 **Feature:** F017 — LLM Executor Framework

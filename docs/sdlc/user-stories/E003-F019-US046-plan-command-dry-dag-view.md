@@ -1,4 +1,5 @@
 # US046 — Developer views execution DAG with plan command
+**Implementation Status:** deferred  
 
 **Epic:** E003 — Semantic Enrichment
 **Feature:** F019 — CLI Commands

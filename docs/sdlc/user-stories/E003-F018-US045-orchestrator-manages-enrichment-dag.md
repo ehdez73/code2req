@@ -1,4 +1,5 @@
 # US045 — Orchestrator manages enrichment DAG
+**Implementation Status:** deferred  
 
 **Epic:** E003 — Semantic Enrichment
 **Feature:** F018 — Orchestrator

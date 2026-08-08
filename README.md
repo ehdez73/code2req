@@ -16,14 +16,13 @@ Development (SDD).
 | Command | Description |
 |---------|-------------|
 | `scan` | Parse Java sources via JavaParser AST, redact secrets, store in embedded SQLite, export JSON code graph |
-| `scan --resume` / `enrich --resume` | Incremental re-scan / re-enrich — skips already-completed files using deterministic SHA-256 task IDs |
+| `scan --resume` | Incremental re-scan — skips already-completed files using deterministic SHA-256 task IDs |
 | `status` | Query task store by status (`PENDING`, `INDEXED`, `ENRICH_PENDING`, `ENRICHING`, `ENRICHED`, `FAILED`, `ENRICH_FAILED`, `SKIPPED`) |
-| `enrich` | LLM-powered per-file semantic enrichment via Spring AI + OpenRouter |
-| `plan` | Evaluate INDEXED tasks and qualify candidates for enrichment |
-| `run` | Execute full pipeline: scan → plan → enrich → extract |
-| `extract` | Embabel agentic functional requirement extraction (GOAP planning) |
-| `generate` | Synthesize spec documents from enriched data |
-| `snapshot create` / `snapshot list` | Create and list SQLite snapshots for crash recovery |
+| `extract` | Embabel agentic functional requirement extraction (GOAP agent + embedded enrichment via `EnrichFlowAction`). Supports `--flow <id>`, `--regroup`, `--dry-run`, `--resume`, `--force` |
+| `flow list` | Display all detected and analyzed flows with `--status`, `--type`, `--filter`, `--verbose` |
+| `generate` | Synthesize spec documents from extraction cache |
+| `run` | Execute full pipeline: scan → extract → generate |
+| `snapshot create` / `snapshot list` / `snapshot restore` | Create, list, and restore SQLite snapshots for crash recovery |
 | `task list` / `task findings` / `task set-status` | Inspect and manage individual tasks |
 | `clean` | Wipe all scanned data (SQLite store + output files) |
 | `validate` | Verify project manifest YAML structure |
@@ -63,11 +62,11 @@ profiles (`-P`) activate the corresponding Spring profile and add the required d
 for the Embabel agent.
 
 | Profile | Run command | Model | Provider | Env var |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | *(default)* | `./mvnw spring-boot:run` | `openai/gpt-oss-20b:free` | OpenRouter | `OPENROUTER_API_KEY` |
 | `local` | `./mvnw spring-boot:run -Plocal` | `gemma4` (Docker) | Local endpoint | *(not required)* |
 | `local-gemma-coder` | `./mvnw spring-boot:run -Plocal-gemma-coder` | Gemma-4-12B-Coder (Docker) | Local endpoint | *(not required)* |
-| `opencode` | `./mvnw spring-boot:run -Popencode` | `deepseek-v4-flash` | OpenCode | `OPENCODE_API_KEY` |
+| `opencode` | `./mvnw spring-boot:run -Popencode` | `hy3` | OpenCode | `OPENCODE_API_KEY` |
 | `opencode-free` | `./mvnw spring-boot:run -Popencode-free` | `deepseek-v4-flash-free` | OpenCode | `OPENCODE_API_KEY` |
 
 - **default** — uses OpenRouter's free tier. Set `OPENROUTER_API_KEY` or
@@ -75,9 +74,8 @@ for the Embabel agent.
 - **local / local-gemma-coder** — target a local OpenAI-compatible endpoint
   (e.g., vLLM, Ollama) at `http://localhost:12434`. Execution mode switches to
   `sync` for easier debugging. The API key is ignored.
-- **opencode / opencode-free** — use the OpenCode inference platform
-  (`https://opencode.ai`). Set `OPENCODE_API_KEY` in your environment. The
-  `deepseek-v4-flash-free` model is rate-limited.
+- **opencode** — uses the OpenCode inference platform (`https://opencode.ai/zen/go`). Set `OPENCODE_API_KEY`.
+- **opencode-free** — uses the OpenCode inference platform (`https://opencode.ai/zen`) with the rate-limited `deepseek-v4-flash-free` model. Execution mode switches to `sync`.
 
 ### Local Docker Inference
 
@@ -107,9 +105,8 @@ related settings from `application-<profile>.properties`.
 | Phase | What it does | Commands | Status |
 |-------|-------------|----------|--------|
 | **1** | Deterministic indexing — AST parsing, secret redaction, SQLite task store, JSON index export | `scan`, `scan --resume`, `validate`, `clean` | ✅ Active |
-| **2** | LLM-powered per-file enrichment via Spring AI (OpenRouter), `CompletableFuture` orchestration on a dedicated executor pool | `plan`, `enrich`, `enrich --resume` | ✅ Active |
-| **3** | Embabel GOAP agent — entry-point-driven functional requirement extraction with dynamic flow tracing and spec synthesis | `extract`, `generate` | ✅ Active |
-| **All** | End-to-end pipeline orchestration | `run` (scan → plan → enrich → extract) | ✅ Active |
+| **2** | Embabel GOAP agent — entry-point-driven functional requirement extraction with embedded LLM enrichment (`EnrichFlowAction`) and spec synthesis | `extract`, `flow list`, `generate` | ✅ Active |
+| **All** | End-to-end pipeline orchestration | `run` (scan → extract → generate) | ✅ Active |
 
 ## Key Design Decisions
 

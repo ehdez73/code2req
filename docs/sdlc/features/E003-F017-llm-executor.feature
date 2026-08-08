@@ -9,7 +9,7 @@ Feature: LLM Executor Framework
   Individual file enrichment workers that receive pre-resolved structural context and source code, then produce validated ExecutionFinding JSON.
 
   Background:
-    Given the planner has qualified a task for enrichment
+    Given EnrichFlowAction has determined a file needs enrichment
     And the task has pre-resolved structural context from Phase 1 (call graph edges, endpoint info, database access, link registrations)
     And the raw source file content is available
 

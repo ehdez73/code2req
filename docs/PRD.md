@@ -189,95 +189,17 @@ Point-in-time snapshots of local state (SQLite database + JSON extraction cache)
 * **CLI subcommands:** Three shell commands: `snapshot create [--name <label>]`, `snapshot list`, `snapshot restore --name <label>`. The `--name` parameter is optional for create, required for restore. Errors report clear messages (missing snapshot, non-existent name).
 * **Lifecycle and configuration:** Snapshots are independent of the `clean` command — `clean` never touches the `snapshots/` directory. The snapshot root is configurable via `code2req.snapshot.dir` (default `./snapshots`) and is gitignored via the `snapshots/` pattern.
 
-#### 2.1.6 Phase 2: Entry-Point LLM Semantic Enrichment
+#### 2.1.6 Enrichment: Embedded in Phase 2 (extract)
 
-After Phase 1 (deterministic indexing) completes, the pipeline performs an optional LLM enrichment pass focused on **entry-point files** — controllers, scheduled tasks, event listeners, and message consumers. These files bear the business operations users interact with, making them the highest-value targets for semantic enrichment. The enrichment adds context (business purpose, validation rules, edge cases, test insights, architectural connections) that is beyond the reach of static AST analysis, and is consumed by Phase 3's per-flow analysis.
+Per ADR-006, enrichment is not a standalone pipeline phase. It runs as a GOAP action (`EnrichFlowAction`) inside the `extract` command at Phase 2. The action evaluates flow-relevant files using inline qualification rules (stored procedures, custom validators, unresolved HTTP calls, test file pairing, complex entry points) and enriches qualifying files via `LlmEnrichmentService`. Non-qualifying files are handled directly from source code snippets during `AnalyzeFlow`. Enrichment results are cached in SQLite (`SEMANTIC_ENRICHMENT` findings) and reused across flows.
 
-**Non-entry-point files** (services, repositories, domain classes, etc.) are **not enriched individually**. Instead, Phase 3's flow analysis sends their source code as part of the flow-trace context — the LLM derives business rules, validations, and edge cases directly from the traced method bodies. This avoids redundant LLM calls: Phase 2 already captures the entry point's business context, while Phase 3's LLM receives the full traced flow with snippets of all participating files.
+The `StructuralContextAssembler` provides Phase 1 context (call graph edges, endpoints, DB access) to the LLM prompt. Concurrency is managed via a dedicated thread pool on `EnrichFlowAction`, using `CompletableFuture.allOf().join()` as the barrier before `AnalyzeFlow` runs.
 
-Phase 2 is broken into three sub-phases:
+There are no `plan` or `enrich` CLI commands — enrichment is fully embedded in `extract`.
 
-1. **Qualification (Planner):** A rule engine selects which INDEXED files require LLM enrichment — only entry-point files (controllers, scheduled tasks, event listeners) qualify by default, with additional deficit-oriented rules for edge cases.
-2. **Structural Context Assembly:** For each qualified file, Phase 1 findings (call graph edges, endpoints, event listeners, DB access, outbound HTTP calls) are queried from SQLite and assembled into a JSON payload.
-3. **Execution (Orchestrator + Executor):** Entry-point enrichment is submitted to the LLM concurrently. The orchestrator manages batches, collects results, and handles dynamic re-planning when file-level enrichment discovers inter-file dependencies.
+### 2.2 Phase 2: Agentic Extraction (Embabel GOAP)
 
-##### Qualification Rules
-
-The `EnrichmentPlanner` evaluates every INDEXED task against a configurable set of `QualificationRule` components. A task qualifies when any rule returns true; matching rules do not short-circuit — all matching reasons are recorded for traceability.
-
-| Rule | Trigger | Purpose |
-|------|---------|---------|
-| `UnresolvedSignaturesRule` | File has >`llm-unresolved-threshold` (default: 5) unresolved `CALL_GRAPH_EDGE` findings | Files with many unknown call targets likely depend on external types whose role requires LLM interpretation |
-| `StoredProcedureCallRule` | File has a `DATABASE_PROCEDURE_CALL` finding | Stored procedures contain opaque business logic that static analysis cannot decode |
-| `CustomConstraintValidatorRule` | File has a `CONSTRAINT_VALIDATOR` finding | Custom validation annotations (`@ValidOrder` etc.) need LLM to explain the validation semantics |
-| `UnresolvedFloatingLinkRule` | File has `floating_links` with `resolved_status = 'PENDING'` | Outbound HTTP calls to unresolved external endpoints require human-like analysis to classify |
-| `TestAssertionsPresentRule` | File has a paired test file (naming convention match) | Tests encode hidden business expectations; the LLM enriches both source and test insights concurrently |
-| `DtoValidationRule` | File has `VALIDATOR` finding + one of `ENDPOINT`/`COMPONENT`/`DB_ACCESS` | DTOs with Bean Validation annotations in a non-trivial context benefit from semantic enrichment |
-| `EntryPointRule` | File has an `ENDPOINT`, `SCHEDULED_TASK`, `KAFKA_LISTENER`, `RABBITMQ_LISTENER`, `ACTIVEMQ_LISTENER`, or `EVENT_LISTENER` finding (including XML-declared listeners) | Entry points define the business operations users interact with — their semantic context is the highest-value input for Phase 3's flow analysis |
-
-The first rule (`EntryPointRule`) is the primary gate: only files that Phase 1 identified as entry points qualify for enrichment. Non-entry-point classes (services, repositories, domain models) are handled by Phase 3, which sends their traced method bodies as inline source code snippets in the flow-analysis prompt. The remaining deficit-oriented rules run alongside the entry-point gate and may add additional qualification reasons where an entry-point file also has stored procedure calls, custom validators, unresolved floating links, etc.
-
-Rules are discovered automatically via Spring component scanning — adding a new rule requires only a `@Component` class implementing `QualificationRule`.
-
-##### Structural Context Assembly
-
-When `EnrichmentOrchestrator.buildSubmitBatch()` prepares a task for enrichment, it calls `StructuralContextAssembler.assemble(taskId)` instead of passing `null`. The assembler queries `execution_findings` by task ID, groups findings by type (excluding enrichment/flow types), and builds a JSON object where each finding type becomes a top-level key and the value is an array of the parsed `finding_json` objects:
-
-```
-{
-    "call_graph_edges": [{"source": "...", "target": "...", "resolved": true}],
-    "endpoints": [{"path": "/api/orders", "method": "GET"}],
-    "db_access": [{"operation": "query", "sql": "SELECT * FROM orders"}],
-    ...
-}
-```
-
-This payload is injected into the LLM prompt's `STRUCTURAL CONTEXT` section. The system prompt instructs the LLM to treat these as "already resolved — do not re-derive" and only report references outside this context as `discovered_dependencies`. This eliminates redundant LLM work and reduces token spend.
-
-##### Batch Parallelism & Concurrency Model
-
-The orchestrator submits enrichment futures in batches. All tasks within a batch are fired concurrently via `CompletableFuture` on a dedicated `orchestratorTaskExecutor` thread pool:
-
-```
-for each batch iteration:
-    for each decision in batch:
-        future = executor.enrich(task, decision, source, test, context)
-        // returns immediately — work is queued on thread pool
-    waitForAll(futures)  // blocks until ALL complete
-    processCompletedBatch(futures)  // may discover new dependencies
-```
-
-| Pool Parameter | Default | Configuration Key |
-|----------------|---------|-------------------|
-| Core pool size | 5 | `code2req.enrichment.max-concurrent-llm-calls` |
-| Max pool size | max(10, core) | — |
-| Queue capacity | 1000 | — |
-| Await termination | 30 seconds | — |
-
-Each task within a batch runs in parallel on the thread pool. The `waitForAll()` barrier (`CompletableFuture.allOf().join()`) prevents processing results until the entire batch completes — this is necessary because discovered dependencies from one file may affect how subsequent batches are built.
-
-Execution mode is controlled by `code2req.enrichment.execution-mode` (`async` / `sync`). In `async` mode (default), work is submitted to the thread pool. In `sync` mode, `doEnrich()` runs on the caller thread, forcing serial execution (useful for debugging with local LLMs).
-
-##### Dynamic Replanning
-
-When an LLM response contains `discovered_dependencies`, the orchestrator registers them as new `PlannerDecision` entries and creates a new batch iteration. These are inherently sequential — a parent file must complete before its discovered children can be enriched. The DAG ensures branch isolation: a slow parent only blocks its own branch, not unrelated branches.
-
-Discovered dependencies beyond `max-discovery-depth` (default: 3, via `code2req.indexing.max-discovery-depth`) are transitioned to `AWAITING_HUMAN_REVIEW`.
-
-##### Configuration Summary
-
-| Property | Default | Description |
-|----------|---------|-------------|
-| `code2req.enrichment.execution-mode` | `async` | `async` for thread-pool concurrency, `sync` for serial debugging |
-| `code2req.enrichment.max-concurrent-llm-calls` | 5 | Thread pool core size and concurrency degree |
-| `code2req.enrichment.llm-unresolved-threshold` | 5 | Unresolved signature count triggering `UnresolvedSignaturesRule` |
-| `code2req.enrichment.strict-response-format` | `true` | Enforce JSON Schema on LLM response format |
-| `code2req.enrichment.semantic-validation-sample-rate` | — | Fraction of enrichment results to validate (0.0–1.0, not yet implemented) |
-| `code2req.enrichment.max-tokens-per-run` | — | Aggregate token budget per enrichment session |
-
-### 2.2 Phase 3: Agentic Extraction (Embabel GOAP)
-
-Phase 3 uses an **Embabel GOAP agent** to transform the indexed code graph (Phase 1) and optional entry-point enrichment (Phase 2) into structured functional requirements. The agent discovers entry points, traces execution flows through the call graph, extracts business rules and edge cases, and groups related flows into features. Per ADR-006, Phase 3 is split into two CLI commands: `extract` (agentic analysis) and `generate` (pure-Java output synthesis). This section describes the agentic `extract` command; output generation is covered in §2.3.
+Phase 2 uses an **Embabel GOAP agent** to transform the indexed code graph (Phase 1) and embedded enrichment into structured functional requirements. The agent discovers entry points, traces execution flows through the call graph, extracts business rules and edge cases, and groups related flows into features. Per ADR-006, Phase 2 is split into two CLI commands: `extract` (agentic analysis) and `generate` (pure-Java output synthesis). This section describes the agentic `extract` command; output generation is covered in §2.3.
 
 The agent operates on a `CodebaseKnowledge` object built from the indexed SQLite store, which contains all endpoints, event listeners, scheduled tasks, method declarations, call graph edges, database access findings, and outbound HTTP calls discovered in Phase 1.
 
@@ -285,19 +207,18 @@ The agent operates on a `CodebaseKnowledge` object built from the indexed SQLite
 
 The Embabel GOAP agent chains seven actions based on goal completion rather than a fixed pipeline. Each action is a Spring `@Component` implementing a common action interface:
 
-* **`DiscoverEntryPoints`:** Scans `CodebaseKnowledge` for all entry-point candidates — HTTP endpoints (`@RequestMapping`, servlet paths), event listeners (`@KafkaListener`, `@RabbitListener`, `@JmsListener`, `@EventListener`), and scheduled tasks (`@Scheduled`). Trivial endpoints (actuator, health, metrics, swagger) are filtered out. Each surviving entry point receives a priority score based on: Phase 2 enrichment availability, method complexity, user-facing heuristics, and presence of associated test files.
+* **`DiscoverEntryPoints`:** Scans `CodebaseKnowledge` for all entry-point candidates — HTTP endpoints (`@RequestMapping`, servlet paths), event listeners (`@KafkaListener`, `@RabbitListener`, `@JmsListener`, `@EventListener`), and scheduled tasks (`@Scheduled`). Trivial endpoints (actuator, health, metrics, swagger) are filtered out. Each surviving entry point receives a priority score based on: embedded enrichment availability, method complexity, user-facing heuristics, and presence of associated test files.
 * **`TraceFlow`:** Follows call graph edges from the highest-priority unscheduled entry point. Flow steps trace from the entry point through service layers to repositories, database calls, and external HTTP services with adaptive depth. Sub-chain caching reuses already-traced service chains when sibling entry points share same-service call paths. Unresolved calls (external services, third-party libraries) are recorded in the flow as external references.
-* **`AnalyzeFlow`:** Extracts functional requirements from each traced flow — a user story title, one or more Gherkin scenarios (given/when/then), business rules with provenance, edge cases, and non-functional requirements. For each flow, it sends a single LLM prompt containing: (1) the entry point's Phase 2 enrichment context (validations, edge cases, test insights), (2) a structural flow summary (component type → class → method for each step), and (3) **source code snippets** — the class header (annotations + declaration) and traced method bodies for every file in the flow, extracted by line range from disk. Intermediate files (services, repositories, etc.) are provided as raw code snippets rather than pre-computed enrichment, since the LLM can derive business rules and validations directly from the traced method bodies. Supports progressive disclosure: flows output MINIMAL, STANDARD, or FULL detail based on their complexity score, preventing trivial flows from drowning out complex ones.
+* **`AnalyzeFlow`:** Extracts functional requirements from each traced flow — a user story title, one or more Gherkin scenarios (given/when/then), business rules with provenance, edge cases, and non-functional requirements. For each flow, it sends a single LLM prompt containing: (1) the entry point's enrichment context (from `EnrichFlowAction`), (2) a structural flow summary (component type → class → method for each step), and (3) **source code snippets** — the class header (annotations + declaration) and traced method bodies for every file in the flow, extracted by line range from disk. Intermediate files (services, repositories, etc.) are provided as raw code snippets rather than pre-computed enrichment, since the LLM can derive business rules and validations directly from the traced method bodies. Supports progressive disclosure: flows output MINIMAL, STANDARD, or FULL detail based on their complexity score, preventing trivial flows from drowning out complex ones.
 * **`GroupFlows`:** Clusters related flows into features using semantic similarity — from entry-point enrichment data (where available) and structural graph proximity. Each group becomes a feature section in the final specification.
 * **`CrossReferenceFlows`:** Detects inter-flow dependencies by analyzing flow steps against each other. Produces typed edges: `DELEGATES_TO` (one flow explicitly calls another's entry point), `PUBLISHES_EVENT` (flow emits a message consumed by another flow), `CONSUMES_EVENT` (flow starts in response to a message produced by another flow). Orphaned methods — methods reachable from no entry point — are flagged as either dead code or missing entry points.
-* **`QuarantineFlow`:** When a flow exceeds any guardrail (depth limit, token budget, ambiguity threshold), it is tagged `AWAITING_HUMAN_REVIEW` with an `unresolved_reason` payload. Quarantined flows are preserved in the output (Section 5 of the spec) rather than silently dropped, ensuring visibility regardless of agent confidence.
 * **`QuarantineFlow`:** When a flow exceeds any guardrail (depth limit, token budget, ambiguity threshold), it is tagged `AWAITING_HUMAN_REVIEW` with an `unresolved_reason` payload. Quarantined flows are preserved in the output (Section 5 of the spec) rather than silently dropped, ensuring visibility regardless of agent confidence.
 
 **Guardrails** are configuration-driven via `application.properties`:
 * `max-flow-depth` (default: 5) — maximum call-chain depth before a flow is quarantined
 * `max-tokens-per-run` (default: 500000) — aggregate LLM token budget for a single `extract` session
 
-### 2.3 Phase 4: Generation & Quality Audit
+### 2.3 Phase 3: Generation & Quality Audit
 
 The output phase produces the two final artifacts — a human-readable Markdown specification and a machine-readable `semantic_manifest.json` — and performs a structural quality audit before persisting.
 

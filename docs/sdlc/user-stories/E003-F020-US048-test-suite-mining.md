@@ -1,4 +1,5 @@
 # US048 — Developer mines test files for assertion insights
+**Implementation Status:** embedded-in-EnrichFlowAction  
 
 **Epic:** E003 — Semantic Enrichment
 **Feature:** F020 — Test Suite Mining
