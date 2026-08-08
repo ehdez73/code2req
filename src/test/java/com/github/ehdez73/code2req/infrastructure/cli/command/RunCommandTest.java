@@ -13,13 +13,13 @@ class RunCommandTest {
         var extract = mock(ExtractCommand.class);
         var generate = mock(GenerateCommand.class);
 
-        when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn("extract ok");
+        when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean(), any(), anyBoolean())).thenReturn("extract ok");
         when(generate.generate()).thenReturn("generate ok");
 
         var run = new RunCommand(scan, extract, generate);
         var result = run.run("manifest.yaml", false, false, false);
 
-        verify(extract).extract("manifest.yaml", false, false, false);
+        verify(extract).extract("manifest.yaml", false, false, false, null, false);
         verify(generate).generate();
         assertTrue(result.contains("Pipeline Complete"));
     }
@@ -30,13 +30,13 @@ class RunCommandTest {
         var extract = mock(ExtractCommand.class);
         var generate = mock(GenerateCommand.class);
 
-        when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn("extract ok");
+        when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean(), any(), anyBoolean())).thenReturn("extract ok");
         when(generate.generate()).thenReturn("generate ok");
 
         var run = new RunCommand(scan, extract, generate);
         run.run("manifest.yaml", true, false, false);
 
-        verify(extract).extract("manifest.yaml", false, false, true);
+        verify(extract).extract("manifest.yaml", false, false, true, null, false);
     }
 
     @Test
@@ -45,7 +45,7 @@ class RunCommandTest {
         var extract = mock(ExtractCommand.class);
         var generate = mock(GenerateCommand.class);
 
-        when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn("extract dry");
+        when(extract.extract(any(), anyBoolean(), anyBoolean(), anyBoolean(), any(), anyBoolean())).thenReturn("extract dry");
         when(generate.generate()).thenReturn("generate dry");
 
         var run = new RunCommand(scan, extract, generate);

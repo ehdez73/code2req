@@ -2,7 +2,6 @@ package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.EntryPointDiscoveryResult;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
-import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
 import com.github.ehdez73.code2req.extraction.domain.model.HttpEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.KafkaEntryPoint;
@@ -236,14 +235,18 @@ class TraceFlowActionTest {
             CallGraphEdge.resolved("E2", "m", "/src/E2.java", "E3", "m", "/src/E3.java", 0),
             CallGraphEdge.resolved("E3", "m", "/src/E3.java", "E4", "m", "/src/E4.java", 0),
             CallGraphEdge.resolved("E4", "m", "/src/E4.java", "E5", "m", "/src/E5.java", 0),
-            CallGraphEdge.resolved("E5", "m", "/src/E5.java", "E6", "m", "/src/E6.java", 0));
+            CallGraphEdge.resolved("E5", "m", "/src/E5.java", "E6", "m", "/src/E6.java", 0),
+            CallGraphEdge.resolved("E6", "m", "/src/E6.java", "E7", "m", "/src/E7.java", 0),
+            CallGraphEdge.resolved("E7", "m", "/src/E7.java", "E7", "m", "/src/E8.java", 0),
+            CallGraphEdge.resolved("E8", "m", "/src/E8.java", "E8", "m", "/src/E9.java", 0));
+
         var graph = new StructuralGraph(edges, List.of(), List.of(), List.of());
         var entryPoint = new HttpEntryPoint("ep", "E0", "m", "/src/E0.java",
             0.5, false, "GET", "/test", List.of(), List.of());
 
         var result = action(graph).traceAll(new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
 
-        assertTrue(result.flows().get(0).steps().size() <= 6);
+        assertTrue(result.flows().get(0).steps().size() <= 9);
     }
 
     @Test

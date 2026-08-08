@@ -80,6 +80,42 @@ class DomainRecordsTest {
     }
 
     @Test
+    void shortIdIsDeterministic() {
+        var ep1 = new HttpEntryPoint("id1", "Ctrl", "m", "/f.java",
+            0.5, false, "GET", "/api", List.of(), List.of());
+        var ep2 = new HttpEntryPoint("id1", "Ctrl", "m", "/f.java",
+            0.5, false, "GET", "/api", List.of(), List.of());
+
+        assertEquals(ep1.shortId(), ep2.shortId(), "Same flowId should produce same shortId");
+    }
+
+    @Test
+    void shortIdHasEightCharacters() {
+        var ep = new HttpEntryPoint("id1", "Ctrl", "m", "/f.java",
+            0.5, false, "GET", "/api", List.of(), List.of());
+
+        assertEquals(8, ep.shortId().length(), "Short ID must be exactly 8 hex characters");
+    }
+
+    @Test
+    void differentEntryPointsHaveDifferentShortIds() {
+        var ep1 = new HttpEntryPoint("id1", "Ctrl", "m", "/f.java",
+            0.5, false, "GET", "/api", List.of(), List.of());
+        var ep2 = new HttpEntryPoint("id2", "Ctrl", "m", "/f.java",
+            0.5, false, "GET", "/api", List.of(), List.of());
+
+        assertNotEquals(ep1.shortId(), ep2.shortId(), "Different flowIds should produce different shortIds");
+    }
+
+    @Test
+    void shortIdIsHexString() {
+        var ep = new HttpEntryPoint("id1", "Ctrl", "m", "/f.java",
+            0.5, false, "GET", "/api", List.of(), List.of());
+
+        assertTrue(ep.shortId().matches("[0-9a-f]{8}"), "Short ID must be lowercase hex");
+    }
+
+    @Test
     void methodIdentifierConstructsCorrectly() {
         var mi = new MethodIdentifier("OrderService", "placeOrder", "/src/OrderService.java");
 

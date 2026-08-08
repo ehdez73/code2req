@@ -3,6 +3,9 @@ package com.github.ehdez73.code2req.extraction;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
+import com.github.ehdez73.code2req.extraction.adapter.agent.action.TraceFlowAction;
+import com.github.ehdez73.code2req.extraction.adapter.agent.model.EntryPointDiscoveryResult;
+import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFinding;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
@@ -204,6 +207,49 @@ public class ExtractionOrchestrator {
 
     public ExtractionResult execute(boolean dryRun, boolean force) {
         return execute(dryRun, force, false);
+    }
+
+    public ExtractionResult executeFlow(String shortId, boolean regroup, boolean dryRun, boolean resume) {
+        CodebaseKnowledge knowledge = buildCodebaseKnowledge();
+        List<EntryPoint> entryPoints = knowledge.structuralGraph().getEntryPoints();
+
+        if (entryPoints.isEmpty()) {
+            throw new IllegalStateException("No scan data available. Run 'scan' first.");
+        }
+
+        List<EntryPoint> matches = entryPoints.stream()
+            .filter(ep -> ep.shortId().startsWith(shortId.toLowerCase()))
+            .toList();
+
+        if (matches.isEmpty()) {
+            throw new IllegalArgumentException(
+                "Flow not found: " + shortId + ". Use 'flow list' to see available flows.");
+        }
+        if (matches.size() > 1) {
+            var sb = new StringBuilder("Ambiguous short ID prefix. Matching flows:\n");
+            for (EntryPoint ep : matches) {
+                sb.append(String.format("  %s  %s%n", ep.shortId(), ep.id()));
+            }
+            sb.append("Use a longer prefix or the full short ID.");
+            throw new IllegalArgumentException(sb.toString());
+        }
+
+        EntryPoint entryPoint = matches.get(0);
+        log.info("Single-flow extraction: {}", entryPoint.id());
+
+        if (dryRun) {
+            TraceFlowAction traceAction = new TraceFlowAction(knowledge, extractionConfig,
+                List.of());
+            var result = traceAction.traceAll(
+                new com.github.ehdez73.code2req.extraction.adapter.agent.model.EntryPointDiscoveryResult(
+                    List.of(entryPoint), List.of()));
+            List<String> flowNames = result.flows().stream()
+                .map(f -> f.entryPoint().id()).toList();
+            return new ExtractionResult(0, 0, 0, flowNames, List.of());
+        }
+
+        return new ExtractionResult(1, 0, 0,
+            List.of(entryPoint.id()), List.of(cachePath));
     }
 
     boolean shouldSkipPhase3(CodebaseKnowledge knowledge, boolean force) {

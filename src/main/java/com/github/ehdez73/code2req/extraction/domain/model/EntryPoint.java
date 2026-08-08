@@ -2,6 +2,7 @@ package com.github.ehdez73.code2req.extraction.domain.model;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.github.ehdez73.code2req.common.util.HashUtils;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "epType")
 @JsonSubTypes({
@@ -24,4 +25,8 @@ public sealed interface EntryPoint permits HttpEntryPoint, ScheduledEntryPoint,
     boolean trivial();
     int startLine();
     int endLine();
+
+    default String shortId() {
+        return HashUtils.sha256Hex(id()).substring(0, 8);
+    }
 }

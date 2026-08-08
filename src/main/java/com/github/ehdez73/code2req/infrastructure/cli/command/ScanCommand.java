@@ -16,6 +16,7 @@ import com.github.ehdez73.code2req.common.domain.ProjectManifest;
 import com.github.ehdez73.code2req.common.domain.ScanTarget;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
+import com.github.ehdez73.code2req.common.util.HashUtils;
 import com.github.ehdez73.code2req.indexing.domain.service.OrphanRecovery;
 import com.github.ehdez73.code2req.indexing.IndexingOrchestrator;
 import com.github.ehdez73.code2req.indexing.domain.model.ScanPipelineResult;
@@ -380,7 +381,7 @@ public class ScanCommand {
     private void persistAnalysisResult(Path file, AnalysisResult result, ScanTarget target) {
         try {
             String content = Files.readString(file, StandardCharsets.UTF_8);
-            String contentHash = sha256Hex(content);
+            String contentHash = HashUtils.sha256Hex(content);
             String taskId = taskIdHasher.hash(file.toAbsolutePath().normalize().toString(), contentHash, target.name());
             taskStore.save(new Task(taskId, file.toAbsolutePath().normalize().toString(),
                 TaskStatus.INDEXED, "xml", contentHash, target.name()));
@@ -498,7 +499,7 @@ public class ScanCommand {
         String fp = file.toString();
         try {
             String content = Files.readString(file, StandardCharsets.UTF_8);
-            String contentHash = sha256Hex(content);
+            String contentHash = HashUtils.sha256Hex(content);
             String targetName = targetNameForFile(file, targets);
             String taskId = taskIdHasher.hash(fp, contentHash, targetName);
             Optional<Task> existing = taskStore.findById(taskId);
@@ -509,16 +510,6 @@ public class ScanCommand {
         } catch (IOException e) {
             log.warn("Failed to check completion for {}: {}", fp, e.getMessage());
             return false;
-        }
-    }
-
-    private static String sha256Hex(String input) {
-        try {
-            var digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return java.util.HexFormat.of().formatHex(hash);
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
         }
     }
 

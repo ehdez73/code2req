@@ -169,11 +169,11 @@ public class StructuralGraph {
     }
 
     public List<EntryPoint> getEntryPoints() {
-        List<EntryPoint> entryPoints = new ArrayList<>();
+        Map<String, EntryPoint> deduped = new java.util.LinkedHashMap<>();
 
         for (EndpointInfo ep : endpoints) {
             String id = ep.filePath() + ":" + ep.className() + ":" + ep.methodName() + " " + ep.httpMethod() + " " + ep.path();
-            entryPoints.add(new HttpEntryPoint(
+            deduped.putIfAbsent(id, new HttpEntryPoint(
                 id, ep.className(), ep.methodName(), ep.filePath(),
                 0.0, false,
                 ep.httpMethod(), ep.path(), ep.pathVariables(), ep.requestBodies(),
@@ -186,7 +186,7 @@ public class StructuralGraph {
                 : (st.fixedRate() != null ? "fixedRate=" + st.fixedRate()
                 : "fixedDelay=" + st.fixedDelay());
             String id = st.filePath() + ":" + st.className() + ":" + st.methodName() + " " + schedule;
-            entryPoints.add(new ScheduledEntryPoint(
+            deduped.putIfAbsent(id, new ScheduledEntryPoint(
                 id, st.className(), st.methodName(), st.filePath(),
                 0.0, false, schedule,
                 st.startLine(), st.endLine()
@@ -195,7 +195,7 @@ public class StructuralGraph {
 
         for (KafkaInfo k : kafkaListeners) {
             String id = k.filePath() + ":" + k.className() + ":" + k.methodName() + " " + k.topics();
-            entryPoints.add(new KafkaEntryPoint(
+            deduped.putIfAbsent(id, new KafkaEntryPoint(
                 id, k.className(), k.methodName(), k.filePath(),
                 0.0, false,
                 k.topics(), k.isPattern(), k.payloadType()
@@ -204,7 +204,7 @@ public class StructuralGraph {
 
         for (RabbitMqInfo r : rabbitmqListeners) {
             String id = r.filePath() + ":" + r.className() + ":" + r.methodName() + " " + r.queues();
-            entryPoints.add(new RabbitMqEntryPoint(
+            deduped.putIfAbsent(id, new RabbitMqEntryPoint(
                 id, r.className(), r.methodName(), r.filePath(),
                 0.0, false,
                 r.queues(), r.payloadType()
@@ -213,7 +213,7 @@ public class StructuralGraph {
 
         for (ActiveMqInfo a : activemqListeners) {
             String id = a.filePath() + ":" + a.className() + ":" + a.methodName() + " " + a.destination();
-            entryPoints.add(new ActiveMqEntryPoint(
+            deduped.putIfAbsent(id, new ActiveMqEntryPoint(
                 id, a.className(), a.methodName(), a.filePath(),
                 0.0, false,
                 a.destination(), a.payloadType()
@@ -222,17 +222,21 @@ public class StructuralGraph {
 
         for (EventListenerInfo el : eventListeners) {
             String id = el.filePath() + ":" + el.className() + ":" + el.methodName() + " " + el.payLoadType();
-            entryPoints.add(new EventListenerEntryPoint(
+            deduped.putIfAbsent(id, new EventListenerEntryPoint(
                 id, el.className(), el.methodName(), el.filePath(),
                 0.0, false,
                 el.payLoadType()
             ));
         }
 
-        entryPoints.addAll(resolvedXmlScheduledTasks);
-        entryPoints.addAll(resolvedXmlJmsListeners);
+        for (ScheduledEntryPoint sep : resolvedXmlScheduledTasks) {
+            deduped.putIfAbsent(sep.id(), sep);
+        }
+        for (ActiveMqEntryPoint amep : resolvedXmlJmsListeners) {
+            deduped.putIfAbsent(amep.id(), amep);
+        }
 
-        return entryPoints;
+        return new ArrayList<>(deduped.values());
     }
 
     public List<MethodIdentifier> getAllKnownMethods() {

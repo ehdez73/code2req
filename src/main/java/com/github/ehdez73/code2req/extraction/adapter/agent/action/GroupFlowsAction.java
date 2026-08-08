@@ -3,6 +3,7 @@ package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 import com.embabel.agent.api.common.OperationContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.ehdez73.code2req.common.util.HashUtils;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.AnalyzedFlowResult;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.GroupedFlowsResult;
 import com.github.ehdez73.code2req.extraction.domain.model.FlowStepComponentType;
@@ -309,7 +310,7 @@ public class GroupFlowsAction {
     }
 
     private static String shortId(String id) {
-        return Integer.toHexString(id.hashCode());
+        return HashUtils.sha256Hex(id).substring(0, 8);
     }
 
     private static String deterministicGroupKey(List<FunctionalFlow> flows) {

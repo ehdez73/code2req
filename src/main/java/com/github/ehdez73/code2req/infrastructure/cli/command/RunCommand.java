@@ -36,7 +36,7 @@ public class RunCommand {
         sb.append("=== Full Pipeline Run ===\n\n");
 
         sb.append(stripSuggestions(scanCommand.executeScan(manifestPath, resume))).append("\n");
-        sb.append(stripSuggestions(extractCommand.extract(manifestPath, dryRun, force, resume))).append("\n");
+        sb.append(stripSuggestions(extractCommand.extract(manifestPath, dryRun, force, resume, null, false))).append("\n");
         sb.append(stripSuggestions(generateCommand.generate())).append("\n");
 
         sb.append("=== Full Pipeline Complete ===");

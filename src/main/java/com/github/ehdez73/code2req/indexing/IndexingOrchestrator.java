@@ -4,6 +4,7 @@ import com.github.ehdez73.code2req.common.domain.Metric;
 import com.github.ehdez73.code2req.common.domain.ScanTarget;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
+import com.github.ehdez73.code2req.common.util.HashUtils;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisContext;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisFinding;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AnalysisResult;
@@ -267,7 +268,7 @@ public class IndexingOrchestrator {
         AnalysisContext context = new AnalysisContext(fp, sourceRoot != null ? sourceRoot : "", registry);
         AnalysisResult result = astAnalyzer.analyze(fp, redactedContent, context);
 
-        String contentHash = sha256Hex(content);
+        String contentHash = HashUtils.sha256Hex(content);
         String taskId = taskIdHasher.hash(fp, contentHash, targetName);
 
         transactionTemplate.executeWithoutResult(status -> {
@@ -325,16 +326,6 @@ public class IndexingOrchestrator {
         taskStore.save(failedTask);
     }
 
-    private static String sha256Hex(String input) {
-        try {
-            var digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return java.util.HexFormat.of().formatHex(hash);
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
-        }
-    }
-
     private <T extends AnalysisFinding> void saveLinkFindings(List<T> links, List<Path> allFiles,
                                                                List<ScanTarget> targets, String findingType) {
         if (links.isEmpty()) return;
@@ -344,7 +335,7 @@ public class IndexingOrchestrator {
             String targetName = targetNameForFile(Path.of(sourceFile), targets);
             try {
                 String content = Files.readString(Path.of(sourceFile), StandardCharsets.UTF_8);
-                String contentHash = sha256Hex(content);
+                String contentHash = HashUtils.sha256Hex(content);
                 String taskId = taskIdHasher.hash(sourceFile, contentHash, targetName);
                 saveGranularFinding(taskId, link, findingType);
             } catch (Exception e) {

@@ -3,6 +3,7 @@ package com.github.ehdez73.code2req.extraction.adapter.agent.action;
 import com.github.ehdez73.code2req.common.domain.Task;
 import com.github.ehdez73.code2req.common.domain.TaskStatus;
 import com.github.ehdez73.code2req.extraction.adapter.llm.LlmEnrichmentService;
+import com.github.ehdez73.code2req.common.util.HashUtils;
 import com.github.ehdez73.code2req.extraction.domain.model.EnrichmentConfig;
 import com.github.ehdez73.code2req.extraction.adapter.llm.TestFileMatcher;
 import com.github.ehdez73.code2req.extraction.domain.service.StructuralContextAssembler;
@@ -26,11 +27,9 @@ import org.slf4j.LoggerFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -158,7 +157,7 @@ public class EnrichFlowAction {
 
     private void enrichFile(String filePath) throws Exception {
         String sourceContent = Files.readString(Path.of(filePath), StandardCharsets.UTF_8);
-        String contentHash = sha256Hex(sourceContent);
+        String contentHash = HashUtils.sha256Hex(sourceContent);
 
         var existingTask = taskStore.findByFilePath(filePath);
         String taskId;
@@ -279,15 +278,5 @@ public class EnrichFlowAction {
         if (score >= 0.7) return ComplexityLevel.FULL;
         if (score >= 0.3) return ComplexityLevel.STANDARD;
         return ComplexityLevel.MINIMAL;
-    }
-
-    private static String sha256Hex(String input) {
-        try {
-            var digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
-        }
     }
 }
