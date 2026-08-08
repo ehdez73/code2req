@@ -5,9 +5,10 @@ import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
 import com.github.ehdez73.code2req.extraction.adapter.agent.action.TraceFlowAction;
 import com.github.ehdez73.code2req.extraction.adapter.agent.model.EntryPointDiscoveryResult;
-import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFlow;
+import com.github.ehdez73.code2req.extraction.domain.model.AmbiguityGap;
 import com.github.ehdez73.code2req.extraction.domain.model.ExtractionConfig;
 import com.github.ehdez73.code2req.extraction.domain.model.ExecutionFinding;
+import com.github.ehdez73.code2req.extraction.domain.model.FunctionalFlow;
 import com.github.ehdez73.code2req.extraction.domain.model.CodebaseKnowledge;
 import com.github.ehdez73.code2req.extraction.domain.model.ActiveMqEntryPoint;
 import com.github.ehdez73.code2req.extraction.domain.model.EntryPoint;
@@ -241,15 +242,126 @@ public class ExtractionOrchestrator {
             TraceFlowAction traceAction = new TraceFlowAction(knowledge, extractionConfig,
                 List.of());
             var result = traceAction.traceAll(
-                new com.github.ehdez73.code2req.extraction.adapter.agent.model.EntryPointDiscoveryResult(
-                    List.of(entryPoint), List.of()));
+                new EntryPointDiscoveryResult(List.of(entryPoint), List.of()));
             List<String> flowNames = result.flows().stream()
                 .map(f -> f.entryPoint().id()).toList();
             return new ExtractionResult(0, 0, 0, flowNames, List.of());
         }
 
-        return new ExtractionResult(1, 0, 0,
-            List.of(entryPoint.id()), List.of(cachePath));
+        ExtractionCache existingCache = loadExistingCache();
+
+        try {
+            var agent = agentPlatform.agents().stream()
+                .filter(a -> "functional-requirement-extractor".equals(a.getName()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                    "FunctionalRequirementAgent not deployed by Embabel"));
+
+            Map<String, Object> blackboard = new HashMap<>();
+            blackboard.put("codebaseKnowledge", knowledge);
+            blackboard.put("outputDir", specDir);
+            blackboard.put("extractionConfig", extractionConfig);
+            blackboard.put("quarantineConfig", quarantineConfig);
+            blackboard.put("resume", resume);
+            blackboard.put("flowIds", Set.of(entryPoint.id()));
+
+            AgentProcess process = agentPlatform.createAgentProcess(
+                agent, ProcessOptions.DEFAULT, blackboard);
+            agentPlatform.start(process).get(
+                extractionConfig.resolvedPhase3TimeoutMinutes(), TimeUnit.MINUTES);
+
+            ExtractionCache agentCache = loadExistingCache();
+            if (agentCache == null || agentCache.crossRefResult() == null
+                    || agentCache.crossRefResult().features().isEmpty()) {
+                log.warn("Agent produced empty cache for single-flow extraction");
+                return new ExtractionResult(0, 0, 0, List.of(entryPoint.id()), List.of());
+            }
+
+            FunctionalFlow singleFlow = agentCache.crossRefResult().features().get(0)
+                .flows().get(0);
+            List<AmbiguityGap> gaps = agentCache.quarantineGaps() != null
+                ? agentCache.quarantineGaps() : List.of();
+
+            boolean isNewFlow = existingCache == null
+                || !flowExistsInCache(existingCache, entryPoint.id());
+            boolean shouldRegroup = regroup || isNewFlow;
+
+            ExtractionCache updatedCache = ExtractionCache.mergeFlow(
+                existingCache, singleFlow, gaps, shouldRegroup);
+
+            if (shouldRegroup) {
+                updatedCache = regroupAllFlows(updatedCache, knowledge);
+            }
+
+            persistCache(updatedCache);
+
+            int totalFlows = updatedCache.crossRefResult().features().stream()
+                .mapToInt(f -> f.flows().size()).sum();
+            log.info("Single-flow extraction complete: {} ({} total flows in cache)",
+                entryPoint.id(), totalFlows);
+            return new ExtractionResult(totalFlows,
+                updatedCache.quarantineGaps().size(), 0,
+                List.of(entryPoint.id()), List.of(cachePath));
+        } catch (Exception e) {
+            log.error("Single-flow extraction failed: {}", e.getMessage(), e);
+            throw new RuntimeException("Single-flow extraction failed: " + e.getMessage(), e);
+        }
+    }
+
+    private ExtractionCache loadExistingCache() {
+        try {
+            if (Files.exists(cachePath)) {
+                return objectMapper.readValue(cachePath.toFile(), ExtractionCache.class);
+            }
+        } catch (Exception e) {
+            log.debug("Could not read extraction cache: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private boolean flowExistsInCache(ExtractionCache cache, String flowId) {
+        return cache.crossRefResult().features().stream()
+            .flatMap(f -> f.flows().stream())
+            .anyMatch(f -> f.flowId().equals(flowId));
+    }
+
+    private ExtractionCache regroupAllFlows(ExtractionCache cache, CodebaseKnowledge knowledge) {
+        try {
+            var agent = agentPlatform.agents().stream()
+                .filter(a -> "functional-requirement-extractor".equals(a.getName()))
+                .findFirst()
+                .orElse(null);
+            if (agent == null) {
+                log.warn("FunctionalRequirementAgent not available, skipping regroup");
+                return cache.withClearedStaleLinks();
+            }
+
+            Map<String, Object> blackboard = new HashMap<>();
+            blackboard.put("codebaseKnowledge", knowledge);
+            blackboard.put("outputDir", specDir);
+            blackboard.put("extractionConfig", extractionConfig);
+            blackboard.put("quarantineConfig", quarantineConfig);
+            blackboard.put("resume", true);
+
+            AgentProcess process = agentPlatform.createAgentProcess(
+                agent, ProcessOptions.DEFAULT, blackboard);
+            agentPlatform.start(process).get(5, TimeUnit.MINUTES);
+
+            ExtractionCache result = loadExistingCache();
+            return result != null ? result : cache;
+        } catch (Exception e) {
+            log.warn("Regroup failed: {}", e.getMessage());
+            return cache;
+        }
+    }
+
+    private void persistCache(ExtractionCache cache) {
+        try {
+            Files.createDirectories(cachePath.getParent());
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(cachePath.toFile(), cache);
+        } catch (IOException e) {
+            log.error("Failed to persist extraction cache: {}", e.getMessage(), e);
+        }
     }
 
     boolean shouldSkipPhase3(CodebaseKnowledge knowledge, boolean force) {

@@ -273,6 +273,7 @@ public class IndexingOrchestrator {
 
         transactionTemplate.executeWithoutResult(status -> {
             taskStore.save(new Task(taskId, fp, TaskStatus.INDEXED, "java", contentHash, targetName));
+            executionFindingStore.deleteByFilePath(fp);
             executionFindingStore.deleteByTaskId(taskId);
             persistFindings(taskId, result);
             reclassifyFindings(taskId, result);

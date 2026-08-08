@@ -37,15 +37,21 @@ The `sha256Hex` method is duplicated across `IndexingOrchestrator`, `ScanCommand
 
 **Impact:** `GroupFlowsAction.shortId()` must be updated to delegate to `EntryPoint.shortId()` for consistency between user-facing display and LLM prompts.
 
-### Decision 2: Bypass GOAP agent for single-flow extraction
+### Decision 2: Route single-flow through GOAP agent with flowIds filter
 
-**Choice:** Single-flow extraction (`extract --flow`) calls `TraceFlowAction`, `QuarantineFlowAction`, `EnrichFlowAction`, and `AnalyzeFlowAction` directly from `ExtractionOrchestrator`, without launching the GOAP agent. The GOAP agent is only invoked for group/cross-reference after merge, and only when needed (new flow or `--regroup`).
+**Choice:** Single-flow extraction (`extract --flow`) launches the existing GOAP agent with a `flowIds` filter on the blackboard. The agent processes only the target flow through its full 7-action pipeline (discover → trace → quarantine → enrich → analyze → group → persist). After the agent completes, `ExtractionOrchestrator` reads the agent's 1-flow cache, merges it into the existing multi-flow cache, and persists.
+
+**Implementation details:**
+- `DiscoverEntryPointsAction` gains an optional `Set<String> flowIds` constructor parameter. When set, `discover()` filters entry points to only those matching IDs.
+- `FunctionalRequirementAgent.discoverEntryPoints()` reads `"flowIds"` from the agent blackboard and passes them to the action.
+- `ExtractionOrchestrator.executeFlow()` puts `Set.of(entryPoint.id())` on the blackboard before launching the agent. Zero new constructor dependencies needed.
+- After agent finishes, reads the 1-flow cache from disk, extracts the `FunctionalFlow`, merges it with the pre-launch copy of the existing cache via `ExtractionCache.mergeFlow()`.
 
 **Alternatives considered:**
-- Modify the GOAP agent to conditionally skip `groupFlows` and `crossReferenceFlows` — would require changes to the agent's action selection logic and `WorldState`. More complex than direct invocation.
-- Always run the full agent but with a filtered entry point list — the agent would still attempt grouping with a single flow, producing a misleading or incomplete result.
+- **Bypass GOAP agent, call actions directly** — initially chosen (Decision 2 v1), abandoned because `AnalyzeFlowAction` requires Embabel's `OperationContext` (for `context.ai()` LLM calls), which only exists inside `@Action` methods. Direct invocation would require injecting 5+ new Spring beans into `ExtractionOrchestrator` and stubbing the framework context.
+- **Minimal trace+quarantine only** — would fix the call graph but not the LLM analysis (user stories, Gherkin, rules). Requires user to run full `extract --force` for updated analysis.
 
-**Rationale:** The GOAP agent's value is in sequencing interdependent actions. For a single flow, there is no inter-flow dependency — the pipeline degenerates to a linear sequence of trace → quarantine → enrich → analyze. Direct invocation is simpler, more testable, and doesn't couple flow-scoping logic to the agent.
+**Rationale:** The GOAP agent already owns the pipeline (all actions, all dependencies, `OperationContext`). Filtering entry points via the blackboard is a 3-line change to the agent, vs 20+ lines of dependency injection and context stubbing for direct invocation. The agent's persistCache overwrites the cache, but we hold the original in memory and merge after the agent completes — net effect is zero extra complexity.
 
 ### Decision 3: Cache merge instead of full cache replacement
 
@@ -131,7 +137,7 @@ If the short ID appears in both, the StructuralGraph match wins (the source of t
 - **[Risk] `FlowSummaryAssembler` depends on `StructuralGraph` for flowId construction** → If `StructuralGraph.getEntryPoints()` changes its ID format, `FlowSummaryAssembler` must match. Mitigation: The assembler reuses `getEntryPoints()` directly rather than re-implementing ID construction, so format changes propagate automatically.
 - **[Trade-off] Stale cross-references after re-analysis without regroup** → When existing flows are re-analyzed without `--regroup`, their updated content is in the cache but cross-reference relationships and feature grouping may be stale. Mitigation: `flow list --verbose` shows `[stale links]` indicator. Running `extract --regroup` or full `extract --force` clears it.
 - **[Trade-off] `generate` reflects stale grouping until regroup** → The generated `spec.md` will reflect updated flow content within potentially stale feature groups. This is acceptable because the user explicitly chose not to regroup.
-- **[Trade-off] Bypassing GOAP agent for single flows** → Direct invocation is simpler but creates a second code path for the extraction pipeline. If the agent's action logic changes (e.g., new step added between analyze and persist), single-flow extraction must be manually updated. Mitigation: single-flow extraction reuses the same action classes (`TraceFlowAction`, `AnalyzeFlowAction`, etc.) — only the orchestration differs.
+- **[Trade-off] Agent processes with full pipeline for single flow** → The GOAP agent always runs all 7 actions, including group+crossRef (which are no-ops for a single flow — it creates a single-flow feature with no relationships). This is slightly wasteful but avoids creating a parallel code path. If agent actions change, single-flow benefits automatically.
 
 ## Open Questions
 

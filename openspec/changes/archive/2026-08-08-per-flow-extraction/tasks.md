@@ -50,9 +50,9 @@
 - [x] 6.1 Add `execute(String shortId, boolean regroup, boolean dryRun, boolean resume)` overload to `ExtractionOrchestrator` scoped to a single flow
 - [x] 6.2 Implement two-tier short ID resolution: (1) match prefix against `StructuralGraph.getEntryPoints()` short IDs, (2) if no match, fall back to `ExtractionCache` FunctionalFlows converted to short IDs. If 1 match, proceed; if >1, throw with list of ambiguous matches; if 0 in both tiers, throw "not found"
 - [x] 6.3 Guard: if no scan data exists (no entry points in StructuralGraph), throw "No scan data available. Run 'scan' first."
-- [x] 6.4 Single-flow path (no GOAP agent for extract): call `TraceFlowAction.traceFlow(entryPoint)`, `QuarantineFlowAction`, `EnrichFlowAction`, `AnalyzeFlowAction` directly in sequence. In dry-run mode, stop after trace and display steps without LLM calls or cache writes.
-- [x] 6.5 After analysis: call `ExtractionCache.mergeFlow()` to persist the result
-- [x] 6.6 If flow is new (not in cache) OR `--regroup` is set: clear `flowsWithStaleLinks`, launch GOAP agent to execute `groupFlows` + `crossReferenceFlows` on the full merged cache
+- [x] 6.4 Single-flow path (routes through GOAP agent): put `flowIds` on agent blackboard, launch agent to process only the target flow through full 7-action pipeline. Agent handles trace → quarantine → enrich → analyze → group → persist naturally. In dry-run mode, stop after trace without launching agent.
+- [x] 6.5 After agent completes: read 1-flow cache from disk, extract `FunctionalFlow` + gaps, merge into pre-launch copy of existing cache via `ExtractionCache.mergeFlow()`
+- [x] 6.6 If flow is new (not in cache) OR `--regroup` is set: after merge, relaunch agent without `flowIds` filter to re-group and re-cross-reference all flows. Clear `flowsWithStaleLinks`.
 - [x] 6.7 Add unit tests for per-flow execution covering: valid single match, ambiguous prefix via StructuralGraph, ambiguous prefix via cache fallback, not found, no scan data, dry-run (traces only, no LLM, no cache write), resume (reuses FLOW_ANALYSIS), resume (no cache found, falls back to LLM), new flow triggers regroup, existing flow skips regroup, `--regroup` override
 - [x] 6.8 Run `mvn clean test`
 

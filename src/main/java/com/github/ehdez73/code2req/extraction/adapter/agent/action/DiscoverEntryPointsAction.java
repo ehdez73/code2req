@@ -39,15 +39,27 @@ public class DiscoverEntryPointsAction {
     );
 
     private final CodebaseKnowledge knowledge;
+    private final Set<String> flowIds;
 
     public DiscoverEntryPointsAction(CodebaseKnowledge knowledge) {
+        this(knowledge, null);
+    }
+
+    public DiscoverEntryPointsAction(CodebaseKnowledge knowledge, Set<String> flowIds) {
         this.knowledge = knowledge;
+        this.flowIds = flowIds;
     }
 
     public EntryPointDiscoveryResult discover() {
         StructuralGraph graph = knowledge.structuralGraph();
 
         List<EntryPoint> allEntryPoints = graph.getEntryPoints();
+
+        if (flowIds != null && !flowIds.isEmpty()) {
+            allEntryPoints = allEntryPoints.stream()
+                .filter(ep -> flowIds.contains(ep.id()))
+                .collect(Collectors.toList());
+        }
 
         List<EntryPoint> scored = allEntryPoints.stream()
             .map(this::scoreEntryPoint)

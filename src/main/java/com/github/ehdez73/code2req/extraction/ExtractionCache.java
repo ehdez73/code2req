@@ -72,15 +72,16 @@ public record ExtractionCache(
         } else {
             updatedGaps = new ArrayList<>();
         }
-        updatedGaps.addAll(newGaps);
+        if (newGaps != null) {
+            updatedGaps.addAll(newGaps);
+        }
 
         Set<String> staleLinks;
         if (isRegroup) {
             staleLinks = new HashSet<>();
         } else {
-            staleLinks = existing != null
-                ? new HashSet<>(existing.flowsWithStaleLinks())
-                : new HashSet<>();
+            Set<String> existingStale = existing != null ? existing.flowsWithStaleLinks() : null;
+            staleLinks = existingStale != null ? new HashSet<>(existingStale) : new HashSet<>();
             staleLinks.add(flowId);
         }
 

@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 @Agent(
@@ -97,7 +98,9 @@ public class FunctionalRequirementAgent {
         log.info("GOAP Action: DiscoverEntryPoints (ENTRY_POINTS_DISCOVERED)");
         CodebaseKnowledge knowledge = (CodebaseKnowledge) context.get("knowledge");
         WorldState ws = (WorldState) context.get("worldState");
-        DiscoverEntryPointsAction action = new DiscoverEntryPointsAction(knowledge);
+        @SuppressWarnings("unchecked")
+        Set<String> flowIds = (Set<String>) context.get("flowIds");
+        DiscoverEntryPointsAction action = new DiscoverEntryPointsAction(knowledge, flowIds);
         EntryPointDiscoveryResult result = action.discover();
         ws.setEntryPointsDiscovered(true);
         return result;

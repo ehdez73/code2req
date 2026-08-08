@@ -15,13 +15,14 @@ class ExecutionFindingStoreTest {
     Path tempDir;
 
     private ExecutionFindingStore store;
+    private JdbcTemplate jdbc;
 
     @BeforeEach
     void setUp() {
         var dbPath = tempDir.resolve("ef-test.db");
         var ds = new org.sqlite.SQLiteDataSource();
         ds.setUrl("jdbc:sqlite:" + dbPath.toAbsolutePath());
-        var jdbc = new JdbcTemplate(ds);
+        jdbc = new JdbcTemplate(ds);
         var schema = new TaskStoreSchema(jdbc);
         schema.createSchemaIfNotExists();
         store = new ExecutionFindingStore(jdbc);
@@ -59,5 +60,36 @@ class ExecutionFindingStoreTest {
     @Test
     void countByTypeReturnsZeroForMissingType() {
         assertEquals(0, store.countByType("NONEXISTENT"));
+    }
+
+    @Test
+    void deleteByFilePathRemovesOnlyTargetFileFindings() {
+        String file1 = "/src/A.java";
+        String file2 = "/src/B.java";
+
+        jdbc.update("""
+            INSERT INTO tasks (task_id, file_path, status, content_type, content_hash, target_name)
+            VALUES (?, ?, 'INDEXED', 'java', 'abc123', 'demo')
+        """, "task-A1", file1);
+        jdbc.update("""
+            INSERT INTO tasks (task_id, file_path, status, content_type, content_hash, target_name)
+            VALUES (?, ?, 'INDEXED', 'java', 'def456', 'demo')
+        """, "task-B1", file2);
+
+        store.save("task-A1", FindingType.COMPONENT, "{\"name\":\"A\"}", true);
+        store.save("task-A1", FindingType.ENDPOINT, "{\"path\":\"/a\"}", true);
+        store.save("task-B1", FindingType.COMPONENT, "{\"name\":\"B\"}", true);
+
+        int deleted = store.deleteByFilePath(file1);
+
+        assertEquals(2, deleted);
+        assertEquals(1, store.count());
+        assertEquals(1, store.countByType(FindingType.COMPONENT));
+    }
+
+    @Test
+    void deleteByFilePathNoMatchingFileReturnsZero() {
+        int deleted = store.deleteByFilePath("/nonexistent/File.java");
+        assertEquals(0, deleted);
     }
 }

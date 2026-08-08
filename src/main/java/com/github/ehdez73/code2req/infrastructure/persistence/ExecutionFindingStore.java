@@ -59,6 +59,14 @@ public class ExecutionFindingStore implements ExecutionFindingRepository {
         jdbc.update("DELETE FROM execution_findings WHERE task_id = ?", taskId);
     }
 
+    public int deleteByFilePath(String filePath) {
+        return jdbc.update("""
+            DELETE FROM execution_findings WHERE task_id IN (
+                SELECT task_id FROM tasks WHERE file_path = ?
+            )
+        """, filePath);
+    }
+
     public void deleteAll() {
         jdbc.execute("DELETE FROM execution_findings");
     }

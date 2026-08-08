@@ -3,6 +3,7 @@ package com.github.ehdez73.code2req.indexing;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.AstAnalysisVisitor;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.JavaAstAnalyzer;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.bean.ComponentVisitor;
+import com.github.ehdez73.code2req.indexing.domain.analyzer.callgraph.CallGraphVisitor;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.Pass1DeclarationCollector;
 import com.github.ehdez73.code2req.indexing.domain.analyzer.declaration.TestImportIndex;
 import com.github.ehdez73.code2req.indexing.domain.model.AllowedLibrariesConfig;
@@ -13,6 +14,7 @@ import com.github.ehdez73.code2req.indexing.domain.linker.AspectLinkResolver;
 import com.github.ehdez73.code2req.indexing.domain.linker.ValidatorLinkResolver;
 import com.github.ehdez73.code2req.indexing.domain.service.SecretRedactor;
 import com.github.ehdez73.code2req.infrastructure.persistence.ExecutionFindingStore;
+import com.github.ehdez73.code2req.infrastructure.persistence.FindingType;
 import com.github.ehdez73.code2req.infrastructure.persistence.FloatingLinkStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.MetricsStore;
 import com.github.ehdez73.code2req.infrastructure.persistence.TaskIdHasher;
@@ -42,11 +44,13 @@ class IndexingOrchestratorTest {
     private TaskStore taskStore;
     private TaskIdHasher taskIdHasher;
     private IndexingOrchestrator pipeline;
+    private ExecutionFindingStore executionFindingStore;
 
     @BeforeEach
     void setUp() {
         var pass1Collector = new Pass1DeclarationCollector();
-        List<AstAnalysisVisitor> visitors = List.of(new ComponentVisitor());
+        var allowedLibraries = new AllowedLibrariesConfig(null, null);
+        List<AstAnalysisVisitor> visitors = List.of(new ComponentVisitor(), new CallGraphVisitor(allowedLibraries));
         var astAnalyzer = new JavaAstAnalyzer(visitors);
         var secretRedactor = new SecretRedactor();
         taskIdHasher = new TaskIdHasher();
@@ -59,7 +63,7 @@ class IndexingOrchestratorTest {
         schema.createSchemaIfNotExists();
         taskStore = new TaskStore(jdbc);
 
-        var executionFindingStore = new ExecutionFindingStore(jdbc);
+        executionFindingStore = new ExecutionFindingStore(jdbc);
         var topicLinkStore = new TopicLinkStore(jdbc);
         var floatingLinkStore = new FloatingLinkStore(jdbc);
         var metricsStore = new MetricsStore(jdbc);
@@ -162,5 +166,43 @@ class IndexingOrchestratorTest {
 
         assertEquals(1, result.declarationRegistry().findMethod("ServiceA", "greet", 1).size());
         assertEquals(1, result.declarationRegistry().findMethod("ServiceB", "calculate", 2).size());
+    }
+
+    @Test
+    void reScanModifiedFilePurgesStaleFindings() throws IOException {
+        Path src = Files.createDirectories(tempDir.resolve("src"));
+
+        Files.writeString(src.resolve("A.java"), """
+            package com.app;
+            import org.springframework.stereotype.Component;
+            @Component public class A { public void handle() { doWork(); } private void doWork() {} }
+            """);
+
+        var report1 = new StringBuilder();
+        pipeline.execute(List.of(src.resolve("A.java")), List.<ScanTarget>of(), report1);
+
+        int edgesAfterFirst = executionFindingStore.countByType(FindingType.CALL_GRAPH_EDGE);
+        int componentsAfterFirst = executionFindingStore.countByType(FindingType.COMPONENT);
+        assertTrue(edgesAfterFirst > 0,
+            "Call graph edge should exist from handle() -> doWork()");
+        assertEquals(1, componentsAfterFirst,
+            "Component should exist for A");
+
+        Files.writeString(src.resolve("A.java"), """
+            package com.app;
+            import org.springframework.stereotype.Component;
+            @Component public class A { public void handle() { /* no more call */ } private void doWork() {} }
+            """);
+
+        var report2 = new StringBuilder();
+        pipeline.execute(List.of(src.resolve("A.java")), List.<ScanTarget>of(), report2);
+
+        int edgesAfterSecond = executionFindingStore.countByType(FindingType.CALL_GRAPH_EDGE);
+        int componentsAfterSecond = executionFindingStore.countByType(FindingType.COMPONENT);
+
+        assertEquals(0, edgesAfterSecond,
+            "Stale call graph edges must be purged after re-scan with modified content");
+        assertEquals(componentsAfterFirst, componentsAfterSecond,
+            "Component count should be stable across re-scans");
     }
 }
